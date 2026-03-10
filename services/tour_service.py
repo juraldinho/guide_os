@@ -1,8 +1,6 @@
-from database.queries import create_tour
-
 from datetime import datetime
 
-from database.queries import create_tour, get_tours_for_month
+from database.queries import create_tour, get_tours_for_month, get_tour_by_id
 from services.date_parser import parse_date_input
 
 
@@ -28,7 +26,7 @@ def save_tour(
         )
 
 
-def get_current_month_tours(user_id: int):
+def get_current_month_tours(user_id: int) -> list[dict]:
     now = datetime.now()
     month_start = now.replace(day=1).strftime("%Y-%m-%d")
 
@@ -38,4 +36,9 @@ def get_current_month_tours(user_id: int):
         next_month = now.replace(month=now.month + 1, day=1)
 
     month_end = next_month.strftime("%Y-%m-%d")
+
     return get_tours_for_month(user_id, month_start, month_end)
+
+
+def get_tour(user_id: int, tour_id: int) -> dict | None:
+    return get_tour_by_id(user_id, tour_id)
