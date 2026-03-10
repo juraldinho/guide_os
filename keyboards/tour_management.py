@@ -1,5 +1,4 @@
 from datetime import datetime
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
@@ -27,6 +26,16 @@ def get_tours_list_keyboard(tours: list[dict]) -> InlineKeyboardMarkup:
 def get_tour_view_keyboard(tour_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="tours_back")]
+            [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"tour_delete:{tour_id}")],
+            [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="tours_back")],
+        ]
+    )
+
+
+def get_delete_confirmation_keyboard(tour_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"tour_delete_confirm:{tour_id}")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data=f"tour_view:{tour_id}")],
         ]
     )

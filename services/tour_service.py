@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from database.queries import create_tour, get_tours_for_month, get_tour_by_id
+from database.queries import (
+    create_tour,
+    get_tours_for_month,
+    get_tour_by_id,
+    delete_tour_by_id,
+)
 from services.date_parser import parse_date_input
 
 
@@ -42,3 +47,6 @@ def get_current_month_tours(user_id: int) -> list[dict]:
 
 def get_tour(user_id: int, tour_id: int) -> dict | None:
     return get_tour_by_id(user_id, tour_id)
+
+def delete_tour(user_id: int, tour_id: int) -> bool:
+    return delete_tour_by_id(user_id, tour_id)

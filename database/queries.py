@@ -70,6 +70,23 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     return dict(row) if row else None
 
+def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM tours
+        WHERE id = ? AND user_id = ?
+        """,
+        (tour_id, user_id),
+    )
+
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+
+    return deleted
 
 def get_total_income(user_id: int) -> int:
     conn = get_connection()
