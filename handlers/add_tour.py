@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 
 from states.add_tour_state import AddTourState
 from services.tour_service import save_tour
-from services.date_parser import parse_single_date
+from services.date_parser import parse_date_input
 from keyboards.main_menu import get_main_menu
 
 router = Router()
@@ -26,7 +26,7 @@ def get_skip_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="Skip")],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Введите доход или нажмите Skip"
+        input_field_placeholder="Введите дневную оплату числом или нажмите Skip"
     )
 
 
@@ -58,11 +58,16 @@ async def add_tour_city(message: Message, state: FSMContext) -> None:
     await state.update_data(city=city)
     await state.set_state(AddTourState.date)
     await message.answer(
-        "Введите дату\n\n"
+        "Введите дату или диапазон дат\n\n"
         "Поддерживаются форматы:\n"
         "23/03\n"
         "23.03\n"
-        "2026-03-23"
+        "2026-03-23\n"
+        "1-2/06\n"
+        "7.03-9.03\n"
+        "1/06-2/06\n"
+        "1-2/06, 4/06\n"
+        "7.03, 9.03"
     )
 
 
@@ -71,21 +76,25 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
     date_text = message.text.strip()
 
     try:
-        normalized_date = parse_single_date(date_text)
+        parse_date_input(date_text)
     except ValueError:
         await message.answer(
             "Не удалось распознать дату.\n\n"
             "Попробуйте формат:\n"
             "23/03\n"
             "23.03\n"
-            "2026-03-23"
+            "2026-03-23\n"
+            "1-2/06\n"
+            "7.03-9.03\n"
+            "1/06-2/06\n"
+            "1-2/06, 4/06\n"
+            "7.03, 9.03"
         )
         return
 
-    await state.update_data(date_text=normalized_date)
+    await state.update_data(date_text=date_text)
     await state.set_state(AddTourState.status)
     await message.answer("Выберите статус", reply_markup=get_status_keyboard())
-
 
 @router.message(AddTourState.status)
 async def add_tour_status(message: Message, state: FSMContext) -> None:
@@ -98,7 +107,7 @@ async def add_tour_status(message: Message, state: FSMContext) -> None:
     await state.update_data(status=status)
     await state.set_state(AddTourState.income)
     await message.answer(
-        "Введите доход числом\nили нажмите Skip",
+        "Введите дневную оплату числом\nили нажмите Skip",
         reply_markup=get_skip_keyboard()
     )
 

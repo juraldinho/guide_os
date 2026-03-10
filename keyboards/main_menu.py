@@ -8,7 +8,7 @@ def get_main_menu():
         [KeyboardButton(text="📅 Календарь")],
         [KeyboardButton(text="📋 Туры")],
         [KeyboardButton(text="💰 Оплата")],
-        [KeyboardButton(text="📊Статистика")]
+        [KeyboardButton(text="📊 Статистика")]
     ]
 
     return ReplyKeyboardMarkup(

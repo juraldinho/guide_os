@@ -10,6 +10,7 @@ from handlers.calendar import router as calendar_router
 from handlers.income import router as income_router
 from database.db import init_db
 from handlers import my_tours
+from handlers import stats
 
 
 async def main() -> None:
@@ -25,6 +26,7 @@ async def main() -> None:
     dp.include_router(calendar_router)
     dp.include_router(income_router)
     dp.include_router(my_tours.router)
+    dp.include_router(stats.router)
 
 
     await dp.start_polling(bot)

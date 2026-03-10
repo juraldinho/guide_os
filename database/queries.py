@@ -95,3 +95,21 @@ def get_unpaid_tours_count(user_id: int) -> int:
     conn.close()
 
     return int(row["unpaid_count"])
+
+def get_total_tours_count(user_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM tours
+        WHERE user_id = ?
+          AND status IN ('reserved', 'confirmed')
+        """,
+        (user_id,),
+    )
+
+    result = cursor.fetchone()[0]
+    conn.close()
+    return result or 0
