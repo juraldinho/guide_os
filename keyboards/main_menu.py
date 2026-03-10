@@ -1,13 +1,17 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
-def get_main_menu() -> ReplyKeyboardMarkup:
+def get_main_menu():
+
+    keyboard = [
+        [KeyboardButton(text="Add Tour")],
+        [KeyboardButton(text="Calendar")],
+        [KeyboardButton(text="My Tours")],
+        [KeyboardButton(text="Income")],
+        [KeyboardButton(text="Stats")]
+    ]
+
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📅 Calendar"), KeyboardButton(text="Free Dates")],
-            [KeyboardButton(text="➕ Add Tour"), KeyboardButton(text="💰 Income")],
-            [KeyboardButton(text="📊 Stats")], KeyboardButton(text="My Tours")],
-        ],
-        resize_keyboard=True,
-        input_field_placeholder="Выберите действие"
+        keyboard=keyboard,
+        resize_keyboard=True
     )
