@@ -4,11 +4,11 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 def get_main_menu():
 
     keyboard = [
-        [KeyboardButton(text="Add Tour")],
-        [KeyboardButton(text="Calendar")],
-        [KeyboardButton(text="My Tours")],
-        [KeyboardButton(text="Income")],
-        [KeyboardButton(text="Stats")]
+        [KeyboardButton(text="➕ Добавить тур")],
+        [KeyboardButton(text="📅 Календарь")],
+        [KeyboardButton(text="📋 Туры")],
+        [KeyboardButton(text="💰 Оплата")],
+        [KeyboardButton(text="📊Статистика")]
     ]
 
     return ReplyKeyboardMarkup(

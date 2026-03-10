@@ -6,7 +6,7 @@ from services.income_service import get_income_summary
 router = Router()
 
 
-@router.message(F.text == "💰 Income")
+@router.message(F.text == "💰 Оплата")
 async def show_income(message: Message) -> None:
     summary = get_income_summary(message.from_user.id)
 

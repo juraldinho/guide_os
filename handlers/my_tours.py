@@ -6,7 +6,7 @@ from services.tour_service import get_current_month_tours
 router = Router()
 
 
-@router.message(lambda message: message.text == "My Tours")
+@router.message(lambda message: message.text == "📋 Туры")
 async def my_tours(message: Message):
 
     user_id = message.from_user.id

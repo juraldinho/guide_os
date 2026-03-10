@@ -30,7 +30,7 @@ def get_skip_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-@router.message(F.text == "➕ Add Tour")
+@router.message(F.text == "➕ Добавить тур")
 async def add_tour_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddTourState.company)
     await message.answer("Введите название компании")

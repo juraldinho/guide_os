@@ -57,10 +57,16 @@ def get_total_income(user_id: int) -> int:
 
     cursor.execute(
         """
-        SELECT COALESCE(SUM(income), 0) AS total_income
+        SELECT COALESCE(
+            SUM(
+                income * (julianday(end_date) - julianday(start_date) + 1)
+            ),
+            0
+        ) AS total_income
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
+          AND income IS NOT NULL
         """,
         (user_id,),
     )
@@ -69,7 +75,6 @@ def get_total_income(user_id: int) -> int:
     conn.close()
 
     return int(row["total_income"])
-
 
 def get_unpaid_tours_count(user_id: int) -> int:
     conn = get_connection()
