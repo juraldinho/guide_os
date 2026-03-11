@@ -6,22 +6,34 @@ def format_short_date(date_str: str) -> str:
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     return dt.strftime("%d-%m-%y")
 
-
 def get_tours_list_keyboard(tours: list[dict]) -> InlineKeyboardMarkup:
     buttons = []
 
     for tour in tours:
-        start_date = format_short_date(tour["start_date"])
+
+        start_raw = tour["start_date"]
+        end_raw = tour["end_date"]
+
+        start_dt = datetime.strptime(start_raw, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_raw, "%Y-%m-%d")
+
+        days = (end_dt - start_dt).days + 1
+
+        start_date = format_short_date(start_raw)
+
         company = tour["company"]
         tour_id = tour["id"]
 
-        text = f"{start_date} | {company}"
+        if days == 1:
+            text = f"{start_date} | {company}"
+        else:
+            text = f"{start_date} | {days} дня | {company}"
+
         buttons.append(
             [InlineKeyboardButton(text=text, callback_data=f"tour_view:{tour_id}")]
         )
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 
 def get_tour_view_keyboard(tour_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
