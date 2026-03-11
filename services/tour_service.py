@@ -5,7 +5,9 @@ from database.queries import (
     get_tours_for_month,
     get_tour_by_id,
     delete_tour_by_id,
+    update_tour_company,
 )
+
 from services.date_parser import parse_date_input
 
 
@@ -50,3 +52,12 @@ def get_tour(user_id: int, tour_id: int) -> dict | None:
 
 def delete_tour(user_id: int, tour_id: int) -> bool:
     return delete_tour_by_id(user_id, tour_id)
+
+def edit_tour_company(user_id: int, tour_id: int, company: str) -> bool:
+    company = company.strip()
+
+    if not company:
+        return False
+
+    return update_tour_company(user_id, tour_id, company)
+

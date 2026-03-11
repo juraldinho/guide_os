@@ -1,15 +1,20 @@
 from aiogram import Router
 from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
 from datetime import datetime
+from states.tour_edit import EditTourState
 
 from services.tour_service import (
     get_current_month_tours,
     get_tour,
     delete_tour,
+    edit_tour_company,
 )
 from keyboards.tour_management import (
     get_tours_list_keyboard,
     get_tour_view_keyboard,
+    get_edit_tour_menu_keyboard,
+    get_edit_company_keyboard,
     get_delete_confirmation_keyboard,
 )
 
@@ -84,7 +89,112 @@ async def back_to_tours_list(callback: CallbackQuery):
         reply_markup=get_tours_list_keyboard(tours),
     )
     await callback.answer()
+    
+@router.callback_query(lambda c: c.data and c.data.startswith("tour_edit_menu:"))
+async def open_edit_tour_menu(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    tour_id = int(callback.data.split(":")[1])
 
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        "Что хотите изменить?",
+        reply_markup=get_edit_tour_menu_keyboard(tour_id),
+    )
+    await callback.answer()
+
+@router.callback_query(
+    lambda c: c.data and (
+        c.data.startswith("edit_city:")
+        or c.data.startswith("edit_start_date:")
+        or c.data.startswith("edit_end_date:")
+        or c.data.startswith("edit_status:")
+        or c.data.startswith("edit_payment:")
+        or c.data.startswith("edit_income:")
+        or c.data.startswith("edit_note:")
+    )
+)
+
+async def edit_tour_placeholder(callback: CallbackQuery):
+    await callback.answer("Функция скоро будет доступна", show_alert=True)
+
+@router.callback_query(lambda c: c.data and c.data.startswith("edit_company:"))
+async def start_edit_company(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    tour_id = int(callback.data.split(":")[1])
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    await state.set_state(EditTourState.waiting_for_company)
+    await state.update_data(tour_id=tour_id)
+
+    await callback.message.edit_text(
+        f'Текущая компания: {tour["company"]}\n\n'
+        f'Введите новое название компании\n'
+        f'или выберите действие ниже:',
+        reply_markup=get_edit_company_keyboard(tour_id, tour["company"]),
+    )
+    await callback.answer()
+    
+@router.callback_query(lambda c: c.data and c.data.startswith("edit_company_keep:"))
+async def keep_current_company(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    tour_id = int(callback.data.split(":")[1])
+
+    await state.clear()
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        format_tour_card(tour),
+        reply_markup=get_tour_view_keyboard(tour_id),
+    )
+    await callback.answer()
+
+@router.message(EditTourState.waiting_for_company)
+async def process_edit_company(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    new_company = message.text.strip()
+
+    if not new_company:
+        await message.answer("Название компании не может быть пустым. Введите новое название:")
+        return
+
+    data = await state.get_data()
+    tour_id = data.get("tour_id")
+
+    if not tour_id:
+        await state.clear()
+        await message.answer("Ошибка. Откройте тур заново.")
+        return
+
+    updated = edit_tour_company(user_id, tour_id, new_company)
+    if not updated:
+        await state.clear()
+        await message.answer("Не удалось обновить компанию.")
+        return
+
+    tour = get_tour(user_id, tour_id)
+    await state.clear()
+
+    if not tour:
+        await message.answer("Компания обновлена, но тур не найден.")
+        return
+
+    await message.answer(
+        format_tour_card(tour),
+        reply_markup=get_tour_view_keyboard(tour_id),
+    )
+    
 @router.callback_query(lambda c: c.data and c.data.startswith("tour_delete:"))
 async def ask_delete_tour(callback: CallbackQuery):
     user_id = callback.from_user.id

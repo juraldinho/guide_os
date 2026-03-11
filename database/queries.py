@@ -88,6 +88,25 @@ def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
 
     return deleted
 
+def update_tour_company(user_id: int, tour_id: int, company: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE tours
+        SET company = ?
+        WHERE id = ? AND user_id = ?
+        """,
+        (company, tour_id, user_id),
+    )
+
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+
+    return updated
+
 def get_total_income(user_id: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
