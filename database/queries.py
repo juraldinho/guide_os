@@ -164,6 +164,45 @@ def update_tour_note(user_id: int, tour_id: int, note: str | None) -> bool:
 
     return updated
 
+def update_tour_status(user_id: int, tour_id: int, status: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE tours
+        SET status = ?
+        WHERE id = ? AND user_id = ?
+        """,
+        (status, tour_id, user_id),
+    )
+
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+
+    return updated
+
+
+def update_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE tours
+        SET payment_status = ?
+        WHERE id = ? AND user_id = ?
+        """,
+        (payment_status, tour_id, user_id),
+    )
+
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+
+    return updated
+
 def get_total_income(user_id: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()

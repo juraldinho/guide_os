@@ -44,21 +44,38 @@ def get_tour_view_keyboard(tour_id: int) -> InlineKeyboardMarkup:
         ]
     )
 
-def get_edit_tour_menu_keyboard(tour_id: int) -> InlineKeyboardMarkup:
+def get_edit_tour_menu_keyboard(tour: dict) -> InlineKeyboardMarkup:
+    tour_id = tour["id"]
+    status = tour["status"]
+    payment_status = tour["payment_status"]
+
+    reserved_text = "✅ Бронь" if status == "reserved" else "Бронь"
+    confirmed_text = "✅ Занято" if status == "confirmed" else "Занято"
+
+    paid_text = "✅ Оплачено" if payment_status == "paid" else "Оплачено"
+    unpaid_text = "✅ Нет оплаты" if payment_status == "unpaid" else "Нет оплаты"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Компания", callback_data=f"edit_company:{tour_id}")],
             [InlineKeyboardButton(text="Город", callback_data=f"edit_city:{tour_id}")],
             [InlineKeyboardButton(text="Дата начала", callback_data=f"edit_start_date:{tour_id}")],
             [InlineKeyboardButton(text="Дата окончания", callback_data=f"edit_end_date:{tour_id}")],
-            [InlineKeyboardButton(text="Статус", callback_data=f"edit_status:{tour_id}")],
-            [InlineKeyboardButton(text="Оплата", callback_data=f"edit_payment:{tour_id}")],
             [InlineKeyboardButton(text="Стоимость в день", callback_data=f"edit_income:{tour_id}")],
             [InlineKeyboardButton(text="Заметка", callback_data=f"edit_note:{tour_id}")],
+
+            [
+                InlineKeyboardButton(text=reserved_text, callback_data=f"set_status_reserved:{tour_id}"),
+                InlineKeyboardButton(text=confirmed_text, callback_data=f"set_status_confirmed:{tour_id}"),
+            ],
+            [
+                InlineKeyboardButton(text=unpaid_text, callback_data=f"set_payment_unpaid:{tour_id}"),
+                InlineKeyboardButton(text=paid_text, callback_data=f"set_payment_paid:{tour_id}"),
+            ],
+
             [InlineKeyboardButton(text="⬅️ Назад к туру", callback_data=f"tour_view:{tour_id}")],
         ]
     )
-
 def get_delete_confirmation_keyboard(tour_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

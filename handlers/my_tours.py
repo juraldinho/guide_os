@@ -12,6 +12,8 @@ from services.tour_service import (
     edit_tour_city,
     edit_tour_income,
     edit_tour_note,
+    edit_tour_status,
+    edit_tour_payment_status,
 )
 
 from keyboards.tour_management import (
@@ -31,20 +33,36 @@ def format_date(date_str: str) -> str:
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     return dt.strftime("%d-%m-%y")
 
+def format_tour_status(status: str) -> str:
+    status_map = {
+        "reserved": "Бронь",
+        "confirmed": "Занято",
+    }
+    return status_map.get(status, status)
+
+
+def format_payment_status(payment_status: str) -> str:
+    payment_map = {
+        "paid": "Оплачено",
+        "unpaid": "Нет оплаты",
+    }
+    return payment_map.get(payment_status, payment_status)
+
 def format_tour_card(tour: dict) -> str:
     income = tour["income"] if tour["income"] is not None else "—"
     note = tour["note"] if tour["note"] else "—"
 
     start_date = format_date(tour["start_date"])
     end_date = format_date(tour["end_date"])
-
+    tour_status = format_tour_status(tour["status"])
+    payment_status = format_payment_status(tour["payment_status"])
     return (
         f"Компания: {tour['company']}\n"
         f"Город: {tour['city']}\n"
         f"Дата начала: {start_date}\n"
         f"Дата окончания: {end_date}\n"
-        f"Статус: {tour['status']}\n"
-        f"Оплата: {tour['payment_status']}\n"
+        f"Статус: {tour_status}\n"
+        f"Оплата: {payment_status}\n"
         f"Стоимость в день: {income}\n"
         f"Заметка: {note}"
     )
@@ -109,7 +127,66 @@ async def open_edit_tour_menu(callback: CallbackQuery):
 
     await callback.message.edit_text(
         "Что хотите изменить?",
-        reply_markup=get_edit_tour_menu_keyboard(tour_id),
+        reply_markup=get_edit_tour_menu_keyboard(tour),
+    )
+    await callback.answer()
+    
+@router.callback_query(lambda c: c.data and c.data.startswith("set_status_"))
+async def set_tour_status(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    action, tour_id_str = callback.data.split(":")
+    tour_id = int(tour_id_str)
+
+    if action == "set_status_reserved":
+        new_status = "reserved"
+    elif action == "set_status_confirmed":
+        new_status = "confirmed"
+    else:
+        await callback.answer("Некорректный статус", show_alert=True)
+        return
+
+    updated = edit_tour_status(user_id, tour_id, new_status)
+    if not updated:
+        await callback.answer("Не удалось обновить статус", show_alert=True)
+        return
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        "Что хотите изменить?",
+        reply_markup=get_edit_tour_menu_keyboard(tour),
+    )
+    await callback.answer()
+@router.callback_query(lambda c: c.data and c.data.startswith("set_payment_"))
+async def set_tour_payment_status(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    action, tour_id_str = callback.data.split(":")
+    tour_id = int(tour_id_str)
+
+    if action == "set_payment_paid":
+        new_payment_status = "paid"
+    elif action == "set_payment_unpaid":
+        new_payment_status = "unpaid"
+    else:
+        await callback.answer("Некорректный статус оплаты", show_alert=True)
+        return
+
+    updated = edit_tour_payment_status(user_id, tour_id, new_payment_status)
+    if not updated:
+        await callback.answer("Не удалось обновить оплату", show_alert=True)
+        return
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        "Что хотите изменить?",
+        reply_markup=get_edit_tour_menu_keyboard(tour),
     )
     await callback.answer()
 
@@ -117,8 +194,6 @@ async def open_edit_tour_menu(callback: CallbackQuery):
     lambda c: c.data and (
         c.data.startswith("edit_start_date:")
         or c.data.startswith("edit_end_date:")
-        or c.data.startswith("edit_status:")
-        or c.data.startswith("edit_payment:")
     )
 )
 

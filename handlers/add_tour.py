@@ -13,7 +13,7 @@ router = Router()
 def get_status_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="reserved"), KeyboardButton(text="confirmed")],
+            [KeyboardButton(text="Бронь"), KeyboardButton(text="Занято")],
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите статус"
@@ -23,10 +23,10 @@ def get_status_keyboard() -> ReplyKeyboardMarkup:
 def get_skip_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Skip")],
+            [KeyboardButton(text="Пропустить")],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Введите дневную оплату числом или нажмите Skip"
+        input_field_placeholder="Введите дневную оплату числом или нажмите Пропустить"
     )
 
 
@@ -100,14 +100,14 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
 async def add_tour_status(message: Message, state: FSMContext) -> None:
     status = message.text.strip()
 
-    if status not in {"reserved", "confirmed"}:
+    if status not in {"Бронь", "Занято"}:
         await message.answer("Выберите статус кнопкой")
         return
 
     await state.update_data(status=status)
     await state.set_state(AddTourState.income)
     await message.answer(
-        "Введите дневную оплату числом\nили нажмите Skip",
+        "Введите дневную оплату числом\nили нажмите Пропустить",
         reply_markup=get_skip_keyboard()
     )
 
@@ -116,7 +116,7 @@ async def add_tour_status(message: Message, state: FSMContext) -> None:
 async def add_tour_income(message: Message, state: FSMContext) -> None:
     raw_income = message.text.strip()
 
-    if raw_income == "Skip":
+    if raw_income == "Пропустить":
         income = None
     else:
         if not raw_income.isdigit():

@@ -9,6 +9,8 @@ from database.queries import (
     update_tour_city,
     update_tour_income,
     update_tour_note,
+    update_tour_status,
+    update_tour_payment_status,
 )
 
 from services.date_parser import parse_date_input
@@ -85,3 +87,18 @@ def edit_tour_note(user_id: int, tour_id: int, note: str) -> bool:
         note = None
 
     return update_tour_note(user_id, tour_id, note)
+
+def edit_tour_status(user_id: int, tour_id: int, status: str) -> bool:
+    if status not in ("reserved", "confirmed"):
+        return False
+
+    return update_tour_status(user_id, tour_id, status)
+
+
+def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
+    if payment_status not in ("paid", "unpaid"):
+        return False
+
+    return update_tour_payment_status(user_id, tour_id, payment_status)
+
+
