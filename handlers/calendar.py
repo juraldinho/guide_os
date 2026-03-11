@@ -1,22 +1,118 @@
-from aiogram import Router, F
-from aiogram.types import Message
+from datetime import date
 
-from services.calendar_service import build_month_calendar, get_free_days
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
+
+from keyboards.calendar import get_month_picker_keyboard, get_month_actions_keyboard
+from keyboards.tour_management import get_tours_list_keyboard
+from services.calendar_service import (
+    get_month_window,
+    shift_month,
+    build_month_calendar,
+    get_free_days,
+    get_month_tours,
+)
 from utils.formatters import format_month_calendar, format_free_days
 
 router = Router()
 
 
 @router.message(F.text == "📅 Календарь")
-async def show_calendar(message: Message) -> None:
-    calendar_data = build_month_calendar(message.from_user.id)
+async def show_calendar_entry(message: Message) -> None:
+    today = date.today()
+    months = get_month_window(today.year, today.month)
+
+    await message.answer(
+        "Выберите месяц:",
+        reply_markup=get_month_picker_keyboard(months, today.year, today.month),
+    )
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_picker:"))
+async def show_month_picker(callback: CallbackQuery) -> None:
+    _, year_str, month_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+
+    months = get_month_window(year, month)
+
+    await callback.message.edit_text(
+        "Выберите месяц:",
+        reply_markup=get_month_picker_keyboard(months, year, month),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_shift:"))
+async def shift_calendar_window(callback: CallbackQuery) -> None:
+    _, year_str, month_str, offset_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+    offset = int(offset_str)
+
+    new_year, new_month = shift_month(year, month, offset)
+    months = get_month_window(new_year, new_month)
+
+    await callback.message.edit_text(
+        "Выберите месяц:",
+        reply_markup=get_month_picker_keyboard(months, new_year, new_month),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_month:"))
+async def open_month(callback: CallbackQuery) -> None:
+    _, year_str, month_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+
+    user_id = callback.from_user.id
+    calendar_data = build_month_calendar(user_id, year, month)
     text = format_month_calendar(calendar_data)
-    await message.answer(text)
-    await message.answer("Нажми: Free Dates")
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_month_actions_keyboard(year, month, year, month),
+    )
+    await callback.answer()
 
 
-@router.message(F.text == "Free Dates")
-async def show_free_dates(message: Message) -> None:
-    free_days_data = get_free_days(message.from_user.id)
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_free:"))
+async def open_free_days(callback: CallbackQuery) -> None:
+    _, year_str, month_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+
+    user_id = callback.from_user.id
+    free_days_data = get_free_days(user_id, year, month)
     text = format_free_days(free_days_data)
-    await message.answer(text)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_month_actions_keyboard(year, month, year, month),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_tours:"))
+async def open_month_tours(callback: CallbackQuery) -> None:
+    _, year_str, month_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+
+    user_id = callback.from_user.id
+    tours = get_month_tours(user_id, year, month)
+
+    if not tours:
+        await callback.message.edit_text(
+            "В этом месяце туров нет.",
+            reply_markup=get_month_actions_keyboard(year, month, year, month),
+        )
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        f"Туры за {month:02d}.{year}:",
+        reply_markup=get_tours_list_keyboard(tours, year, month),
+    )
+    await callback.answer()

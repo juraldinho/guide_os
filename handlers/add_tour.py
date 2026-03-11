@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -98,19 +102,23 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
 
 @router.message(AddTourState.status)
 async def add_tour_status(message: Message, state: FSMContext) -> None:
-    status = message.text.strip()
+    raw_status = message.text.strip()
 
-    if status not in {"Бронь", "Занято"}:
+    status_map = {
+        "Бронь": "reserved",
+        "Занято": "confirmed",
+    }
+
+    if raw_status not in status_map:
         await message.answer("Выберите статус кнопкой")
         return
 
-    await state.update_data(status=status)
+    await state.update_data(status=status_map[raw_status])
     await state.set_state(AddTourState.income)
     await message.answer(
         "Введите дневную оплату числом\nили нажмите Пропустить",
         reply_markup=get_skip_keyboard()
     )
-
 
 @router.message(AddTourState.income)
 async def add_tour_income(message: Message, state: FSMContext) -> None:

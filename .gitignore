@@ -7,4 +7,5 @@ guide_os.db
 .idea/
 .vscode/
 .DS_Store
-
+*.tar.gz
+project_code.txt

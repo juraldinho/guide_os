@@ -1,17 +1,83 @@
-from database.queries import (
-    get_total_income,
-    get_unpaid_tours_count,
-    get_total_tours_count,
-)
+from datetime import date, datetime, timedelta
+
+from database.queries import get_tours_for_month
+
+
+def _get_month_range(year: int, month: int) -> tuple[date, date]:
+    month_start = date(year, month, 1)
+
+    if month == 12:
+        next_month_start = date(year + 1, 1, 1)
+    else:
+        next_month_start = date(year, month + 1, 1)
+
+    return month_start, next_month_start
+
+
+def _parse_date(date_str: str) -> date:
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
+
+
+def _calculate_overlap_days(
+    tour_start: date,
+    tour_end: date,
+    month_start: date,
+    next_month_start: date,
+) -> int:
+    overlap_start = max(tour_start, month_start)
+    overlap_end = min(tour_end + timedelta(days=1), next_month_start)
+
+    days = (overlap_end - overlap_start).days
+    return max(days, 0)
 
 
 def get_stats_summary(user_id: int) -> dict:
-    total_tours = get_total_tours_count(user_id)
-    total_income = get_total_income(user_id)
-    unpaid_tours = get_unpaid_tours_count(user_id)
+    today = date.today()
+    year = today.year
+    month = today.month
+
+    month_start_date, next_month_start_date = _get_month_range(year, month)
+
+    month_start = month_start_date.isoformat()
+    month_end = (next_month_start_date - timedelta(days=1)).isoformat()
+
+    tours = get_tours_for_month(user_id, month_start, month_end)
+
+    total_tours = 0
+    working_days = 0
+    total_income = 0
+    paid_tours = 0
+    unpaid_tours = 0
+
+    for tour in tours:
+        total_tours += 1
+
+        tour_start = _parse_date(tour["start_date"])
+        tour_end = _parse_date(tour["end_date"])
+
+        days_in_month = _calculate_overlap_days(
+            tour_start,
+            tour_end,
+            month_start_date,
+            next_month_start_date,
+        )
+
+        working_days += days_in_month
+
+        daily_income = tour["income"] or 0
+        total_income += daily_income * days_in_month
+
+        if tour["payment_status"] == "paid":
+            paid_tours += 1
+        else:
+            unpaid_tours += 1
 
     return {
+        "year": year,
+        "month": month,
         "total_tours": total_tours,
+        "working_days": working_days,
         "total_income": total_income,
+        "paid_tours": paid_tours,
         "unpaid_tours": unpaid_tours,
     }
