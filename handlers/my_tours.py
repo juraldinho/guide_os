@@ -14,6 +14,7 @@ from services.tour_service import (
     edit_tour_note,
     edit_tour_status,
     edit_tour_payment_status,
+    edit_tour_dates,
 )
 
 from keyboards.tour_management import (
@@ -160,6 +161,7 @@ async def set_tour_status(callback: CallbackQuery):
         reply_markup=get_edit_tour_menu_keyboard(tour),
     )
     await callback.answer()
+    
 @router.callback_query(lambda c: c.data and c.data.startswith("set_payment_"))
 async def set_tour_payment_status(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -190,15 +192,6 @@ async def set_tour_payment_status(callback: CallbackQuery):
     )
     await callback.answer()
 
-@router.callback_query(
-    lambda c: c.data and (
-        c.data.startswith("edit_start_date:")
-        or c.data.startswith("edit_end_date:")
-    )
-)
-
-async def edit_tour_placeholder(callback: CallbackQuery):
-    await callback.answer("Функция скоро будет доступна", show_alert=True)
 
 @router.callback_query(lambda c: c.data and c.data.startswith("edit_company:"))
 async def start_edit_company(callback: CallbackQuery, state: FSMContext):
@@ -288,6 +281,82 @@ async def start_edit_note(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_edit_note_keyboard(tour_id, tour["note"]),
     )
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("edit_dates:"))
+async def start_edit_dates(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    tour_id = int(callback.data.split(":")[1])
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    current_start = format_date(tour["start_date"])
+    current_end = format_date(tour["end_date"])
+
+    await state.set_state(EditTourState.waiting_for_dates)
+    await state.update_data(tour_id=tour_id)
+
+    await callback.message.edit_text(
+        f"Текущие даты: {current_start} — {current_end}\n\n"
+        f"Введите новую дату или диапазон.\n\n"
+        f"Примеры:\n"
+        f"12/03\n"
+        f"12-14/03\n"
+        f"2026-03-12",
+    )
+    await callback.answer()
+
+
+@router.message(EditTourState.waiting_for_dates)
+async def process_edit_dates(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    date_text = message.text.strip()
+
+    data = await state.get_data()
+    tour_id = data.get("tour_id")
+
+    if not tour_id:
+        await state.clear()
+        await message.answer("Ошибка. Откройте тур заново.")
+        return
+
+    try:
+        updated = edit_tour_dates(user_id, tour_id, date_text)
+    except ValueError:
+        await message.answer(
+            "Не удалось распознать дату.\n\n"
+            "Введите дату заново.\n"
+            "Примеры:\n"
+            "12/03\n"
+            "12-14/03\n"
+            "2026-03-12"
+        )
+        return
+
+    if not updated:
+        await message.answer(
+            "Нужна одна дата или один диапазон.\n\n"
+            "Примеры:\n"
+            "12/03\n"
+            "12-14/03\n"
+            "2026-03-12"
+        )
+        return
+
+    tour = get_tour(user_id, tour_id)
+    await state.clear()
+
+    if not tour:
+        await message.answer("Даты обновлены, но тур не найден.")
+        return
+
+    await message.answer(
+        format_tour_card(tour),
+        reply_markup=get_tour_view_keyboard(tour_id),
+    )
 
 @router.callback_query(lambda c: c.data and c.data.startswith("edit_note_keep:"))
 async def keep_current_note(callback: CallbackQuery, state: FSMContext):

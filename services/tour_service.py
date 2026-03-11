@@ -11,6 +11,7 @@ from database.queries import (
     update_tour_note,
     update_tour_status,
     update_tour_payment_status,
+    update_tour_dates,
 )
 
 from services.date_parser import parse_date_input
@@ -101,4 +102,17 @@ def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) ->
 
     return update_tour_payment_status(user_id, tour_id, payment_status)
 
+def edit_tour_dates(user_id: int, tour_id: int, date_text: str) -> bool:
+    intervals = parse_date_input(date_text)
 
+    if len(intervals) != 1:
+        return False
+
+    interval = intervals[0]
+
+    return update_tour_dates(
+        user_id=user_id,
+        tour_id=tour_id,
+        start_date=interval["start_date"],
+        end_date=interval["end_date"],
+    )

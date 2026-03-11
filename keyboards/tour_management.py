@@ -59,8 +59,7 @@ def get_edit_tour_menu_keyboard(tour: dict) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="Компания", callback_data=f"edit_company:{tour_id}")],
             [InlineKeyboardButton(text="Город", callback_data=f"edit_city:{tour_id}")],
-            [InlineKeyboardButton(text="Дата начала", callback_data=f"edit_start_date:{tour_id}")],
-            [InlineKeyboardButton(text="Дата окончания", callback_data=f"edit_end_date:{tour_id}")],
+            [InlineKeyboardButton(text="Даты", callback_data=f"edit_dates:{tour_id}")],
             [InlineKeyboardButton(text="Стоимость в день", callback_data=f"edit_income:{tour_id}")],
             [InlineKeyboardButton(text="Заметка", callback_data=f"edit_note:{tour_id}")],
 
@@ -76,6 +75,7 @@ def get_edit_tour_menu_keyboard(tour: dict) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="⬅️ Назад к туру", callback_data=f"tour_view:{tour_id}")],
         ]
     )
+
 def get_delete_confirmation_keyboard(tour_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

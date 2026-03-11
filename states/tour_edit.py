@@ -6,3 +6,4 @@ class EditTourState(StatesGroup):
     waiting_for_city = State()
     waiting_for_income = State()
     waiting_for_note = State()
+    waiting_for_dates = State()

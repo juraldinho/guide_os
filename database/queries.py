@@ -203,6 +203,25 @@ def update_tour_payment_status(user_id: int, tour_id: int, payment_status: str) 
 
     return updated
 
+def update_tour_dates(user_id: int, tour_id: int, start_date: str, end_date: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE tours
+        SET start_date = ?, end_date = ?
+        WHERE id = ? AND user_id = ?
+        """,
+        (start_date, end_date, tour_id, user_id),
+    )
+
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+
+    return updated
+
 def get_total_income(user_id: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
