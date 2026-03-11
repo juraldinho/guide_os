@@ -53,7 +53,7 @@ def get_edit_tour_menu_keyboard(tour_id: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="Дата окончания", callback_data=f"edit_end_date:{tour_id}")],
             [InlineKeyboardButton(text="Статус", callback_data=f"edit_status:{tour_id}")],
             [InlineKeyboardButton(text="Оплата", callback_data=f"edit_payment:{tour_id}")],
-            [InlineKeyboardButton(text="Доход в день", callback_data=f"edit_income:{tour_id}")],
+            [InlineKeyboardButton(text="Стоимость в день", callback_data=f"edit_income:{tour_id}")],
             [InlineKeyboardButton(text="Заметка", callback_data=f"edit_note:{tour_id}")],
             [InlineKeyboardButton(text="⬅️ Назад к туру", callback_data=f"tour_view:{tour_id}")],
         ]
@@ -73,6 +73,52 @@ def get_edit_company_keyboard(tour_id: int, current_company: str) -> InlineKeybo
             [InlineKeyboardButton(
                 text=f'Оставить "{current_company}"',
                 callback_data=f"edit_company_keep:{tour_id}"
+            )],
+            [InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=f"tour_edit_menu:{tour_id}"
+            )],
+        ]
+    )
+
+def get_edit_city_keyboard(tour_id: int, current_city: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=f'Оставить "{current_city}"',
+                callback_data=f"edit_city_keep:{tour_id}"
+            )],
+            [InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=f"tour_edit_menu:{tour_id}"
+            )],
+        ]
+    )
+
+def get_edit_income_keyboard(tour_id: int, current_income) -> InlineKeyboardMarkup:
+    income_text = current_income if current_income is not None else "—"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=f'Оставить "{income_text}"',
+                callback_data=f"edit_income_keep:{tour_id}"
+            )],
+            [InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=f"tour_edit_menu:{tour_id}"
+            )],
+        ]
+    )
+
+def get_edit_note_keyboard(tour_id: int, current_note: str | None) -> InlineKeyboardMarkup:
+    note_text = current_note if current_note else "—"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=f'Оставить "{note_text}"',
+                callback_data=f"edit_note_keep:{tour_id}"
             )],
             [InlineKeyboardButton(
                 text="⬅️ Назад",

@@ -6,6 +6,9 @@ from database.queries import (
     get_tour_by_id,
     delete_tour_by_id,
     update_tour_company,
+    update_tour_city,
+    update_tour_income,
+    update_tour_note,
 )
 
 from services.date_parser import parse_date_input
@@ -61,3 +64,24 @@ def edit_tour_company(user_id: int, tour_id: int, company: str) -> bool:
 
     return update_tour_company(user_id, tour_id, company)
 
+def edit_tour_city(user_id: int, tour_id: int, city: str) -> bool:
+    city = city.strip()
+
+    if not city:
+        return False
+
+    return update_tour_city(user_id, tour_id, city)
+
+def edit_tour_income(user_id: int, tour_id: int, income: int) -> bool:
+    if income < 0:
+        return False
+
+    return update_tour_income(user_id, tour_id, income)
+
+def edit_tour_note(user_id: int, tour_id: int, note: str) -> bool:
+    note = note.strip()
+
+    if not note:
+        note = None
+
+    return update_tour_note(user_id, tour_id, note)
