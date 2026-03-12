@@ -31,7 +31,7 @@ def get_skip_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="Пропустить")],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Введите дневную оплату числом или нажмите Пропустить"
+        input_field_placeholder="Введите оплату в долларах (например 100)"
     )
 
 def get_company_keyboard() -> ReplyKeyboardMarkup:
@@ -145,10 +145,12 @@ async def add_tour_status(message: Message, state: FSMContext) -> None:
     await state.update_data(status=status_map[raw_status])
     await state.set_state(AddTourState.income)
     await message.answer(
-        "Введите дневную оплату числом\nили нажмите Пропустить",
+        "Введите дневную оплату в долларах\n"
+        "Например: 100\n"
+        "Знак $ вводить не нужно\n\n"
+        "Или нажмите Пропустить",
         reply_markup=get_skip_keyboard()
     )
-
 
 @router.message(AddTourState.income)
 async def add_tour_income(message: Message, state: FSMContext) -> None:

@@ -230,13 +230,13 @@ def get_total_income(user_id: int) -> int:
     cursor.execute(
         """
         SELECT COALESCE(
-            SUM(income * (julianday(end_date) - julianday(start_date) + 1)),
-            0
+            SUM(income * (julianday(end_date) - julianday(start_date) + 1)), 0
         ) AS total_income
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
           AND income IS NOT NULL
+          AND entry_type = 'tour'
         """,
         (user_id,),
     )
@@ -258,6 +258,7 @@ def get_unpaid_tours_count(user_id: int) -> int:
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
           AND payment_status = 'unpaid'
+          AND entry_type = 'tour'
         """,
         (user_id,),
     )
@@ -266,7 +267,6 @@ def get_unpaid_tours_count(user_id: int) -> int:
     conn.close()
 
     return int(row["unpaid_count"])
-
 
 def get_total_tours_count(user_id: int) -> int:
     conn = get_connection()
@@ -278,6 +278,7 @@ def get_total_tours_count(user_id: int) -> int:
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
+          AND entry_type = 'tour'
         """,
         (user_id,),
     )
@@ -286,3 +287,25 @@ def get_total_tours_count(user_id: int) -> int:
     conn.close()
 
     return int(row["total_count"]) if row else 0
+
+
+def get_all_tours_for_stats(user_id: int) -> list[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, company, city, start_date, end_date, status, income, payment_status, note
+        FROM tours
+        WHERE user_id = ?
+          AND status IN ('reserved', 'confirmed')
+        ORDER BY start_date ASC
+        """,
+        (user_id,),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
