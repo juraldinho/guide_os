@@ -340,3 +340,50 @@ def get_free_day_card_keyboard(date_str: str, year: int, month: int) -> InlineKe
             ],
         ]
     )
+
+
+def get_multiple_day_entries_keyboard(
+    date_str: str,
+    entries: list[dict],
+    year: int,
+    month: int,
+) -> InlineKeyboardMarkup:
+    buttons = []
+
+    for entry in entries:
+        if entry.get("entry_type") == "day_off":
+            label = "У меня выходной"
+        else:
+            label = entry.get("company", "—")
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"multiple_day_entry:{entry['id']}:{date_str}:{year}:{month}"
+                )
+            ]
+        )
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад к дням месяца",
+                callback_data=f"cal_tours:{year}:{month}"
+            )
+        ]
+    )
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_multiple_selected_entry_keyboard(date_str: str, year: int, month: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад",
+                    callback_data=f"day_card:{date_str}:{year}:{month}"
+                )
+            ]
+        ]
+    )

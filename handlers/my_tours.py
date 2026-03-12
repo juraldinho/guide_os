@@ -2,6 +2,8 @@ from services.day_view_service import build_day_entries_for_month
 from calendar import monthrange
 from datetime import datetime, date
 
+from database.queries import get_tours_for_month, get_tours_by_group_id
+
 from services.day_card_service import get_day_card_data
 
 from states.add_tour_state import AddTourState
@@ -36,6 +38,8 @@ from keyboards.tour_management import (
     get_test_day_cards_keyboard,
     get_day_entries_keyboard,
     get_free_day_card_keyboard,
+    get_multiple_day_entries_keyboard,
+    get_multiple_selected_entry_keyboard,
 )
 
 router = Router()
@@ -152,6 +156,18 @@ def parse_day_cards_month_context(callback_data: str) -> tuple[int, int]:
     month = int(parts[2])
     return year, month
 
+def parse_multiple_day_entry_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_entry:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
 @router.callback_query(lambda c: c.data and c.data.startswith("create_tour_from_day:"))
 async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):
     date_str, year, month = parse_create_tour_from_day_context(callback.data)
@@ -176,17 +192,9 @@ def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
 
     lines = [
         f"Дата: {date_formatted}",
-        "На эту дату найдено несколько записей:",
-        "",
+        "На эту дату найдено несколько записей.",
+        "Выберите карточку:",
     ]
-
-    for entry in entries:
-        if entry.get("entry_type") == "day_off":
-            label = "У меня выходной"
-        else:
-            label = entry.get("company", "—")
-
-        lines.append(f"• {label}")
 
     return "\n".join(lines)
 
@@ -274,7 +282,12 @@ async def open_day_card(callback: CallbackQuery):
     if card_data["kind"] == "multiple":
         await callback.message.edit_text(
             format_multiple_day_entries(date_str, card_data["entries"]),
-            reply_markup=get_day_card_keyboard(year, month),
+            reply_markup=get_multiple_day_entries_keyboard(
+                date_str,
+                card_data["entries"],
+                year,
+                month,
+            ),
         )
         await callback.answer()
         return
@@ -282,6 +295,22 @@ async def open_day_card(callback: CallbackQuery):
     await callback.message.edit_text(
         card_data["text"],
         reply_markup=get_day_card_keyboard(year, month),
+    )
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data and c.data.startswith("multiple_day_entry:"))
+async def open_multiple_day_entry(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    tour_id, date_str, year, month = parse_multiple_day_entry_context(callback.data)
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        build_selected_day_entry_text(date_str, tour),
+        reply_markup=get_multiple_selected_entry_keyboard(date_str, year, month),
     )
     await callback.answer()
 
@@ -824,4 +853,63 @@ async def process_edit_note(message: Message, state: FSMContext):
     await message.answer(
         format_tour_card(tour),
         reply_markup=get_tour_view_keyboard(tour_id, year, month),
+    )
+
+def _format_range_for_title(start_date: str, end_date: str) -> str:
+    start_obj = datetime.strptime(start_date, "%Y-%m-%d")
+    end_obj = datetime.strptime(end_date, "%Y-%m-%d")
+
+    if start_date == end_date:
+        return end_obj.strftime("%d.%m.%y")
+
+    if start_obj.year == end_obj.year and start_obj.month == end_obj.month:
+        return f"{start_obj.strftime('%d')}-{end_obj.strftime('%d.%m.%y')}"
+
+    return f"{start_obj.strftime('%d.%m.%y')}-{end_obj.strftime('%d.%m.%y')}"
+
+
+def _build_tour_title_from_group_rows(group_rows: list[dict]) -> str:
+    if not group_rows:
+        return "—"
+
+    sorted_rows = sorted(
+        group_rows,
+        key=lambda row: (row["start_date"], row["end_date"], row["id"]),
+    )
+
+    company = sorted_rows[0]["company"].strip()
+    ranges = [
+        _format_range_for_title(row["start_date"], row["end_date"])
+        for row in sorted_rows
+    ]
+    return f"{','.join(ranges)}-{company}"
+
+
+def build_selected_day_entry_text(selected_date: str, row: dict) -> str:
+    tour_group_id = row.get("tour_group_id")
+
+    if tour_group_id:
+        group_rows = [dict(item) for item in get_tours_by_group_id(row["user_id"], tour_group_id)]
+    else:
+        group_rows = [row]
+
+    tour_title = _build_tour_title_from_group_rows(group_rows)
+
+    income = row["income"] if row["income"] is not None else "—"
+    note = row["note"] if row["note"] else "—"
+
+    if row.get("entry_type") == "day_off":
+        payment_status = "Нет оплаты"
+    else:
+        payment_status = format_payment_status(row["payment_status"])
+
+    return (
+        f"Тур: {tour_title}\n"
+        f"Дата: {format_date(selected_date)}\n"
+        f"Компания: {row['company']}\n"
+        f"Город: {row['city']}\n"
+        f"Статус: {format_tour_status(row['status'])}\n"
+        f"Оплата: {payment_status}\n"
+        f"Стоимость в день: {income}\n"
+        f"Заметка: {note}"
     )
