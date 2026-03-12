@@ -9,7 +9,14 @@ from services.day_card_service import get_day_card_data
 from states.add_tour_state import AddTourState
 
 from aiogram import Router
-from aiogram.types import Message, CallbackQuery
+
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
+
 from aiogram.fsm.context import FSMContext
 
 from database.queries import get_tours_for_month
@@ -168,6 +175,18 @@ def parse_multiple_day_entry_context(callback_data: str) -> tuple[int, str, int,
     month = int(parts[4])
     return tour_id, date_str, year, month
 
+def parse_multiple_day_delete_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_delete:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
 @router.callback_query(lambda c: c.data and c.data.startswith("create_tour_from_day:"))
 async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):
     date_str, year, month = parse_create_tour_from_day_context(callback.data)
@@ -310,7 +329,90 @@ async def open_multiple_day_entry(callback: CallbackQuery):
 
     await callback.message.edit_text(
         build_selected_day_entry_text(date_str, tour),
-        reply_markup=get_multiple_selected_entry_keyboard(date_str, year, month),
+        reply_markup=get_multiple_selected_entry_keyboard(tour_id, date_str, year, month),
+    )
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data and c.data.startswith("multiple_day_delete:"))
+async def ask_delete_multiple_day_entry(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    tour_id, date_str, year, month = parse_multiple_day_delete_context(callback.data)
+
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        "Удалить этот тур?",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Да, удалить",
+                        callback_data=f"multiple_day_delete_confirm:{tour_id}:{date_str}:{year}:{month}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена",
+                        callback_data=f"multiple_day_entry:{tour_id}:{date_str}:{year}:{month}"
+                    )
+                ],
+            ]
+        ),
+    )
+    await callback.answer()
+
+def parse_multiple_day_delete_confirm_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_delete_confirm:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
+@router.callback_query(lambda c: c.data and c.data.startswith("multiple_day_delete_confirm:"))
+async def confirm_delete_multiple_day_entry(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    tour_id, date_str, year, month = parse_multiple_day_delete_confirm_context(callback.data)
+
+    deleted = delete_tour(user_id, tour_id)
+    if not deleted:
+        await callback.answer("Тур не найден или уже удалён", show_alert=True)
+        return
+
+    # После удаления возвращаем пользователя обратно в карточку этого дня
+    card_data = get_day_card_data(user_id, date_str)
+
+    if card_data["kind"] == "free":
+        await callback.message.edit_text(
+            f"Тур удалён.\n\n{card_data['text']}",
+            reply_markup=get_free_day_card_keyboard(date_str, year, month),
+        )
+        await callback.answer()
+        return
+
+    if card_data["kind"] == "multiple":
+        await callback.message.edit_text(
+            f"Тур удалён.\n\n{format_multiple_day_entries(date_str, card_data['entries'])}",
+            reply_markup=get_multiple_day_entries_keyboard(
+                date_str,
+                card_data["entries"],
+                year,
+                month,
+            ),
+        )
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        f"Тур удалён.\n\n{card_data['text']}",
+        reply_markup=get_day_card_keyboard(year, month),
     )
     await callback.answer()
 

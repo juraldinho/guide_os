@@ -376,9 +376,27 @@ def get_multiple_day_entries_keyboard(
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def get_multiple_selected_entry_keyboard(date_str: str, year: int, month: int) -> InlineKeyboardMarkup:
+def get_multiple_selected_entry_keyboard(
+    tour_id: int,
+    date_str: str,
+    year: int,
+    month: int
+) -> InlineKeyboardMarkup:
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✏️ Редактировать",
+                    callback_data=f"tour_edit_menu:{tour_id}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить",
+                    callback_data=f"multiple_day_delete:{tour_id}:{date_str}:{year}:{month}"
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="⬅️ Назад",
