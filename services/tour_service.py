@@ -24,6 +24,7 @@ def save_tour(
     date_text: str,
     status: str,
     income: int | None = None,
+    entry_type: str = "tour",
 ) -> None:
     intervals = parse_date_input(date_text)
 
@@ -36,8 +37,19 @@ def save_tour(
             end_date=interval["end_date"],
             status=status.strip(),
             income=income,
+            entry_type=entry_type,
         )
 
+def save_day_off(user_id: int, date_text: str) -> None:
+    save_tour(
+        user_id=user_id,
+        company="У меня выходной",
+        city="—",
+        date_text=date_text,
+        status="confirmed",
+        income=0,
+        entry_type="day_off",
+    )
 
 def get_current_month_tours(user_id: int) -> list[dict]:
     now = datetime.now()

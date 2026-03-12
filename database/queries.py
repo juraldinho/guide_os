@@ -10,6 +10,7 @@ def create_tour(
     status: str,
     income: int | None = None,
     note: str | None = None,
+    entry_type: str = "tour",
 ) -> None:
     conn = get_connection()
     cursor = conn.cursor()
@@ -17,11 +18,11 @@ def create_tour(
     cursor.execute(
         """
         INSERT INTO tours (
-            user_id, company, city, start_date, end_date, status, income, note
+            user_id, company, city, start_date, end_date, status, income, note, entry_type
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user_id, company, city, start_date, end_date, status, income, note),
+        (user_id, company, city, start_date, end_date, status, income, note, entry_type),
     )
 
     conn.commit()
@@ -34,7 +35,7 @@ def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[
 
     cursor.execute(
         """
-        SELECT id, company, city, start_date, end_date, status, income, payment_status, note
+        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
@@ -57,7 +58,7 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     cursor.execute(
         """
-        SELECT id, user_id, company, city, start_date, end_date, status, income, payment_status, note
+        SELECT id, user_id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
         FROM tours
         WHERE id = ? AND user_id = ?
         LIMIT 1

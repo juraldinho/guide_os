@@ -26,9 +26,18 @@ def init_db() -> None:
         income INTEGER,
         payment_status TEXT DEFAULT 'unpaid',
         note TEXT,
+        entry_type TEXT NOT NULL DEFAULT 'tour',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    cursor.execute("PRAGMA table_info(tours)")
+    columns = [row["name"] for row in cursor.fetchall()]
+
+    if "entry_type" not in columns:
+        cursor.execute(
+            "ALTER TABLE tours ADD COLUMN entry_type TEXT NOT NULL DEFAULT 'tour'"
+        )
 
     conn.commit()
     conn.close()
