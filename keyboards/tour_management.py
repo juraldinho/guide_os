@@ -405,3 +405,67 @@ def get_multiple_selected_entry_keyboard(
             ]
         ]
     )
+
+def get_day_off_selected_entry_keyboard(
+    tour_id: int,
+    date_str: str,
+    year: int,
+    month: int
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📅 Даты",
+                    callback_data=f"edit_dates:{tour_id}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📝 Заметка",
+                    callback_data=f"edit_note:{tour_id}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить",
+                    callback_data=f"multiple_day_delete:{tour_id}:{date_str}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад к дням месяца",
+                    callback_data=f"cal_tours:{year}:{month}"
+                )
+            ],
+        ]
+    )
+
+def get_single_day_entry_keyboard(
+    tour_id: int,
+    date_str: str,
+    year: int,
+    month: int
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✏️ Редактировать",
+                    callback_data=f"tour_edit_menu:{tour_id}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить",
+                    callback_data=f"multiple_day_delete:{tour_id}:{date_str}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад к дням месяца",
+                    callback_data=f"cal_tours:{year}:{month}"
+                )
+            ]
+        ]
+    )

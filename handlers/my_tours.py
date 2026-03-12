@@ -47,6 +47,8 @@ from keyboards.tour_management import (
     get_free_day_card_keyboard,
     get_multiple_day_entries_keyboard,
     get_multiple_selected_entry_keyboard,
+    get_day_off_selected_entry_keyboard,
+    get_single_day_entry_keyboard,
 )
 
 router = Router()
@@ -311,9 +313,28 @@ async def open_day_card(callback: CallbackQuery):
         await callback.answer()
         return
 
+    entry = card_data["entry"]
+    tour_id = entry["id"]
+    entry_type = entry.get("entry_type")
+
+    if entry_type == "day_off":
+        reply_markup = get_day_off_selected_entry_keyboard(
+            tour_id,
+            date_str,
+            year,
+            month,
+        )
+    else:
+        reply_markup = get_single_day_entry_keyboard(
+            tour_id,
+            date_str,
+            year,
+            month,
+        )
+
     await callback.message.edit_text(
         card_data["text"],
-        reply_markup=get_day_card_keyboard(year, month),
+        reply_markup=reply_markup,
     )
     await callback.answer()
 
@@ -343,9 +364,38 @@ async def ask_delete_multiple_day_entry(callback: CallbackQuery):
         await callback.answer("Запись не найдена", show_alert=True)
         return
 
-    await callback.message.edit_text(
-        "Удалить этот тур?",
-        reply_markup=InlineKeyboardMarkup(
+    if is_multi_day_group(tour):
+        text = (
+            "Если удалить этот тур, исчезнут все дни этого тура.\n\n"
+            "Если хотите изменить даты тура, нажмите «Редактировать даты».\n\n"
+            "Удалить весь тур?"
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📅 Редактировать даты",
+                        callback_data=f"edit_dates:{tour_id}:{year}:{month}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="✅ Да, удалить весь тур",
+                        callback_data=f"multiple_day_delete_confirm:{tour_id}:{date_str}:{year}:{month}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена",
+                        callback_data=f"multiple_day_entry:{tour_id}:{date_str}:{year}:{month}"
+                    )
+                ],
+            ]
+        )
+    else:
+        text = "Удалить этот тур?"
+        keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
@@ -360,7 +410,11 @@ async def ask_delete_multiple_day_entry(callback: CallbackQuery):
                     )
                 ],
             ]
-        ),
+        )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=keyboard,
     )
     await callback.answer()
 
@@ -1015,3 +1069,22 @@ def build_selected_day_entry_text(selected_date: str, row: dict) -> str:
         f"Стоимость в день: {income}\n"
         f"Заметка: {note}"
     )
+
+def is_multi_day_group(tour: dict) -> bool:
+    tour_group_id = tour.get("tour_group_id")
+
+    if not tour_group_id:
+        start_date = datetime.strptime(tour["start_date"], "%Y-%m-%d").date()
+        end_date = datetime.strptime(tour["end_date"], "%Y-%m-%d").date()
+        return (end_date - start_date).days >= 1
+
+    group_rows = [dict(item) for item in get_tours_by_group_id(tour["user_id"], tour_group_id)]
+
+    if len(group_rows) > 1:
+        return True
+
+    row = group_rows[0]
+    start_date = datetime.strptime(row["start_date"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(row["end_date"], "%Y-%m-%d").date()
+
+    return (end_date - start_date).days >= 1
