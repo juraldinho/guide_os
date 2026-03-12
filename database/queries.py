@@ -1,3 +1,5 @@
+import sqlite3
+
 from database.db import get_connection
 
 
@@ -320,4 +322,69 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
     conn.close()
 
     return [dict(row) for row in rows]
+
+def get_tours_by_group_id(user_id: int, tour_group_id: str) -> list[sqlite3.Row]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM tours
+        WHERE user_id = ? AND tour_group_id = ?
+        ORDER BY start_date, end_date, id
+        """,
+        (user_id, tour_group_id),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM tours
+        WHERE user_id = ?
+          AND start_date <= ?
+          AND end_date >= ?
+        ORDER BY
+            CASE
+                WHEN entry_type = 'day_off' THEN 1
+                ELSE 0
+            END,
+            start_date,
+            end_date,
+            id
+        """,
+        (user_id, target_date, target_date),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> list[sqlite3.Row]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM tours
+        WHERE user_id = ?
+          AND start_date <= ?
+          AND end_date >= ?
+        ORDER BY start_date, end_date, id
+        """,
+        (user_id, month_end, month_start),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
