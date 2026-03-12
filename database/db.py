@@ -27,6 +27,7 @@ def init_db() -> None:
         payment_status TEXT DEFAULT 'unpaid',
         note TEXT,
         entry_type TEXT NOT NULL DEFAULT 'tour',
+        tour_group_id TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
     """)
@@ -37,6 +38,11 @@ def init_db() -> None:
     if "entry_type" not in columns:
         cursor.execute(
             "ALTER TABLE tours ADD COLUMN entry_type TEXT NOT NULL DEFAULT 'tour'"
+        )
+
+    if "tour_group_id" not in columns:
+        cursor.execute(
+            "ALTER TABLE tours ADD COLUMN tour_group_id TEXT"
         )
 
     conn.commit()
