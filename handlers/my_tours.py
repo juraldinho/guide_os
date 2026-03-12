@@ -180,23 +180,21 @@ def parse_test_days_context(callback_data: str) -> tuple[int, int]:
 
 @router.callback_query(lambda c: c.data and c.data.startswith("cal_tours:"))
 async def open_month_tours(callback: CallbackQuery):
+    print("DEBUG open_month_tours fired:", callback.data)
     user_id = callback.from_user.id
     year, month = parse_month_context(callback.data)
 
-    tours = get_month_tours(user_id, year, month)
+    days = build_day_entries_for_month(user_id, year, month)
 
-    if not tours:
-        await callback.message.edit_text(
-            "В этом месяце туров нет."
-        )
-        await callback.answer()
-        return
+    month_title = f"{MONTH_NAMES_RU[month]} {year}"
+    text = f"Карточка тура — {month_title}\n\nВыберите день:"
 
     await callback.message.edit_text(
-        f"Туры за {month:02d}.{year}:",
-        reply_markup=get_tours_list_keyboard(tours, year, month),
+        text,
+        reply_markup=get_day_entries_keyboard(days, year, month),
     )
     await callback.answer()
+
 
 @router.callback_query(lambda c: c.data and c.data.startswith("cal_day_cards:"))
 async def open_month_day_cards(callback: CallbackQuery):
@@ -256,6 +254,7 @@ async def open_day_card(callback: CallbackQuery):
 
 @router.callback_query(lambda c: c.data and c.data.startswith("tour_view:"))
 async def view_tour(callback: CallbackQuery):
+    print("DEBUG view_tour fired:", callback.data)
     user_id = callback.from_user.id
     tour_id, year, month = parse_tour_context(callback.data)
 

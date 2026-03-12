@@ -4,13 +4,11 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 
 from keyboards.calendar import get_month_picker_keyboard, get_month_actions_keyboard
-from keyboards.tour_management import get_tours_list_keyboard
 from services.calendar_service import (
     get_month_window,
     shift_month,
     build_month_calendar,
     get_free_days,
-    get_month_tours,
 )
 from utils.formatters import format_month_calendar, format_free_days
 
@@ -93,26 +91,3 @@ async def open_free_days(callback: CallbackQuery) -> None:
     )
     await callback.answer()
 
-
-@router.callback_query(lambda c: c.data and c.data.startswith("cal_tours:"))
-async def open_month_tours(callback: CallbackQuery) -> None:
-    _, year_str, month_str = callback.data.split(":")
-    year = int(year_str)
-    month = int(month_str)
-
-    user_id = callback.from_user.id
-    tours = get_month_tours(user_id, year, month)
-
-    if not tours:
-        await callback.message.edit_text(
-            "В этом месяце туров нет.",
-            reply_markup=get_month_actions_keyboard(year, month, year, month),
-        )
-        await callback.answer()
-        return
-
-    await callback.message.edit_text(
-        f"Туры за {month:02d}.{year}:",
-        reply_markup=get_tours_list_keyboard(tours, year, month),
-    )
-    await callback.answer()

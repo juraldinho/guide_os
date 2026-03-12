@@ -263,13 +263,12 @@ def get_day_card_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="⬅️ Назад к списку",
+                    text="⬅️ Назад к дням месяца",
                     callback_data=f"cal_tours:{year}:{month}"
                 )
             ],
         ]
     )
-
 
 def get_test_day_cards_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
