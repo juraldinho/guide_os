@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 from database.queries import (
     create_tour,
@@ -27,6 +28,7 @@ def save_tour(
     entry_type: str = "tour",
 ) -> None:
     intervals = parse_date_input(date_text)
+    tour_group_id = str(uuid4())
 
     for interval in intervals:
         create_tour(
@@ -38,6 +40,7 @@ def save_tour(
             status=status.strip(),
             income=income,
             entry_type=entry_type,
+            tour_group_id=tour_group_id,
         )
 
 def save_day_off(user_id: int, date_text: str) -> None:

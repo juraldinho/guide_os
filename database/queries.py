@@ -11,6 +11,7 @@ def create_tour(
     income: int | None = None,
     note: str | None = None,
     entry_type: str = "tour",
+    tour_group_id: str | None = None,
 ) -> None:
     conn = get_connection()
     cursor = conn.cursor()
@@ -18,11 +19,22 @@ def create_tour(
     cursor.execute(
         """
         INSERT INTO tours (
-            user_id, company, city, start_date, end_date, status, income, note, entry_type
+            user_id, company, city, start_date, end_date, status, income, note, entry_type, tour_group_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user_id, company, city, start_date, end_date, status, income, note, entry_type),
+        (
+            user_id,
+            company,
+            city,
+            start_date,
+            end_date,
+            status,
+            income,
+            note,
+            entry_type,
+            tour_group_id,
+        ),
     )
 
     conn.commit()
