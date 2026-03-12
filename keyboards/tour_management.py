@@ -38,6 +38,14 @@ def get_tours_list_keyboard(tours: list[dict], year: int, month: int) -> InlineK
         )
 
     buttons.append(
+        [
+            InlineKeyboardButton(
+                text="🧪 Тест дневных карточек",
+                callback_data=f"cal_tours_test_days:{year}:{month}"
+            )
+        ]
+    )    
+    buttons.append(
         [InlineKeyboardButton(text="⬅️ Назад к месяцу", callback_data=f"cal_month:{year}:{month}")]
     )
 
@@ -237,6 +245,49 @@ def get_edit_note_keyboard(tour_id: int, current_note: str | None, year: int, mo
                 InlineKeyboardButton(
                     text="⬅️ Назад",
                     callback_data=f"tour_edit_menu:{tour_id}:{year}:{month}"
+                )
+            ],
+        ]
+    )
+
+def get_day_card_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад к списку",
+                    callback_data=f"cal_tours:{year}:{month}"
+                )
+            ],
+        ]
+    )
+
+
+def get_test_day_cards_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Тест 21.04",
+                    callback_data=f"day_card:2026-04-21:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Тест 23.04",
+                    callback_data=f"day_card:2026-04-23:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Тест 24.04",
+                    callback_data=f"day_card:2026-04-24:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад к месяцу",
+                    callback_data=f"cal_month:{year}:{month}"
                 )
             ],
         ]
