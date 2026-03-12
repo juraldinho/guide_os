@@ -4,6 +4,8 @@ from datetime import datetime, date
 
 from services.day_card_service import get_day_card_data
 
+from states.add_tour_state import AddTourState
+
 from aiogram import Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -33,6 +35,7 @@ from keyboards.tour_management import (
     get_day_card_keyboard,
     get_test_day_cards_keyboard,
     get_day_entries_keyboard,
+    get_free_day_card_keyboard,
 )
 
 router = Router()
@@ -149,6 +152,25 @@ def parse_day_cards_month_context(callback_data: str) -> tuple[int, int]:
     month = int(parts[2])
     return year, month
 
+@router.callback_query(lambda c: c.data and c.data.startswith("create_tour_from_day:"))
+async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):
+    date_str, year, month = parse_create_tour_from_day_context(callback.data)
+
+    await state.clear()
+    await state.update_data(
+        date_text=date_str,
+        year=year,
+        month=month,
+        from_free_day=True,
+    )
+    await state.set_state(AddTourState.company)
+
+    await callback.message.edit_text(
+        f"Дата выбрана: {format_date(date_str)}\n\n"
+        f"Введите название компании"
+    )
+    await callback.answer()
+
 def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
     date_formatted = format_date(date_str)
 
@@ -177,6 +199,17 @@ def parse_test_days_context(callback_data: str) -> tuple[int, int]:
     year = int(parts[1])
     month = int(parts[2])
     return year, month
+
+def parse_create_tour_from_day_context(callback_data: str) -> tuple[str, int, int]:
+    """
+    Формат:
+    create_tour_from_day:date:year:month
+    """
+    parts = callback_data.split(":")
+    date_str = parts[1]
+    year = int(parts[2])
+    month = int(parts[3])
+    return date_str, year, month
 
 @router.callback_query(lambda c: c.data and c.data.startswith("cal_tours:"))
 async def open_month_tours(callback: CallbackQuery):
@@ -233,7 +266,7 @@ async def open_day_card(callback: CallbackQuery):
     if card_data["kind"] == "free":
         await callback.message.edit_text(
             card_data["text"],
-            reply_markup=get_day_card_keyboard(year, month),
+            reply_markup=get_free_day_card_keyboard(date_str, year, month),
         )
         await callback.answer()
         return

@@ -1,5 +1,7 @@
+
 from datetime import datetime
 from uuid import uuid4
+import re
 
 from database.queries import (
     create_tour,
@@ -17,6 +19,23 @@ from database.queries import (
 
 from services.date_parser import parse_date_input
 
+def _parse_single_iso_date(date_text: str) -> list[dict] | None:
+    date_text = date_text.strip()
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
+        return None
+
+    try:
+        datetime.strptime(date_text, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+    return [
+        {
+            "start_date": date_text,
+            "end_date": date_text,
+        }
+    ]
 
 def save_tour(
     user_id: int,
@@ -27,7 +46,11 @@ def save_tour(
     income: int | None = None,
     entry_type: str = "tour",
 ) -> None:
-    intervals = parse_date_input(date_text)
+    intervals = _parse_single_iso_date(date_text)
+
+    if intervals is None:
+        intervals = parse_date_input(date_text)
+
     tour_group_id = str(uuid4())
 
     for interval in intervals:

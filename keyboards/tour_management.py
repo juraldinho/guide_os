@@ -322,3 +322,21 @@ def get_day_entries_keyboard(days: list[dict], year: int, month: int) -> InlineK
     )
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_free_day_card_keyboard(date_str: str, year: int, month: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Создать тур на эту дату",
+                    callback_data=f"create_tour_from_day:{date_str}:{year}:{month}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад к дням месяца",
+                    callback_data=f"cal_tours:{year}:{month}"
+                )
+            ],
+        ]
+    )
