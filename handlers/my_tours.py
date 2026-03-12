@@ -1,3 +1,4 @@
+from services.day_view_service import build_day_entries_for_month
 from calendar import monthrange
 from datetime import datetime, date
 
@@ -31,10 +32,25 @@ from keyboards.tour_management import (
     get_delete_confirmation_keyboard,
     get_day_card_keyboard,
     get_test_day_cards_keyboard,
+    get_day_entries_keyboard,
 )
 
 router = Router()
 
+MONTH_NAMES_RU = {
+    1: "январь",
+    2: "февраль",
+    3: "март",
+    4: "апрель",
+    5: "май",
+    6: "июнь",
+    7: "июль",
+    8: "август",
+    9: "сентябрь",
+    10: "октябрь",
+    11: "ноябрь",
+    12: "декабрь",
+}
 
 def format_date(date_str: str) -> str:
     dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -123,6 +139,16 @@ def parse_day_card_context(callback_data: str) -> tuple[str, int, int]:
     month = int(parts[3])
     return date_str, year, month
 
+def parse_day_cards_month_context(callback_data: str) -> tuple[int, int]:
+    """
+    Для callback формата:
+    cal_day_cards:year:month
+    """
+    parts = callback_data.split(":")
+    year = int(parts[1])
+    month = int(parts[2])
+    return year, month
+
 def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
     date_formatted = format_date(date_str)
 
@@ -169,6 +195,22 @@ async def open_month_tours(callback: CallbackQuery):
     await callback.message.edit_text(
         f"Туры за {month:02d}.{year}:",
         reply_markup=get_tours_list_keyboard(tours, year, month),
+    )
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_day_cards:"))
+async def open_month_day_cards(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    year, month = parse_day_cards_month_context(callback.data)
+
+    days = build_day_entries_for_month(user_id, year, month)
+
+    month_title = f"{MONTH_NAMES_RU[month]} {year}"
+    text = f"Карточка тура — {month_title}\n\nВыберите день:"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_day_entries_keyboard(days, year, month),
     )
     await callback.answer()
     

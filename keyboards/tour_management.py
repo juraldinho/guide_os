@@ -44,7 +44,15 @@ def get_tours_list_keyboard(tours: list[dict], year: int, month: int) -> InlineK
                 callback_data=f"cal_tours_test_days:{year}:{month}"
             )
         ]
-    )    
+    )
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="📅 Новый список дней",
+                callback_data=f"cal_day_cards:{year}:{month}"
+            )
+        ]
+    )
     buttons.append(
         [InlineKeyboardButton(text="⬅️ Назад к месяцу", callback_data=f"cal_month:{year}:{month}")]
     )
@@ -292,3 +300,26 @@ def get_test_day_cards_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
             ],
         ]
     )
+def get_day_entries_keyboard(days: list[dict], year: int, month: int) -> InlineKeyboardMarkup:
+    buttons = []
+
+    for day in days:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=day["label"],
+                    callback_data=f"day_card:{day['date']}:{year}:{month}"
+                )
+            ]
+        )
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад к месяцу",
+                callback_data=f"cal_month:{year}:{month}"
+            )
+        ]
+    )
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
