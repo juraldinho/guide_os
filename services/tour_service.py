@@ -15,9 +15,37 @@ from database.queries import (
     update_tour_status,
     update_tour_payment_status,
     update_tour_dates,
+    get_tours_for_date,
 )
+from database.queries import get_tours_for_date
 
 from services.date_parser import parse_date_input
+
+
+def get_conflicting_dates(user_id: int, date_text: str) -> list[str]:
+    intervals = _parse_single_iso_date(date_text)
+
+    if intervals is None:
+        intervals = parse_date_input(date_text)
+
+    conflict_dates: list[str] = []
+
+    for interval in intervals:
+        start_date = datetime.strptime(interval["start_date"], "%Y-%m-%d").date()
+        end_date = datetime.strptime(interval["end_date"], "%Y-%m-%d").date()
+
+        current = start_date
+        while current <= end_date:
+            iso_date = current.strftime("%Y-%m-%d")
+
+            rows = get_tours_for_date(user_id, iso_date)
+
+            if rows:
+                conflict_dates.append(iso_date)
+
+            current = current.fromordinal(current.toordinal() + 1)
+
+    return sorted(set(conflict_dates))
 
 def _parse_single_iso_date(date_text: str) -> list[dict] | None:
     date_text = date_text.strip()

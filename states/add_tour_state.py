@@ -7,3 +7,5 @@ class AddTourState(StatesGroup):
     city = State()
     status = State()
     income = State()
+    conflict_confirm = State()
+    

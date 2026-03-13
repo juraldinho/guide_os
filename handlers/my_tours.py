@@ -1,4 +1,12 @@
+from aiogram.filters import StateFilter
+from states.check_date_state import CheckDateState
 from services.day_view_service import build_day_entries_for_month
+
+from aiogram import F
+from aiogram.types import Message
+from services.day_card_service import get_day_card_data
+from services.date_parser import parse_date_input
+from keyboards.main_menu import get_main_menu
 
 from datetime import datetime
 
@@ -165,6 +173,75 @@ def parse_multiple_day_delete_context(callback_data: str) -> tuple[int, str, int
     year = int(parts[3])
     month = int(parts[4])
     return tour_id, date_str, year, month
+
+@router.message(F.text == "📅 Проверить дату")
+async def check_date_start(message: Message, state: FSMContext):
+    await state.set_state(CheckDateState.waiting_for_date)
+    await message.answer(
+        "Введите дату\n\n"
+        "Примеры:\n"
+        "12/03\n"
+        "12.03\n"
+        "2026-03-12"
+    )
+    
+@router.message(CheckDateState.waiting_for_date)
+async def check_date_result(message: Message, state: FSMContext):
+
+    date_text = message.text.strip()
+
+    try:
+        dates = parse_date_input(date_text)
+    except ValueError:
+        return
+
+    first_item = dates[0]
+
+    if isinstance(first_item, dict):
+        date_str = first_item["start_date"]
+    else:
+        date_str = first_item
+        
+    await state.clear()
+
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    year = dt.year
+    month = dt.month
+
+    user_id = message.from_user.id
+
+    card_data = get_day_card_data(user_id, date_str)
+
+    if card_data["kind"] == "free":
+        await message.answer(
+            card_data["text"],
+            reply_markup=get_free_day_card_keyboard(date_str, year, month)
+        )
+        return
+
+    if card_data["kind"] == "multiple":
+        await message.answer(
+            format_multiple_day_entries(date_str, card_data["entries"]),
+            reply_markup=get_multiple_day_entries_keyboard(
+                date_str,
+                card_data["entries"],
+                year,
+                month,
+            ),
+        )
+        return
+
+    entry = card_data["entry"]
+
+    await message.answer(
+        card_data["text"],
+        reply_markup=get_single_day_entry_keyboard(
+            entry["id"],
+            date_str,
+            year,
+            month
+        )
+    )
 
 @router.callback_query(lambda c: c.data and c.data.startswith("create_tour_from_day:"))
 async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):

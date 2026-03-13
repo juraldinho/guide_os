@@ -103,7 +103,7 @@ async def shift_stats_window(callback: CallbackQuery) -> None:
     await safe_edit_text(
         callback.message,
         "Выберите период статистики:",
-        reply_markup=get_stats_picker_keyboard(months, year, month),
+        reply_markup=get_stats_picker_keyboard(months, new_year, new_month),
     )
     await callback.answer()
 
