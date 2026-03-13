@@ -25,7 +25,7 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 from handlers.add_tour import get_company_keyboard
-
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 
 from states.tour_edit import EditTourState
@@ -114,7 +114,14 @@ def format_tour_card(tour: dict) -> str:
         f"Стоимость в день: {income}\n"
         f"Заметка: {note}"
     )
-
+def get_check_date_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="❌ Отмена")],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Введите дату"
+    )
 
 def parse_tour_context(callback_data: str) -> tuple[int, int, int]:
     """
@@ -182,7 +189,15 @@ async def check_date_start(message: Message, state: FSMContext):
         "Примеры:\n"
         "12/03\n"
         "12.03\n"
-        "2026-03-12"
+        "2026-03-12",
+        reply_markup=get_check_date_keyboard()
+    )
+@router.message(CheckDateState.waiting_for_date, F.text == "❌ Отмена")
+async def cancel_check_date(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "Проверка даты отменена",
+        reply_markup=get_main_menu()
     )
     
 @router.message(CheckDateState.waiting_for_date)
@@ -203,6 +218,11 @@ async def check_date_result(message: Message, state: FSMContext):
         date_str = first_item
         
     await state.clear()
+
+    await message.answer(
+        "Дата найдена",
+        reply_markup=get_main_menu()
+    )
 
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     year = dt.year
