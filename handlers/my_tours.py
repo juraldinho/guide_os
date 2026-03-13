@@ -105,15 +105,15 @@ def format_tour_card(tour: dict) -> str:
     payment_status = format_payment_status(tour["payment_status"])
 
     return (
-        f"Компания: {tour['company']}\n"
-        f"Город: {tour['city']}\n"
-        f"Дата начала: {start_date}\n"
-        f"Дата окончания: {end_date}\n"
-        f"Статус: {tour_status}\n"
-        f"Оплата: {payment_status}\n"
-        f"Стоимость в день: {income}\n"
-        f"Заметка: {note}"
+        f"🏢 Компания: {tour['company']}\n"
+        f"📍 Маршрут: {tour['city']}\n\n"
+        f"📅 Даты: {start_date} — {end_date}\n"
+        f"📊 Статус: {tour_status}\n"
+        f"💳 Оплата: {payment_status}\n"
+        f"💰 Доход в день: {income}\n"
+        f"📝 Заметка: {note}"
     )
+
 def get_check_date_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -181,22 +181,23 @@ def parse_multiple_day_delete_context(callback_data: str) -> tuple[int, str, int
     month = int(parts[4])
     return tour_id, date_str, year, month
 
-@router.message(F.text == "📅 Проверить дату")
+@router.message(F.text == "🔎 Проверить дату")
 async def check_date_start(message: Message, state: FSMContext):
     await state.set_state(CheckDateState.waiting_for_date)
     await message.answer(
-        "Введите дату\n\n"
+        "🔎 Проверка даты\n\n"
+        "Введите дату экскурсии.\n\n"
         "Примеры:\n"
-        "12/03\n"
-        "12.03\n"
-        "2026-03-12",
+        "• 12/03\n"
+        "• 12.03\n"
+        "• 2026-03-12",
         reply_markup=get_check_date_keyboard()
     )
 @router.message(CheckDateState.waiting_for_date, F.text == "❌ Отмена")
 async def cancel_check_date(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "Проверка даты отменена",
+        "❌ Проверка даты отменена",
         reply_markup=get_main_menu()
     )
     
@@ -287,9 +288,9 @@ def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
     date_formatted = format_date(date_str)
 
     lines = [
-        f"Дата: {date_formatted}",
-        "На эту дату найдено несколько записей.",
-        "Выберите карточку:",
+        f"📅 Дата: {date_formatted}\n\n"
+        f"На эту дату найдено несколько записей.\n"
+        f"Выберите карточку:"
     ]
 
     return "\n".join(lines)
@@ -1112,14 +1113,14 @@ def build_selected_day_entry_text(selected_date: str, row: dict) -> str:
         payment_status = format_payment_status(row["payment_status"])
 
     return (
-        f"Тур: {tour_title}\n"
-        f"Дата: {format_date(selected_date)}\n"
-        f"Компания: {row['company']}\n"
-        f"Город: {row['city']}\n"
-        f"Статус: {format_tour_status(row['status'])}\n"
-        f"Оплата: {payment_status}\n"
-        f"Стоимость в день: {income}\n"
-        f"Заметка: {note}"
+        f"📅 Дата: {format_date(selected_date)}\n"
+        f"🏷 Тур: {tour_title}\n\n"
+        f"🏢 Компания: {row['company']}\n"
+        f"📍 Маршрут: {row['city']}\n"
+        f"📊 Статус: {format_tour_status(row['status'])}\n"
+        f"💳 Оплата: {payment_status}\n"
+        f"💰 Доход в день: {income}\n"
+        f"📝 Заметка: {note}"
     )
 
 def is_multi_day_group(tour: dict) -> bool:

@@ -47,31 +47,31 @@ def get_edit_tour_menu_keyboard(tour: dict, year: int, month: int) -> InlineKeyb
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Компания",
+                    text="🏢 Компания",
                     callback_data=f"edit_company:{tour_id}:{year}:{month}"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Город",
+                    text="📍 Город / маршрут",
                     callback_data=f"edit_city:{tour_id}:{year}:{month}"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Даты",
+                    text="📅 Даты",
                     callback_data=f"edit_dates:{tour_id}:{year}:{month}"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Стоимость в день",
+                    text="💰 Доход в день",
                     callback_data=f"edit_income:{tour_id}:{year}:{month}"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Заметка",
+                    text="📝 Заметка",
                     callback_data=f"edit_note:{tour_id}:{year}:{month}"
                 )
             ],

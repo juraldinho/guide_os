@@ -28,21 +28,37 @@ def _get_month_bounds(year: int, month: int) -> tuple[str, str]:
 
 
 def _format_day_label(date_obj: datetime, status: str, rows: list[dict]) -> str:
-    day_number = date_obj.day
-    month_name = MONTH_NAMES_RU[date_obj.month]
+    day_number = f"{date_obj.day:02d}"
+
+    MONTH_SHORT = {
+        1: "янв",
+        2: "фев",
+        3: "мар",
+        4: "апр",
+        5: "май",
+        6: "июн",
+        7: "июл",
+        8: "авг",
+        9: "сен",
+        10: "окт",
+        11: "ноя",
+        12: "дек",
+    }
+
+    month_name = MONTH_SHORT[date_obj.month]
 
     if status == "free":
-        return f"{day_number} {month_name} — свободно"
+        return f"🟢 {day_number} {month_name} — свободно"
 
     if status == "multiple":
-        return f"{day_number} {month_name} — несколько записей"
+        return f"🟡 {day_number} {month_name} — несколько туров"
 
     row = rows[0]
 
     if status == "day_off":
-        return f"{day_number} {month_name} — У меня выходной"
+        return f"🌴 {day_number} {month_name} — выходной"
 
-    return f"{day_number} {month_name} — {row['company']}"
+    return f"🔵 {day_number} {month_name} — {row['company']}"
 
 
 def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dict]:

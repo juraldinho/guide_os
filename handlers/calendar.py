@@ -15,7 +15,7 @@ from utils.formatters import format_month_calendar, format_free_days
 router = Router()
 
 
-@router.message(F.text == "📅 Календарь")
+@router.message(F.text == "🗓 Календарь")
 async def show_calendar_entry(message: Message) -> None:
     today = date.today()
     months = get_month_window(today.year, today.month)
@@ -70,6 +70,7 @@ async def open_month(callback: CallbackQuery) -> None:
 
     await callback.message.edit_text(
         text,
+        parse_mode="HTML",
         reply_markup=get_month_actions_keyboard(year, month, year, month),
     )
     await callback.answer()
@@ -87,6 +88,7 @@ async def open_free_days(callback: CallbackQuery) -> None:
 
     await callback.message.edit_text(
         text,
+        parse_mode="HTML",
         reply_markup=get_month_actions_keyboard(year, month, year, month),
     )
     await callback.answer()

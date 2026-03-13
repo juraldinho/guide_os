@@ -43,23 +43,23 @@ MONTHS_RU = {
 
 def format_month_stats_text(stats: dict) -> str:
     return (
-        f"Статистика за {MONTHS_RU[stats['month']]} {stats['year']}\n\n"
-        f"Туров: {stats['total_tours']}\n"
-        f"Рабочих дней: {stats['working_days']}\n"
-        f"Доход: {stats['total_income']}$\n"
-        f"Оплаченных туров: {stats['paid_tours']}\n"
-        f"Неоплаченных туров: {stats['unpaid_tours']}"
+        f"📊 Статистика за {MONTHS_RU[stats['month']]} {stats['year']}\n\n"
+        f"🧭 Туров: {stats['total_tours']}\n"
+        f"🗓 Рабочих дней: {stats['working_days']}\n"
+        f"💰 Доход: {stats['total_income']}$\n"
+        f"💳 Оплаченных туров: {stats['paid_tours']}\n"
+        f"📌 Неоплаченных туров: {stats['unpaid_tours']}"
     )
 
 
 def format_all_time_stats_text(stats: dict) -> str:
     return (
-        "Статистика за весь период\n\n"
-        f"Туров: {stats['total_tours']}\n"
-        f"Рабочих дней: {stats['working_days']}\n"
-        f"Доход: {stats['total_income']}$\n"
-        f"Оплаченных туров: {stats['paid_tours']}\n"
-        f"Неоплаченных туров: {stats['unpaid_tours']}"
+        "📊 Статистика за всё время\n\n"
+        f"🧭 Туров: {stats['total_tours']}\n"
+        f"🗓 Рабочих дней: {stats['working_days']}\n"
+        f"💰 Доход: {stats['total_income']}$\n"
+        f"💳 Оплаченных туров: {stats['paid_tours']}\n"
+        f"📌 Неоплаченных туров: {stats['unpaid_tours']}"
     )
 
 

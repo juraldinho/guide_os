@@ -36,7 +36,7 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
     tours = get_tours_for_month(user_id, month_start, month_end)
 
     days_in_month = monthrange(year, month)[1]
-    days_map: dict[int, str] = {day: "free" for day in range(1, days_in_month + 1)}
+    days_map: dict[int, str] = {day: "свободно" for day in range(1, days_in_month + 1)}
 
     for tour in tours:
         start = datetime.strptime(tour["start_date"], "%Y-%m-%d").date()
@@ -45,7 +45,7 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
         for day in range(1, days_in_month + 1):
             current_day = date(year, month, day)
             if start <= current_day <= end:
-                if days_map[day] == "free":
+                if days_map[day] == "свободно":
                     days_map[day] = tour["company"]
 
     return {
@@ -62,7 +62,7 @@ def get_free_days(user_id: int) -> dict:
     free_days = []
 
     for day, value in calendar_data["days_map"].items():
-        if value == "free":
+        if value == "свободно":
             free_days.append(day)
 
     return {
@@ -96,7 +96,7 @@ def get_month_window(start_year: int, start_month: int) -> list[tuple[int, int]]
 def get_free_days(user_id: int, year: int, month: int) -> dict:
     calendar_data = build_month_calendar(user_id, year, month)
 
-    free_days = [day for day, value in calendar_data["days_map"].items() if value == "free"]
+    free_days = [day for day, value in calendar_data["days_map"].items() if value == "свободно"]
 
     return {
         "year": year,

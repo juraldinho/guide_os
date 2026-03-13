@@ -82,13 +82,13 @@ def get_conflict_warning_keyboard(year: int, month: int) -> InlineKeyboardMarkup
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✅ Всё равно сохранить как второй тур дня",
+                    text="✅ Сохранить как второй тур",
                     callback_data="add_tour_conflict_save"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📅 Посмотреть даты",
+                    text="🗓 Посмотреть даты",
                     callback_data=f"add_tour_conflict_view:{year}:{month}"
                 )
             ],
@@ -130,16 +130,15 @@ async def cancel_conflict_save(callback: CallbackQuery, state: FSMContext) -> No
 async def add_tour_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddTourState.date)
     await message.answer(
-        "Введите дату или диапазон дат\n\n"
-        "Поддерживаются форматы:\n"
-        "23/03\n"
-        "23.03\n"
-        "2026-03-23\n"
-        "1-2/06\n"
-        "7.03-9.03\n"
-        "1/06-2/06\n"
-        "1-2/06, 4/06\n"
-        "7.03, 9.03",
+        "➕ Новый тур\n\n"
+        "Введите дату или диапазон дат.\n\n"
+        "Примеры:\n"
+        "• 23/03\n"
+        "• 23.03\n"
+        "• 1-2/06\n"
+        "• 7.03-9.03\n"
+        "• 1-2/06, 4/06\n"
+        "• 7.03, 9.03",
         reply_markup=get_date_keyboard()
     )
 @router.message(F.text == "❌ Отмена")
@@ -220,7 +219,7 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
     await state.update_data(date_text=date_text)
     await state.set_state(AddTourState.company)
     await message.answer(
-        "Введите название компании",
+        "🏢 Введите название компании",
         reply_markup=get_company_keyboard()
     )
 
@@ -251,7 +250,7 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
     await state.update_data(company=company)
     await state.set_state(AddTourState.city)
     await message.answer(
-        "Введите город",
+        "📍 Введите город",
         reply_markup=get_city_keyboard()
     )
 
@@ -265,8 +264,10 @@ async def add_tour_city(message: Message, state: FSMContext) -> None:
 
     await state.update_data(city=city)
     await state.set_state(AddTourState.status)
-    await message.answer("Выберите статус", reply_markup=get_status_keyboard())
-
+    await message.answer(
+        "📊 Выберите статус тура",
+        reply_markup=get_status_keyboard()
+    )
 
 @router.message(AddTourState.status)
 async def add_tour_status(message: Message, state: FSMContext) -> None:
@@ -284,10 +285,10 @@ async def add_tour_status(message: Message, state: FSMContext) -> None:
     await state.update_data(status=status_map[raw_status])
     await state.set_state(AddTourState.income)
     await message.answer(
-        "Введите дневную оплату в долларах\n"
-        "Например: 100\n"
-        "Знак $ вводить не нужно\n\n"
-        "Или нажмите Пропустить",
+        "💰 Введите доход в день\n\n"
+        "Пример: 100\n"
+        "Знак $ вводить не нужно.\n\n"
+        "Или нажмите «Пропустить».",
         reply_markup=get_skip_keyboard()
     )
 
@@ -330,11 +331,10 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
         await state.set_state(AddTourState.conflict_confirm)
 
         await message.answer(
-            f"Эти даты уже заняты:\n{formatted_dates}\n\n"
-            f"Что сделать дальше?",
+            f"⚠️ Эти даты уже заняты:\n\n{formatted_dates}\n\n"
+            f"Выберите, что сделать дальше:",
             reply_markup=get_conflict_warning_keyboard(year, month),
         )
-        return
 
     save_tour(
         user_id=user_id,
