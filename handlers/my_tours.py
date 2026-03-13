@@ -1,8 +1,8 @@
 from services.day_view_service import build_day_entries_for_month
-from calendar import monthrange
-from datetime import datetime, date
 
-from database.queries import get_tours_for_month, get_tours_by_group_id
+from datetime import datetime
+
+from database.queries import get_tours_by_group_id
 
 from services.day_card_service import get_day_card_data
 
@@ -105,18 +105,6 @@ def format_tour_card(tour: dict) -> str:
         f"Стоимость в день: {income}\n"
         f"Заметка: {note}"
     )
-
-
-def get_month_bounds(year: int, month: int) -> tuple[str, str]:
-    last_day = monthrange(year, month)[1]
-    month_start = date(year, month, 1).isoformat()
-    month_end = date(year, month, last_day).isoformat()
-    return month_start, month_end
-
-
-def get_month_tours(user_id: int, year: int, month: int) -> list[dict]:
-    month_start, month_end = get_month_bounds(year, month)
-    return get_tours_for_month(user_id, month_start, month_end)
 
 
 def parse_tour_context(callback_data: str) -> tuple[int, int, int]:
@@ -834,18 +822,15 @@ async def confirm_delete_tour(callback: CallbackQuery):
         await callback.answer("Тур не найден или уже удалён", show_alert=True)
         return
 
-    tours = get_month_tours(user_id, year, month)
-
-    if not tours:
-        await callback.message.edit_text(
-            "Тур удалён.\n\nВ этом месяце туров больше нет."
-        )
-        await callback.answer()
-        return
+    month_title = f"{MONTH_NAMES_RU[month]} {year}"
 
     await callback.message.edit_text(
-        f"Тур удалён.\n\nТуры за {month:02d}.{year}:",
-        reply_markup=get_tours_list_keyboard(tours, year, month),
+        f"Тур удалён.\n\nКарточка тура — {month_title}\n\nВыберите день:",
+        reply_markup=get_day_entries_keyboard(
+            build_day_entries_for_month(user_id, year, month),
+            year,
+            month,
+        ),
     )
     await callback.answer()
 

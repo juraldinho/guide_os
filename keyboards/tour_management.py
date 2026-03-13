@@ -24,7 +24,7 @@ def get_tour_view_keyboard(tour_id: int, year: int, month: int) -> InlineKeyboar
             ],
             [
                 InlineKeyboardButton(
-                    text="⬅️ Назад к списку",
+                    text="⬅️ Назад к дням месяца",
                     callback_data=f"cal_tours:{year}:{month}"
                 )
             ],
