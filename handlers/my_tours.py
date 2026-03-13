@@ -19,7 +19,6 @@ from aiogram.types import (
 
 from aiogram.fsm.context import FSMContext
 
-from database.queries import get_tours_for_month
 from states.tour_edit import EditTourState
 from services.tour_service import (
     get_tour,
@@ -33,7 +32,6 @@ from services.tour_service import (
     edit_tour_dates,
 )
 from keyboards.tour_management import (
-    get_tours_list_keyboard,
     get_tour_view_keyboard,
     get_edit_tour_menu_keyboard,
     get_edit_company_keyboard,
@@ -42,7 +40,6 @@ from keyboards.tour_management import (
     get_edit_note_keyboard,
     get_delete_confirmation_keyboard,
     get_day_card_keyboard,
-    get_test_day_cards_keyboard,
     get_day_entries_keyboard,
     get_free_day_card_keyboard,
     get_multiple_day_entries_keyboard,
@@ -155,15 +152,6 @@ def parse_day_card_context(callback_data: str) -> tuple[str, int, int]:
     month = int(parts[3])
     return date_str, year, month
 
-def parse_day_cards_month_context(callback_data: str) -> tuple[int, int]:
-    """
-    Для callback формата:
-    cal_day_cards:year:month
-    """
-    parts = callback_data.split(":")
-    year = int(parts[1])
-    month = int(parts[2])
-    return year, month
 
 def parse_multiple_day_entry_context(callback_data: str) -> tuple[int, str, int, int]:
     """
@@ -219,15 +207,6 @@ def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
 
     return "\n".join(lines)
 
-def parse_test_days_context(callback_data: str) -> tuple[int, int]:
-    """
-    Для callback формата:
-    cal_tours_test_days:year:month
-    """
-    parts = callback_data.split(":")
-    year = int(parts[1])
-    month = int(parts[2])
-    return year, month
 
 def parse_create_tour_from_day_context(callback_data: str) -> tuple[str, int, int]:
     """
@@ -242,7 +221,6 @@ def parse_create_tour_from_day_context(callback_data: str) -> tuple[str, int, in
 
 @router.callback_query(lambda c: c.data and c.data.startswith("cal_tours:"))
 async def open_month_tours(callback: CallbackQuery):
-    print("DEBUG open_month_tours fired:", callback.data)
     user_id = callback.from_user.id
     year, month = parse_month_context(callback.data)
 
@@ -257,34 +235,7 @@ async def open_month_tours(callback: CallbackQuery):
     )
     await callback.answer()
 
-
-@router.callback_query(lambda c: c.data and c.data.startswith("cal_day_cards:"))
-async def open_month_day_cards(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    year, month = parse_day_cards_month_context(callback.data)
-
-    days = build_day_entries_for_month(user_id, year, month)
-
-    month_title = f"{MONTH_NAMES_RU[month]} {year}"
-    text = f"Карточка тура — {month_title}\n\nВыберите день:"
-
-    await callback.message.edit_text(
-        text,
-        reply_markup=get_day_entries_keyboard(days, year, month),
-    )
-    await callback.answer()
-    
-@router.callback_query(lambda c: c.data and c.data.startswith("cal_tours_test_days:"))
-async def open_test_day_cards(callback: CallbackQuery):
-    year, month = parse_test_days_context(callback.data)
-
-    await callback.message.edit_text(
-        f"Тест дневных карточек за {month:02d}.{year}:",
-        reply_markup=get_test_day_cards_keyboard(year, month),
-    )
-    await callback.answer()
-
-    
+   
 @router.callback_query(lambda c: c.data and c.data.startswith("day_card:"))
 async def open_day_card(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -472,7 +423,6 @@ async def confirm_delete_multiple_day_entry(callback: CallbackQuery):
 
 @router.callback_query(lambda c: c.data and c.data.startswith("tour_view:"))
 async def view_tour(callback: CallbackQuery):
-    print("DEBUG view_tour fired:", callback.data)
     user_id = callback.from_user.id
     tour_id, year, month = parse_tour_context(callback.data)
 
