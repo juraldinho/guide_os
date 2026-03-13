@@ -16,6 +16,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from handlers.add_tour import get_company_keyboard
 
 from aiogram.fsm.context import FSMContext
 
@@ -178,9 +179,10 @@ async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(AddTourState.company)
 
-    await callback.message.edit_text(
+    await callback.message.answer(
         f"Дата выбрана: {format_date(date_str)}\n\n"
-        f"Введите название компании"
+        f"Введите название компании",
+        reply_markup=get_company_keyboard(),
     )
     await callback.answer()
 
@@ -460,6 +462,15 @@ async def set_tour_status(callback: CallbackQuery):
         await callback.answer("Некорректный статус", show_alert=True)
         return
 
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    if tour["status"] == new_status:
+        await callback.answer("Статус уже выбран")
+        return
+
     updated = edit_tour_status(user_id, tour_id, new_status)
     if not updated:
         await callback.answer("Не удалось обновить статус", show_alert=True)
@@ -474,7 +485,7 @@ async def set_tour_status(callback: CallbackQuery):
         "Что хотите изменить?",
         reply_markup=get_edit_tour_menu_keyboard(tour, year, month),
     )
-    await callback.answer()
+    await callback.answer("Статус обновлён")
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("set_payment_"))
@@ -494,6 +505,15 @@ async def set_tour_payment_status(callback: CallbackQuery):
         await callback.answer("Некорректный статус оплаты", show_alert=True)
         return
 
+    tour = get_tour(user_id, tour_id)
+    if not tour:
+        await callback.answer("Тур не найден", show_alert=True)
+        return
+
+    if tour["payment_status"] == new_payment_status:
+        await callback.answer("Этот статус оплаты уже выбран")
+        return
+
     updated = edit_tour_payment_status(user_id, tour_id, new_payment_status)
     if not updated:
         await callback.answer("Не удалось обновить оплату", show_alert=True)
@@ -508,7 +528,7 @@ async def set_tour_payment_status(callback: CallbackQuery):
         "Что хотите изменить?",
         reply_markup=get_edit_tour_menu_keyboard(tour, year, month),
     )
-    await callback.answer()
+    await callback.answer("Оплата обновлена")
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("edit_company:"))

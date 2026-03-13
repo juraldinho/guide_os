@@ -10,8 +10,21 @@ from keyboards.stats import (
 from services.calendar_service import get_month_window, shift_month
 from services.stats_service import get_stats_summary, get_all_time_stats_summary
 
+from aiogram.exceptions import TelegramBadRequest
+
+
 router = Router()
 
+
+async def safe_edit_text(message, text, reply_markup=None):
+    try:
+        await message.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return
+        raise
+
+    
 MONTHS_RU = {
     1: "январь",
     2: "февраль",
@@ -69,7 +82,8 @@ async def show_stats_picker(callback: CallbackQuery) -> None:
 
     months = get_month_window(year, month)
 
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "Выберите период статистики:",
         reply_markup=get_stats_picker_keyboard(months, year, month),
     )
@@ -86,9 +100,10 @@ async def shift_stats_window(callback: CallbackQuery) -> None:
     new_year, new_month = shift_month(year, month, offset)
     months = get_month_window(new_year, new_month)
 
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "Выберите период статистики:",
-        reply_markup=get_stats_picker_keyboard(months, new_year, new_month),
+        reply_markup=get_stats_picker_keyboard(months, year, month),
     )
     await callback.answer()
 
@@ -102,7 +117,8 @@ async def open_stats_month(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id
     stats = get_stats_summary(user_id, year, month)
 
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         format_month_stats_text(stats),
         reply_markup=get_stats_actions_keyboard(year, month),
     )
@@ -117,7 +133,8 @@ async def open_stats_all_time(callback: CallbackQuery) -> None:
     today = date.today()
     months = get_month_window(today.year, today.month)
 
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         format_all_time_stats_text(stats),
         reply_markup=get_stats_picker_keyboard(months, today.year, today.month),
     )
