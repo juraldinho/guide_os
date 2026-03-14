@@ -1,7 +1,6 @@
 import sqlite3
 
-from database.db import get_connection
-
+from database.db import get_connection, run_write_with_retry
 
 def create_tour(
     user_id: int,
@@ -11,37 +10,47 @@ def create_tour(
     end_date: str,
     status: str,
     income: int | None = None,
+    payment_status: str = "unpaid",
     note: str | None = None,
     entry_type: str = "tour",
     tour_group_id: str | None = None,
 ) -> None:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        INSERT INTO tours (
-            user_id, company, city, start_date, end_date, status, income, note, entry_type, tour_group_id
+        cursor.execute(
+            """
+            INSERT INTO tours (
+                user_id,
+                company,
+                city,
+                start_date,
+                end_date,
+                status,
+                income,
+                payment_status,
+                note,
+                entry_type,
+                tour_group_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                company,
+                city,
+                start_date,
+                end_date,
+                status,
+                income,
+                payment_status,
+                note,
+                entry_type,
+                tour_group_id,
+            ),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            user_id,
-            company,
-            city,
-            start_date,
-            end_date,
-            status,
-            income,
-            note,
-            entry_type,
-            tour_group_id,
-        ),
-    )
 
-    conn.commit()
-    conn.close()
-
+    run_write_with_retry(operation)
 
 def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[dict]:
     conn = get_connection()
@@ -85,157 +94,134 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     return dict(row) if row else None
 
-def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+def delete_tour_by_id(tour_id: int) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        DELETE FROM tours
-        WHERE id = ? AND user_id = ?
-        """,
-        (tour_id, user_id),
-    )
+        cursor.execute(
+            "DELETE FROM tours WHERE id = ?",
+            (tour_id,),
+        )
 
-    deleted = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return deleted
+    return run_write_with_retry(operation)
 
-def update_tour_company(user_id: int, tour_id: int, company: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+def update_tour_company(tour_id: int, company: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET company = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (company, tour_id, user_id),
-    )
+        cursor.execute(
+            "UPDATE tours SET company = ? WHERE id = ?",
+            (company, tour_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def update_tour_city(user_id: int, tour_id: int, city: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET city = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (city, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET city = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (city, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def update_tour_income(user_id: int, tour_id: int, income: int) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET income = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (income, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET income = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (income, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def update_tour_note(user_id: int, tour_id: int, note: str | None) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET note = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (note, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET note = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (note, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def update_tour_status(user_id: int, tour_id: int, status: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET status = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (status, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET status = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (status, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 
 def update_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET payment_status = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (payment_status, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET payment_status = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (payment_status, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def update_tour_dates(user_id: int, tour_id: int, start_date: str, end_date: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
+    def operation(conn):
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE tours
-        SET start_date = ?, end_date = ?
-        WHERE id = ? AND user_id = ?
-        """,
-        (start_date, end_date, tour_id, user_id),
-    )
+        cursor.execute(
+            """
+            UPDATE tours
+            SET start_date = ?, end_date = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (start_date, end_date, tour_id, user_id),
+        )
 
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+        return cursor.rowcount > 0
 
-    return updated
+    return run_write_with_retry(operation)
 
 def get_total_income(user_id: int) -> int:
     conn = get_connection()
