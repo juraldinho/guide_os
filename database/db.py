@@ -131,3 +131,4 @@ def init_db() -> None:
         """)
 
         conn.commit()
+        logger.info("SQLite initialized with WAL, busy_timeout and indexes")

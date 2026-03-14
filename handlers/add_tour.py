@@ -163,6 +163,8 @@ async def cancel_conflict_save(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(F.text == "➕ Добавить тур")
 async def add_tour_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddTourState.date)
+    logger.info("User %s started add_tour flow", message.from_user.id)
+    
     await message.answer(
         f"➕ Новый тур\n\n{DATE_INPUT_HINT}",
         reply_markup=get_date_keyboard()
@@ -222,6 +224,11 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
     try:
         parse_date_input(date_text)
     except ValueError:
+        logger.warning(
+            "User %s entered invalid date input: %r",
+            message.from_user.id,
+            message.text,
+        )        
         await message.answer(DATE_PARSE_ERROR_TEXT)
         return
 
@@ -243,6 +250,11 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
 
     if company == "У меня выходной":
         data = await state.get_data()
+        logger.info(
+            "User %s saving day off for %s",
+            message.from_user.id,
+            data["date_text"],
+        )
 
         save_day_off(
             user_id=message.from_user.id,
@@ -326,6 +338,12 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
     conflicts = get_conflicting_dates(user_id, date_text)
 
     if conflicts:
+        logger.warning(
+            "User %s has date conflicts for %r: %s",
+            user_id,
+            date_text,
+            conflicts,
+        )
         first_conflict = datetime.strptime(conflicts[0], "%Y-%m-%d")
         year = first_conflict.year
         month = first_conflict.month
@@ -349,6 +367,15 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
         )
 
         return
+    logger.info(
+        "User %s saving tour: company=%r city=%r date_text=%r status=%r income=%r",
+        user_id,
+        company,
+        city,
+        date_text,
+        status,
+        income,
+    )
 
     save_tour(
         user_id=user_id,
@@ -369,6 +396,15 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
 @router.callback_query(F.data == "add_tour_conflict_save")
 async def confirm_conflict_save(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
+    logger.info(
+        "User %s saving tour: company=%r city=%r date_text=%r status=%r income=%r",
+        user_id,
+        company,
+        city,
+        date_text,
+        status,
+        income,
+    )
 
     save_tour(
         user_id=callback.from_user.id,

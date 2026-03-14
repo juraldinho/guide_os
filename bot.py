@@ -14,10 +14,14 @@ from handlers.check_date import router as check_date_router
 from handlers.tour_cards import router as tour_cards_router
 from handlers.tour_edits import router as tour_edits_router
 
+from utils.logger import setup_logging
+
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
+    logger = logging.getLogger(__name__)
 
     init_db()
+    logger.info("Bot started")
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()

@@ -1,5 +1,7 @@
 from datetime import date
 
+import logging
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 
@@ -13,10 +15,13 @@ from services.calendar_service import (
 from utils.formatters import format_month_calendar, format_free_days
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(F.text == "🗓 Календарь")
 async def show_calendar_entry(message: Message) -> None:
+    logger.info("User %s opened calendar entry", message.from_user.id)
+    
     today = date.today()
     months = get_month_window(today.year, today.month)
 
@@ -64,6 +69,13 @@ async def open_month(callback: CallbackQuery) -> None:
     year = int(year_str)
     month = int(month_str)
 
+    logger.info(
+        "User %s opened month calendar: %s-%02d",
+        callback.from_user.id,
+        year,
+        month,
+    )
+
     user_id = callback.from_user.id
     calendar_data = build_month_calendar(user_id, year, month)
     text = format_month_calendar(calendar_data)
@@ -81,6 +93,12 @@ async def open_free_days(callback: CallbackQuery) -> None:
     _, year_str, month_str = callback.data.split(":")
     year = int(year_str)
     month = int(month_str)
+    logger.info(
+        "User %s opened free days: %s-%02d",
+        callback.from_user.id,
+        year,
+        month,
+    )
 
     user_id = callback.from_user.id
     free_days_data = get_free_days(user_id, year, month)
