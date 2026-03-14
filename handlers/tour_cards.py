@@ -1,24 +1,176 @@
-from aiogram.filters import StateFilter
-
-from keyboards.main_menu import get_main_menu
-
-from datetime import datetime
-
-from states.add_tour_state import AddTourState
-
-
-from database.queries import get_tours_by_group_id
-
+from aiogram import F, Router
 from aiogram.types import (
+    Message,
     CallbackQuery,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
 )
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.fsm.context import FSMContext
 
+from datetime import datetime
+
+from database.queries import get_tours_by_group_id
+
+from states.add_tour_state import AddTourState
+from states.tour_edit import EditTourState
+
+from handlers.add_tour import get_company_keyboard
+
+from services.day_view_service import build_day_entries_for_month
+from services.day_card_service import get_day_card_data
+from services.tour_card_formatter import (
+    format_date,
+    format_tour_card,
+    build_selected_day_entry_text,
+)
+
+from services.tour_service import (
+    get_tour,
+    delete_tour,
+    edit_tour_company,
+    edit_tour_city,
+    edit_tour_income,
+    edit_tour_note,
+    edit_tour_status,
+    edit_tour_payment_status,
+    edit_tour_dates,
+)
+
+from keyboards.tour_management import (
+    get_tour_view_keyboard,
+    get_edit_tour_menu_keyboard,
+    get_edit_company_keyboard,
+    get_edit_city_keyboard,
+    get_edit_income_keyboard,
+    get_edit_note_keyboard,
+    get_delete_confirmation_keyboard,
+    get_day_card_keyboard,
+    get_day_entries_keyboard,
+    get_free_day_card_keyboard,
+    get_multiple_day_entries_keyboard,
+    get_multiple_selected_entry_keyboard,
+    get_day_off_selected_entry_keyboard,
+    get_single_day_entry_keyboard,
+)
 
 router = Router()
 
+MONTH_NAMES_RU = {
+    1: "январь",
+    2: "февраль",
+    3: "март",
+    4: "апрель",
+    5: "май",
+    6: "июнь",
+    7: "июль",
+    8: "август",
+    9: "сентябрь",
+    10: "октябрь",
+    11: "ноябрь",
+    12: "декабрь",
+}
+
+def parse_tour_context(callback_data: str) -> tuple[int, int, int]:
+    """
+    Для callback формата:
+    action:tour_id:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    year = int(parts[2])
+    month = int(parts[3])
+    return tour_id, year, month
+
+
+def parse_month_context(callback_data: str) -> tuple[int, int]:
+    """
+    Для callback формата:
+    cal_tours:year:month
+    """
+    parts = callback_data.split(":")
+    year = int(parts[1])
+    month = int(parts[2])
+    return year, month
+
+def parse_day_card_context(callback_data: str) -> tuple[str, int, int]:
+    """
+    Для callback формата:
+    day_card:date:year:month
+    """
+    parts = callback_data.split(":")
+    date_str = parts[1]
+    year = int(parts[2])
+    month = int(parts[3])
+    return date_str, year, month
+
+def parse_multiple_day_entry_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_entry:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
+def parse_multiple_day_delete_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_delete:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
+def parse_multiple_day_delete_confirm_context(callback_data: str) -> tuple[int, str, int, int]:
+    """
+    Формат:
+    multiple_day_delete_confirm:tour_id:date:year:month
+    """
+    parts = callback_data.split(":")
+    tour_id = int(parts[1])
+    date_str = parts[2]
+    year = int(parts[3])
+    month = int(parts[4])
+    return tour_id, date_str, year, month
+
+def parse_create_tour_from_day_context(callback_data: str) -> tuple[str, int, int]:
+    """
+    Формат:
+    create_tour_from_day:date:year:month
+    """
+    parts = callback_data.split(":")
+    date_str = parts[1]
+    year = int(parts[2])
+    month = int(parts[3])
+    return date_str, year, month
+
+
+def is_multi_day_group(tour: dict) -> bool:
+    tour_group_id = tour.get("tour_group_id")
+
+    if not tour_group_id:
+        start_date = datetime.strptime(tour["start_date"], "%Y-%m-%d").date()
+        end_date = datetime.strptime(tour["end_date"], "%Y-%m-%d").date()
+        return (end_date - start_date).days >= 1
+
+    group_rows = [dict(item) for item in get_tours_by_group_id(tour["user_id"], tour_group_id)]
+
+    if len(group_rows) > 1:
+        return True
+
+    row = group_rows[0]
+    start_date = datetime.strptime(row["start_date"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(row["end_date"], "%Y-%m-%d").date()
+
+    return (end_date - start_date).days >= 1
 
 @router.callback_query(lambda c: c.data and c.data.startswith("create_tour_from_day:"))
 async def create_tour_from_free_day(callback: CallbackQuery, state: FSMContext):
@@ -788,4 +940,13 @@ async def process_edit_note(message: Message, state: FSMContext):
         reply_markup=get_tour_view_keyboard(tour_id, year, month),
     )
 
+def format_multiple_day_entries(date_str: str, entries: list[dict]) -> str:
+    date_formatted = format_date(date_str)
 
+    lines = [
+        f"📅 Дата: {date_formatted}\n\n"
+        f"На эту дату найдено несколько записей.\n"
+        f"Выберите карточку:"
+    ]
+
+    return "\n".join(lines)

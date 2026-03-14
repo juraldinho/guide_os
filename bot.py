@@ -9,8 +9,9 @@ from handlers.add_tour import router as add_tour_router
 from handlers.calendar import router as calendar_router
 from handlers.income import router as income_router
 from database.db import init_db
-from handlers import my_tours
 from handlers import stats
+from handlers.check_date import router as check_date_router
+from handlers.tour_cards import router as tour_cards_router
 
 
 async def main() -> None:
@@ -25,7 +26,8 @@ async def main() -> None:
     dp.include_router(add_tour_router)
     dp.include_router(calendar_router)
     dp.include_router(income_router)
-    dp.include_router(my_tours.router)
+    dp.include_router(check_date_router)
+    dp.include_router(tour_cards_router)
     dp.include_router(stats.router)
 
 
