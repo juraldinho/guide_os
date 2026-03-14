@@ -12,6 +12,12 @@ from aiogram.types import (
     CallbackQuery,
 )
 
+from utils.validators import (
+    validate_company,
+    validate_city,
+    validate_income,
+)
+
 from datetime import datetime
 
 from aiogram.fsm.context import FSMContext
@@ -229,7 +235,11 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
 
 @router.message(AddTourState.company)
 async def add_tour_company(message: Message, state: FSMContext) -> None:
-    company = message.text.strip()
+    try:
+        company = validate_company(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
+        return
 
     if company == "У меня выходной":
         data = await state.get_data()
@@ -246,10 +256,6 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
         )
         return
 
-    if not company:
-        await message.answer("Название компании не должно быть пустым")
-        return
-
     await state.update_data(company=company)
     await state.set_state(AddTourState.city)
     await message.answer(
@@ -260,9 +266,10 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
 
 @router.message(AddTourState.city)
 async def add_tour_city(message: Message, state: FSMContext) -> None:
-    city = message.text.strip()
-    if not city:
-        await message.answer("Город не должен быть пустым")
+    try:
+        city = validate_city(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
         return
 
     await state.update_data(city=city)
@@ -303,10 +310,11 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
     if income_text == "Пропустить":
         income = None
     else:
-        if not income_text.isdigit():
-            await message.answer("Доход должен быть числом")
+        try:
+            income = validate_income(income_text)
+        except ValueError as e:
+            await message.answer(str(e))
             return
-        income = int(income_text)
 
     data = await state.get_data()
 

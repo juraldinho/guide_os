@@ -1,8 +1,11 @@
 from datetime import date
 
-from utils.constants import WEEKDAY_NAMES_RU, FREE_LABEL, DAY_OFF_LABEL
-
-
+from utils.constants import (
+    WEEKDAY_NAMES_RU,
+    FREE_LABEL,
+    DAY_OFF_LABEL,
+    MULTIPLE_TOURS_LABEL,
+)
 
 def format_month_calendar(calendar_data: dict) -> str:
     year = calendar_data["year"]
@@ -21,6 +24,9 @@ def format_month_calendar(calendar_data: dict) -> str:
 
         elif value.lower() == DAY_OFF_LABEL.lower():
             label = "🌴 У меня выходной"
+
+        elif value.lower() == MULTIPLE_TOURS_LABEL.lower():
+            label = "🟡 несколько туров"
 
         else:
             label = f"🔵 <b>{value}</b>"

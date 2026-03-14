@@ -18,6 +18,13 @@ from services.tour_service import (
     edit_tour_dates,
 )
 
+from utils.validators import (
+    validate_company,
+    validate_city,
+    validate_income,
+    validate_note,
+)
+
 from keyboards.tour_management import (
     get_tour_view_keyboard,
     get_edit_tour_menu_keyboard,
@@ -408,12 +415,11 @@ async def keep_current_city(callback: CallbackQuery, state: FSMContext):
 @router.message(EditTourState.waiting_for_company)
 async def process_edit_company(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    new_company = message.text.strip()
-
-    if not new_company:
-        await message.answer("Название компании не может быть пустым. Введите новое название:")
+    try:
+        new_company = validate_company(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
         return
-
     data = await state.get_data()
     tour_id = data.get("tour_id")
     year = data.get("year")
@@ -485,10 +491,10 @@ async def confirm_delete_tour(callback: CallbackQuery):
 @router.message(EditTourState.waiting_for_city)
 async def process_edit_city(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    new_city = message.text.strip()
-
-    if not new_city:
-        await message.answer("Город не может быть пустым. Введите новый город:")
+    try:
+        new_city = validate_city(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
         return
 
     data = await state.get_data()
@@ -523,13 +529,12 @@ async def process_edit_city(message: Message, state: FSMContext):
 @router.message(EditTourState.waiting_for_income)
 async def process_edit_income(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    income_text = message.text.strip()
-
-    if not income_text.isdigit():
-        await message.answer("Введите стоимость числом, например: 100")
+    
+    try:
+        new_income = validate_income(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
         return
-
-    new_income = int(income_text)
 
     data = await state.get_data()
     tour_id = data.get("tour_id")
@@ -563,7 +568,11 @@ async def process_edit_income(message: Message, state: FSMContext):
 @router.message(EditTourState.waiting_for_note)
 async def process_edit_note(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    new_note = message.text.strip()
+    try:
+        new_note = validate_note(message.text)
+    except ValueError as e:
+        await message.answer(str(e))
+        return
 
     data = await state.get_data()
     tour_id = data.get("tour_id")

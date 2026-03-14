@@ -1,10 +1,14 @@
 from calendar import monthrange
-from datetime import date, datetime
-
-from database.queries import get_tours_for_month
-from utils.constants import MONTH_NAMES_RU, FREE_LABEL
+from datetime import date
+from services.month_day_map import build_month_day_map, get_day_status
+from utils.constants import (
+    MONTH_NAMES_RU,
+    FREE_LABEL,
+    DAY_OFF_LABEL,
+    MULTIPLE_TOURS_LABEL,
+)
 from utils.date_utils import get_month_bounds, shift_month
-
+from database.queries import get_tours_for_month, get_tours_for_month_raw
 
 def get_current_month_period() -> tuple[int, int, str, str]:
     today = date.today()
@@ -20,28 +24,34 @@ def get_current_month_period() -> tuple[int, int, str, str]:
 
 def build_month_calendar(user_id: int, year: int, month: int) -> dict:
     month_start, month_end = get_month_bounds(year, month)
-    tours = get_tours_for_month(user_id, month_start, month_end)
+    raw_rows = get_tours_for_month_raw(user_id, month_start, month_end)
 
     days_in_month = monthrange(year, month)[1]
-    days_map: dict[int, str] = {day: FREE_LABEL for day in range(1, days_in_month + 1)}
+    day_map = build_month_day_map(raw_rows, year, month)
 
-    for tour in tours:
-        start = datetime.strptime(tour["start_date"], "%Y-%m-%d").date()
-        end = datetime.strptime(tour["end_date"], "%Y-%m-%d").date()
+    days_map: dict[int, str] = {}
 
-        for day in range(1, days_in_month + 1):
-            current_day = date(year, month, day)
-            if start <= current_day <= end:
-                if days_map[day] == FREE_LABEL:
-                    days_map[day] = tour["company"]
+    for day in range(1, days_in_month + 1):
+        date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        rows = day_map[date_str]
+        status = get_day_status(rows)
+
+        if status == "free":
+            days_map[day] = FREE_LABEL
+        elif status == "multiple":
+            days_map[day] = MULTIPLE_TOURS_LABEL
+        elif status == "day_off":
+            days_map[day] = DAY_OFF_LABEL
+        else:
+            days_map[day] = rows[0]["company"]
 
     return {
         "year": year,
         "month": month,
         "month_name": MONTH_NAMES_RU[month],
         "days_map": days_map,
-        "tours": tours,
-    }   
+        "tours": raw_rows,
+    }  
 
 
 def get_month_window(start_year: int, start_month: int) -> list[tuple[int, int]]:
