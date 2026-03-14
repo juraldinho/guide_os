@@ -5,7 +5,9 @@ from contextlib import contextmanager
 from typing import Iterator, Callable, TypeVar
 
 
-DB_PATH = "guide_os.db"
+import os
+
+DB_PATH = os.getenv("DATABASE_PATH", "guide_os.db")
 
 SQLITE_TIMEOUT_SECONDS = 5
 SQLITE_BUSY_TIMEOUT_MS = 5000
