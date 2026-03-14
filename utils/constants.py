@@ -12,6 +12,7 @@ ENTRY_TYPE_DAY_OFF = "day_off"
 
 FREE_LABEL = "свободно"
 DAY_OFF_LABEL = "У меня выходной"
+MULTIPLE_TOURS_LABEL = "несколько туров"
 
 MONTH_NAMES_RU = {
     1: "Январь",

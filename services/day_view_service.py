@@ -1,9 +1,9 @@
 from calendar import monthrange
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from database.queries import get_tours_for_month_raw
+from services.month_day_map import build_month_day_map, get_day_status
 from utils.constants import (
-    MONTH_NAMES_RU_GENITIVE,
     MONTH_SHORT_RU,
     ENTRY_TYPE_DAY_OFF,
 )
@@ -34,25 +34,7 @@ def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dic
     raw_rows = get_tours_for_month_raw(user_id, month_start, month_end)
 
     days_in_month = monthrange(year, month)[1]
-
-    day_map: dict[str, list[dict]] = {}
-
-    for day in range(1, days_in_month + 1):
-        date_str = f"{year:04d}-{month:02d}-{day:02d}"
-        day_map[date_str] = []
-
-    for row in raw_rows:
-        start_date = datetime.strptime(row["start_date"], "%Y-%m-%d").date()
-        end_date = datetime.strptime(row["end_date"], "%Y-%m-%d").date()
-
-        current_date = start_date
-        while current_date <= end_date:
-            current_date_str = current_date.strftime("%Y-%m-%d")
-
-            if month_start <= current_date_str <= month_end:
-                day_map[current_date_str].append(dict(row))
-
-            current_date += timedelta(days=1)
+    day_map = build_month_day_map(raw_rows, year, month)
 
     result: list[dict] = []
 
@@ -61,9 +43,10 @@ def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dic
         rows = day_map[date_str]
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
 
-        if not rows:
-            status = "free"
-            label = _format_day_label(date_obj, status, rows)
+        status = get_day_status(rows)
+        label = _format_day_label(date_obj, status, rows)
+
+        if status == "free":
             result.append(
                 {
                     "date": date_str,
@@ -76,9 +59,7 @@ def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dic
             )
             continue
 
-        if len(rows) > 1:
-            status = "multiple"
-            label = _format_day_label(date_obj, status, rows)
+        if status == "multiple":
             result.append(
                 {
                     "date": date_str,
@@ -92,13 +73,6 @@ def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dic
             continue
 
         row = rows[0]
-
-        if row["entry_type"] == ENTRY_TYPE_DAY_OFF:
-            status = "day_off"
-        else:
-            status = "tour"
-
-        label = _format_day_label(date_obj, status, rows)
 
         result.append(
             {
