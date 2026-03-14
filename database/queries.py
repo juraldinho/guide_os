@@ -309,10 +309,11 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
 
     cursor.execute(
         """
-        SELECT id, company, city, start_date, end_date, status, income, payment_status, note
+        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
+          AND entry_type = 'tour'
         ORDER BY start_date ASC
         """,
         (user_id,),

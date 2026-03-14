@@ -32,7 +32,7 @@ def _calculate_overlap_days(
 
 
 def _filter_work_tours(tours: list[dict]) -> list[dict]:
-    return [tour for tour in tours if tour.get("entry_type", "tour") == "tour"]
+    return [tour for tour in tours if tour.get("entry_type") == "tour"]
 
 
 def get_stats_summary(user_id: int, year: int, month: int) -> dict:
