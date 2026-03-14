@@ -1,6 +1,15 @@
 from datetime import datetime
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from utils.constants import (
+    STATUS_RESERVED,
+    STATUS_CONFIRMED,
+    PAYMENT_PAID,
+    PAYMENT_UNPAID,
+    ENTRY_TYPE_DAY_OFF,
+    DAY_OFF_LABEL,
+)
+
 
 def format_short_date(date_str: str) -> str:
     dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -37,11 +46,11 @@ def get_edit_tour_menu_keyboard(tour: dict, year: int, month: int) -> InlineKeyb
     status = tour["status"]
     payment_status = tour["payment_status"]
 
-    reserved_text = "✅ Бронь" if status == "reserved" else "Бронь"
-    confirmed_text = "✅ Занято" if status == "confirmed" else "Занято"
+    reserved_text = "✅ Бронь" if status == STATUS_RESERVED else "Бронь"
+    confirmed_text = "✅ Занято" if status == STATUS_CONFIRMED else "Занято"
 
-    paid_text = "✅ Оплачено" if payment_status == "paid" else "Оплачено"
-    unpaid_text = "✅ Нет оплаты" if payment_status == "unpaid" else "Нет оплаты"
+    paid_text = "✅ Оплачено" if payment_status == PAYMENT_PAID else "Оплачено"
+    unpaid_text = "✅ Нет оплаты" if payment_status == PAYMENT_UNPAID else "Нет оплаты"
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -269,8 +278,8 @@ def get_multiple_day_entries_keyboard(
     buttons = []
 
     for entry in entries:
-        if entry.get("entry_type") == "day_off":
-            label = "У меня выходной"
+        if entry.get("entry_type") == ENTRY_TYPE_DAY_OFF:
+            label = DAY_OFF_LABEL
         else:
             label = entry.get("company", "—")
 

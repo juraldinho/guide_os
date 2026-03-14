@@ -1,15 +1,7 @@
 from datetime import date
 
+from utils.constants import WEEKDAY_NAMES_RU, FREE_LABEL, DAY_OFF_LABEL
 
-WEEKDAY_NAMES_RU = {
-    0: "Пн",
-    1: "Вт",
-    2: "Ср",
-    3: "Чт",
-    4: "Пт",
-    5: "Сб",
-    6: "Вс",
-}
 
 
 def format_month_calendar(calendar_data: dict) -> str:
@@ -24,10 +16,10 @@ def format_month_calendar(calendar_data: dict) -> str:
         weekday = WEEKDAY_NAMES_RU[date(year, month, day).weekday()]
         day_str = f"{day:02d}"
 
-        if value == "свободно":
+        if value == FREE_LABEL:
             label = "🟢 свободно"
 
-        elif value.lower() == "у меня выходной":
+        elif value.lower() == DAY_OFF_LABEL.lower():
             label = "🌴 У меня выходной"
 
         else:

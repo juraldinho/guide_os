@@ -2,22 +2,9 @@ from calendar import monthrange
 from datetime import date, datetime
 
 from database.queries import get_tours_for_month
+from utils.constants import MONTH_NAMES_RU, FREE_LABEL
+from utils.date_utils import get_month_bounds, shift_month
 
-
-MONTH_NAMES_RU = {
-    1: "Январь",
-    2: "Февраль",
-    3: "Март",
-    4: "Апрель",
-    5: "Май",
-    6: "Июнь",
-    7: "Июль",
-    8: "Август",
-    9: "Сентябрь",
-    10: "Октябрь",
-    11: "Ноябрь",
-    12: "Декабрь",
-}
 
 def get_current_month_period() -> tuple[int, int, str, str]:
     today = date.today()
@@ -36,7 +23,7 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
     tours = get_tours_for_month(user_id, month_start, month_end)
 
     days_in_month = monthrange(year, month)[1]
-    days_map: dict[int, str] = {day: "свободно" for day in range(1, days_in_month + 1)}
+    days_map: dict[int, str] = {day: FREE_LABEL for day in range(1, days_in_month + 1)}
 
     for tour in tours:
         start = datetime.strptime(tour["start_date"], "%Y-%m-%d").date()
@@ -45,7 +32,7 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
         for day in range(1, days_in_month + 1):
             current_day = date(year, month, day)
             if start <= current_day <= end:
-                if days_map[day] == "свободно":
+                if days_map[day] == FREE_LABEL:
                     days_map[day] = tour["company"]
 
     return {
@@ -56,17 +43,6 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
         "tours": tours,
     }   
 
-def shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
-    total = year * 12 + (month - 1) + offset
-    new_year = total // 12
-    new_month = total % 12 + 1
-    return new_year, new_month
-
-def get_month_bounds(year: int, month: int) -> tuple[str, str]:
-    last_day = monthrange(year, month)[1]
-    month_start = date(year, month, 1).isoformat()
-    month_end = date(year, month, last_day).isoformat()
-    return month_start, month_end
 
 def get_month_window(start_year: int, start_month: int) -> list[tuple[int, int]]:
     months = []
@@ -81,7 +57,7 @@ def get_month_window(start_year: int, start_month: int) -> list[tuple[int, int]]
 def get_free_days(user_id: int, year: int, month: int) -> dict:
     calendar_data = build_month_calendar(user_id, year, month)
 
-    free_days = [day for day, value in calendar_data["days_map"].items() if value == "свободно"]
+    free_days = [day for day, value in calendar_data["days_map"].items() if value == FREE_LABEL]
 
     return {
         "year": year,

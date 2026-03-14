@@ -31,6 +31,13 @@ from keyboards.tour_management import (
 
 from handlers.tour_cards import parse_tour_context, MONTH_NAMES_RU
 
+from utils.constants import (
+    STATUS_RESERVED,
+    STATUS_CONFIRMED,
+    PAYMENT_PAID,
+    PAYMENT_UNPAID,
+)
+
 router = Router()
 
 @router.callback_query(lambda c: c.data and c.data.startswith("tour_view:"))
@@ -77,9 +84,9 @@ async def set_tour_status(callback: CallbackQuery):
     month = int(parts[3])
 
     if action == "set_status_reserved":
-        new_status = "reserved"
+        new_status = STATUS_RESERVED
     elif action == "set_status_confirmed":
-        new_status = "confirmed"
+        new_status = STATUS_CONFIRMED
     else:
         await callback.answer("Некорректный статус", show_alert=True)
         return
@@ -120,9 +127,9 @@ async def set_tour_payment_status(callback: CallbackQuery):
     month = int(parts[3])
 
     if action == "set_payment_paid":
-        new_payment_status = "paid"
+        new_payment_status = PAYMENT_PAID
     elif action == "set_payment_unpaid":
-        new_payment_status = "unpaid"
+        new_payment_status = PAYMENT_UNPAID
     else:
         await callback.answer("Некорректный статус оплаты", show_alert=True)
         return

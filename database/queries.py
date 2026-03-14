@@ -2,6 +2,12 @@ import sqlite3
 
 from database.db import get_connection, run_write_with_retry
 
+from utils.constants import (
+    PAYMENT_UNPAID,
+    ENTRY_TYPE_TOUR,
+    ENTRY_TYPE_DAY_OFF,
+)
+
 def create_tour(
     user_id: int,
     company: str,
@@ -10,9 +16,9 @@ def create_tour(
     end_date: str,
     status: str,
     income: int | None = None,
-    payment_status: str = "unpaid",
+    payment_status: str = PAYMENT_UNPAID,
     note: str | None = None,
-    entry_type: str = "tour",
+    entry_type: str = ENTRY_TYPE_TOUR,
     tour_group_id: str | None = None,
 ) -> None:
     def operation(conn):
@@ -243,9 +249,9 @@ def get_total_income(user_id: int) -> int:
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
           AND income IS NOT NULL
-          AND entry_type = 'tour'
+          AND entry_type = ?
         """,
-        (user_id,),
+        (user_id, ENTRY_TYPE_TOUR),
     )
 
     row = cursor.fetchone()
@@ -264,10 +270,10 @@ def get_unpaid_tours_count(user_id: int) -> int:
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
-          AND payment_status = 'unpaid'
-          AND entry_type = 'tour'
+          AND payment_status = ?
+          AND entry_type = ?
         """,
-        (user_id,),
+        (user_id, PAYMENT_UNPAID, ENTRY_TYPE_TOUR),
     )
 
     row = cursor.fetchone()
@@ -285,9 +291,9 @@ def get_total_tours_count(user_id: int) -> int:
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
-          AND entry_type = 'tour'
+          AND entry_type = ?
         """,
-        (user_id,),
+        (user_id, ENTRY_TYPE_TOUR),
     )
 
     row = cursor.fetchone()
@@ -306,10 +312,10 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
         FROM tours
         WHERE user_id = ?
           AND status IN ('reserved', 'confirmed')
-          AND entry_type = 'tour'
+          AND entry_type = ?
         ORDER BY start_date ASC
         """,
-        (user_id,),
+        (user_id, ENTRY_TYPE_TOUR),
     )
 
     rows = cursor.fetchall()
@@ -348,14 +354,14 @@ def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
           AND end_date >= ?
         ORDER BY
             CASE
-                WHEN entry_type = 'day_off' THEN 1
+                WHEN entry_type = ? THEN 1
                 ELSE 0
             END,
             start_date,
             end_date,
             id
         """,
-        (user_id, target_date, target_date),
+        (user_id, target_date, target_date, ENTRY_TYPE_DAY_OFF),
     )
 
     rows = cursor.fetchall()

@@ -2,50 +2,18 @@ from calendar import monthrange
 from datetime import datetime, timedelta
 
 from database.queries import get_tours_for_month_raw
-
-
-MONTH_NAMES_RU = {
-    1: "января",
-    2: "февраля",
-    3: "марта",
-    4: "апреля",
-    5: "мая",
-    6: "июня",
-    7: "июля",
-    8: "августа",
-    9: "сентября",
-    10: "октября",
-    11: "ноября",
-    12: "декабря",
-}
-
-
-def _get_month_bounds(year: int, month: int) -> tuple[str, str]:
-    last_day = monthrange(year, month)[1]
-    month_start = f"{year:04d}-{month:02d}-01"
-    month_end = f"{year:04d}-{month:02d}-{last_day:02d}"
-    return month_start, month_end
+from utils.constants import (
+    MONTH_NAMES_RU_GENITIVE,
+    MONTH_SHORT_RU,
+    ENTRY_TYPE_DAY_OFF,
+)
+from utils.date_utils import get_month_bounds
 
 
 def _format_day_label(date_obj: datetime, status: str, rows: list[dict]) -> str:
     day_number = f"{date_obj.day:02d}"
 
-    MONTH_SHORT = {
-        1: "янв",
-        2: "фев",
-        3: "мар",
-        4: "апр",
-        5: "май",
-        6: "июн",
-        7: "июл",
-        8: "авг",
-        9: "сен",
-        10: "окт",
-        11: "ноя",
-        12: "дек",
-    }
-
-    month_name = MONTH_SHORT[date_obj.month]
+    month_name = MONTH_SHORT_RU[date_obj.month]
 
     if status == "free":
         return f"🟢 {day_number} {month_name} — свободно"
@@ -62,7 +30,7 @@ def _format_day_label(date_obj: datetime, status: str, rows: list[dict]) -> str:
 
 
 def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dict]:
-    month_start, month_end = _get_month_bounds(year, month)
+    month_start, month_end = get_month_bounds(year, month)
     raw_rows = get_tours_for_month_raw(user_id, month_start, month_end)
 
     days_in_month = monthrange(year, month)[1]
@@ -125,7 +93,7 @@ def build_day_entries_for_month(user_id: int, year: int, month: int) -> list[dic
 
         row = rows[0]
 
-        if row["entry_type"] == "day_off":
+        if row["entry_type"] == ENTRY_TYPE_DAY_OFF:
             status = "day_off"
         else:
             status = "tour"
