@@ -56,21 +56,6 @@ def build_month_calendar(user_id: int, year: int, month: int) -> dict:
         "tours": tours,
     }   
 
-
-def get_free_days(user_id: int) -> dict:
-    calendar_data = build_month_calendar(user_id)
-    free_days = []
-
-    for day, value in calendar_data["days_map"].items():
-        if value == "свободно":
-            free_days.append(day)
-
-    return {
-        "year": calendar_data["year"],
-        "month": calendar_data["month"],
-        "month_name": calendar_data["month_name"],
-        "free_days": free_days,
-    }
 def shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
     total = year * 12 + (month - 1) + offset
     new_year = total // 12

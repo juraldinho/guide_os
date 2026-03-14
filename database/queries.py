@@ -94,26 +94,33 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     return dict(row) if row else None
 
-def delete_tour_by_id(tour_id: int) -> bool:
+def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
     def operation(conn):
         cursor = conn.cursor()
 
         cursor.execute(
-            "DELETE FROM tours WHERE id = ?",
-            (tour_id,),
+            """
+            DELETE FROM tours
+            WHERE id = ? AND user_id = ?
+            """,
+            (tour_id, user_id),
         )
 
         return cursor.rowcount > 0
 
     return run_write_with_retry(operation)
 
-def update_tour_company(tour_id: int, company: str) -> bool:
+def update_tour_company(user_id: int, tour_id: int, company: str) -> bool:
     def operation(conn):
         cursor = conn.cursor()
 
         cursor.execute(
-            "UPDATE tours SET company = ? WHERE id = ?",
-            (company, tour_id),
+            """
+            UPDATE tours
+            SET company = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (company, tour_id, user_id),
         )
 
         return cursor.rowcount > 0
