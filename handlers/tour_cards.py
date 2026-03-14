@@ -1,12 +1,5 @@
-from aiogram import F, Router
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-)
+from aiogram import Router
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
 from datetime import datetime
@@ -14,38 +7,14 @@ from datetime import datetime
 from database.queries import get_tours_by_group_id
 
 from states.add_tour_state import AddTourState
-from states.tour_edit import EditTourState
-
 from handlers.add_tour import get_company_keyboard
 
 from services.day_view_service import build_day_entries_for_month
 from services.day_card_service import get_day_card_data
-from services.tour_card_formatter import (
-    format_date,
-    format_tour_card,
-    build_selected_day_entry_text,
-)
-
-from services.tour_service import (
-    get_tour,
-    delete_tour,
-    edit_tour_company,
-    edit_tour_city,
-    edit_tour_income,
-    edit_tour_note,
-    edit_tour_status,
-    edit_tour_payment_status,
-    edit_tour_dates,
-)
+from services.tour_card_formatter import format_date, build_selected_day_entry_text
+from services.tour_service import get_tour, delete_tour
 
 from keyboards.tour_management import (
-    get_tour_view_keyboard,
-    get_edit_tour_menu_keyboard,
-    get_edit_company_keyboard,
-    get_edit_city_keyboard,
-    get_edit_income_keyboard,
-    get_edit_note_keyboard,
-    get_delete_confirmation_keyboard,
     get_day_card_keyboard,
     get_day_entries_keyboard,
     get_free_day_card_keyboard,
@@ -54,6 +23,7 @@ from keyboards.tour_management import (
     get_day_off_selected_entry_keyboard,
     get_single_day_entry_keyboard,
 )
+
 
 router = Router()
 
