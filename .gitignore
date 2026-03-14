@@ -9,3 +9,5 @@ guide_os.db
 .DS_Store
 *.tar.gz
 project_code.txt
+logs/
+*.log
