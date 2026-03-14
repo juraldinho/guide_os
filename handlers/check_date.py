@@ -68,6 +68,14 @@ async def check_date_result(message: Message, state: FSMContext):
     try:
         dates = parse_date_input(date_text)
     except ValueError:
+        await message.answer(
+            "Не удалось распознать дату.\n\n"
+            "Попробуйте формат:\n"
+            "• 12/03\n"
+            "• 12.03\n"
+            "• 2026-03-12",
+            reply_markup=get_check_date_keyboard()
+        )
         return
 
     first_item = dates[0]

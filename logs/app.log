@@ -30,3 +30,17 @@
 2026-03-15 02:00:34,287 | INFO | aiogram.event | Update id=260354794 is handled. Duration 170 ms by bot id=8638104397
 2026-03-15 02:00:38,038 | INFO | handlers.add_tour | User 694022 saving tour: company='sdklj' city='sdf' date_text='12/07' status='reserved' income=100
 2026-03-15 02:00:38,192 | INFO | aiogram.event | Update id=260354795 is handled. Duration 163 ms by bot id=8638104397
+2026-03-15 02:40:38,426 | INFO | database.db | SQLite initialized with WAL, busy_timeout and indexes
+2026-03-15 02:40:38,428 | INFO | __main__ | Bot started
+2026-03-15 02:40:38,492 | INFO | aiogram.dispatcher | Start polling
+2026-03-15 02:40:38,825 | INFO | aiogram.dispatcher | Run polling for bot @Guide_os_bot id=8638104397 - 'Guide OS'
+2026-03-15 02:40:41,149 | INFO | aiogram.event | Update id=260354796 is handled. Duration 382 ms by bot id=8638104397
+2026-03-15 02:40:43,326 | INFO | aiogram.event | Update id=260354797 is handled. Duration 186 ms by bot id=8638104397
+2026-03-15 03:04:00,825 | INFO | database.db | SQLite initialized with WAL, busy_timeout and indexes
+2026-03-15 03:04:00,826 | INFO | __main__ | Bot started
+2026-03-15 03:04:00,901 | INFO | aiogram.dispatcher | Start polling
+2026-03-15 03:04:01,241 | INFO | aiogram.dispatcher | Run polling for bot @Guide_os_bot id=8638104397 - 'Guide OS'
+2026-03-15 03:04:08,358 | INFO | handlers.start | User 694022 started the bot
+2026-03-15 03:04:08,709 | INFO | aiogram.event | Update id=260354798 is handled. Duration 350 ms by bot id=8638104397
+2026-03-15 03:04:47,063 | INFO | handlers.start | User 694022 started the bot
+2026-03-15 03:04:47,195 | INFO | aiogram.event | Update id=260354799 is handled. Duration 131 ms by bot id=8638104397

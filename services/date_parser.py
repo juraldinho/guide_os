@@ -26,17 +26,17 @@ def parse_day_token(raw: str) -> str:
     except ValueError:
         pass
 
-    try:
-        parsed = datetime.strptime(raw, "%d/%m")
-        return build_iso_date(parsed.day, parsed.month)
-    except ValueError:
-        pass
+    match = re.fullmatch(r"(\d{1,2})/(\d{1,2})", raw)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        return build_iso_date(day, month)
 
-    try:
-        parsed = datetime.strptime(raw, "%d.%m")
-        return build_iso_date(parsed.day, parsed.month)
-    except ValueError:
-        pass
+    match = re.fullmatch(r"(\d{1,2})\.(\d{1,2})", raw)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        return build_iso_date(day, month)
 
     raise ValueError("Не удалось распознать дату")
 
@@ -140,9 +140,7 @@ def parse_date_input(date_text: str) -> list[dict[str, str]]:
     for part in parts:
         compact = part.replace(" ", "")
 
-        if "-" in compact:
-            intervals.append(parse_range_token(compact))
-        else:
+        try:
             single_date = parse_day_token(compact)
             intervals.append(
                 {
@@ -150,6 +148,11 @@ def parse_date_input(date_text: str) -> list[dict[str, str]]:
                     "end_date": single_date,
                 }
             )
+            continue
+        except ValueError:
+            pass
+
+        intervals.append(parse_range_token(compact))
 
     return intervals
 

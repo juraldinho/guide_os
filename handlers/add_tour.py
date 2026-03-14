@@ -229,7 +229,10 @@ async def add_tour_date(message: Message, state: FSMContext) -> None:
             message.from_user.id,
             message.text,
         )        
-        await message.answer(DATE_PARSE_ERROR_TEXT)
+        await message.answer(
+            DATE_PARSE_ERROR_TEXT,
+            reply_markup=get_date_keyboard()
+        )
         return
 
     await state.update_data(date_text=date_text)
@@ -396,14 +399,16 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
 @router.callback_query(F.data == "add_tour_conflict_save")
 async def confirm_conflict_save(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
+    user_id = callback.from_user.id
+
     logger.info(
-        "User %s saving tour: company=%r city=%r date_text=%r status=%r income=%r",
+        "User %s saving conflicting tour: company=%r city=%r date_text=%r status=%r income=%r",
         user_id,
-        company,
-        city,
-        date_text,
-        status,
-        income,
+        data.get("company"),
+        data.get("city"),
+        data.get("date_text"),
+        data.get("status"),
+        data.get("income"),
     )
 
     save_tour(
