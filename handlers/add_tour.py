@@ -328,6 +328,7 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
             income=income,
             conflict_dates=conflicts,
         )
+
         await state.set_state(AddTourState.conflict_confirm)
 
         await message.answer(
@@ -335,6 +336,8 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
             f"Выберите, что сделать дальше:",
             reply_markup=get_conflict_warning_keyboard(year, month),
         )
+
+        return
 
     save_tour(
         user_id=user_id,

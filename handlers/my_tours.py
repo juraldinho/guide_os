@@ -14,6 +14,8 @@ from states.add_tour_state import AddTourState
 
 from aiogram import Router
 
+from database.queries import get_tours_by_group_id
+
 from services.tour_card_formatter import (
     format_date,
     format_tour_card,

@@ -362,6 +362,26 @@ def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
     conn.close()
     return rows
 
+def get_tours_in_range(user_id: int, range_start: str, range_end: str) -> list[sqlite3.Row]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM tours
+        WHERE user_id = ?
+          AND start_date <= ?
+          AND end_date >= ?
+        ORDER BY start_date, end_date, id
+        """,
+        (user_id, range_end, range_start),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
 def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> list[sqlite3.Row]:
     conn = get_connection()
     cursor = conn.cursor()

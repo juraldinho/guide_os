@@ -15,9 +15,8 @@ from database.queries import (
     update_tour_status,
     update_tour_payment_status,
     update_tour_dates,
-    get_tours_for_date,
+    get_tours_in_range,
 )
-from database.queries import get_tours_for_date
 
 from services.date_parser import parse_date_input
 
@@ -28,24 +27,33 @@ def get_conflicting_dates(user_id: int, date_text: str) -> list[str]:
     if intervals is None:
         intervals = parse_date_input(date_text)
 
-    conflict_dates: list[str] = []
+    conflict_dates: set[str] = set()
 
     for interval in intervals:
-        start_date = datetime.strptime(interval["start_date"], "%Y-%m-%d").date()
-        end_date = datetime.strptime(interval["end_date"], "%Y-%m-%d").date()
+        start_date = interval["start_date"]
+        end_date = interval["end_date"]
 
-        current = start_date
-        while current <= end_date:
-            iso_date = current.strftime("%Y-%m-%d")
+        rows = get_tours_in_range(user_id, start_date, end_date)
 
-            rows = get_tours_for_date(user_id, iso_date)
+        if not rows:
+            continue
 
-            if rows:
-                conflict_dates.append(iso_date)
+        requested_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        requested_end = datetime.strptime(end_date, "%Y-%m-%d").date()
 
-            current = current.fromordinal(current.toordinal() + 1)
+        for row in rows:
+            row_start = datetime.strptime(row["start_date"], "%Y-%m-%d").date()
+            row_end = datetime.strptime(row["end_date"], "%Y-%m-%d").date()
 
-    return sorted(set(conflict_dates))
+            overlap_start = max(requested_start, row_start)
+            overlap_end = min(requested_end, row_end)
+
+            current = overlap_start
+            while current <= overlap_end:
+                conflict_dates.add(current.strftime("%Y-%m-%d"))
+                current = current.fromordinal(current.toordinal() + 1)
+
+    return sorted(conflict_dates)
 
 def _parse_single_iso_date(date_text: str) -> list[dict] | None:
     date_text = date_text.strip()
