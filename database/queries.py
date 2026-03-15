@@ -502,3 +502,40 @@ def get_event_count_today(event_name: str) -> int:
     conn.close()
 
     return int(row["total_count"]) if row else 0
+
+def get_unique_event_users_today(event_name: str) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(DISTINCT user_id) AS total_count
+        FROM events
+        WHERE event_name = ?
+          AND user_id IS NOT NULL
+          AND date(created_at) = date('now')
+        """,
+        (event_name,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0
+
+
+def get_repeat_active_users_last_days(days: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"""
+        SELECT COUNT(*) AS total_count
+        FROM users
+        WHERE datetime(last_seen) >= datetime('now', '-{days} days')
+          AND datetime(first_seen) < datetime('now', '-{days} days')
+        """
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0
