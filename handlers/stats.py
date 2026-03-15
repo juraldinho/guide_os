@@ -12,6 +12,9 @@ from services.stats_service import get_stats_summary, get_all_time_stats_summary
 
 from aiogram.exceptions import TelegramBadRequest
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 router = Router()
 
@@ -65,6 +68,9 @@ def format_all_time_stats_text(stats: dict) -> str:
 
 @router.message(F.text == "📊 Статистика")
 async def show_stats_entry(message: Message) -> None:
+
+    logger.info("event=stats_opened user_id=%s", message.from_user.id)
+    
     today = date.today()
     months = get_month_window(today.year, today.month)
 

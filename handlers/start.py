@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def cmd_start(message: Message) -> None:
 
     user_id = message.from_user.id
-    logger.info("User %s started the bot", user_id)
+    logger.info("event=start_used user_id=%s", user_id)
     register_user(user_id)
     
     text = (

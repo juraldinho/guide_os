@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @router.message(F.text == "🗓 Календарь")
 async def show_calendar_entry(message: Message) -> None:
-    logger.info("User %s opened calendar entry", message.from_user.id)
+    logger.info("event=calendar_opened user_id=%s", message.from_user.id)
     
     today = date.today()
     months = get_month_window(today.year, today.month)
@@ -70,7 +70,7 @@ async def open_month(callback: CallbackQuery) -> None:
     month = int(month_str)
 
     logger.info(
-        "User %s opened month calendar: %s-%02d",
+        "event=calendar_month_opened user_id=%s year=%s month=%s",
         callback.from_user.id,
         year,
         month,
@@ -94,7 +94,7 @@ async def open_free_days(callback: CallbackQuery) -> None:
     year = int(year_str)
     month = int(month_str)
     logger.info(
-        "User %s opened free days: %s-%02d",
+        "event=free_days_opened user_id=%s year=%s month=%s",
         callback.from_user.id,
         year,
         month,

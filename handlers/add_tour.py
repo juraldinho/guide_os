@@ -163,7 +163,7 @@ async def cancel_conflict_save(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(F.text == "➕ Добавить тур")
 async def add_tour_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddTourState.date)
-    logger.info("User %s started add_tour flow", message.from_user.id)
+    logger.info("event=add_tour_started user_id=%s", message.from_user.id)
     
     await message.answer(
         f"➕ Новый тур\n\n{DATE_INPUT_HINT}",
@@ -253,6 +253,9 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
 
     if company == "У меня выходной":
         data = await state.get_data()
+        
+        logger.info("event=day_off_saved user_id=%s", message.from_user.id)
+        
         logger.info(
             "User %s saving day off for %s",
             message.from_user.id,
@@ -370,6 +373,9 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
         )
 
         return
+    
+    logger.info("event=tour_saved user_id=%s", user_id)
+    
     logger.info(
         "User %s saving tour: company=%r city=%r date_text=%r status=%r income=%r",
         user_id,

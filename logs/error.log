@@ -78,3 +78,4 @@ Traceback (most recent call last):
   File "/Users/otabekdjuraev/guide_os/venv/lib/python3.13/site-packages/aiogram/client/session/base.py", line 121, in check_response
     raise TelegramBadRequest(method=method, message=description)
 aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: query is too old and response timeout expired or query ID is invalid
+2026-03-15 21:33:58,095 | ERROR | aiogram.dispatcher | Failed to fetch updates - TelegramNetworkError: HTTP Client says - Request timeout error
