@@ -131,6 +131,19 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_tours_user_group
         ON tours(user_id, tour_group_id)
         """)
+        
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            first_seen TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_seen TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen
+        ON users(last_seen)
+        """)
 
         conn.commit()
         logger.info("SQLite initialized with WAL, busy_timeout and indexes")

@@ -408,3 +408,19 @@ def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> l
     conn.close()
     return rows
 
+def register_user(user_id: int) -> None:
+
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO users (user_id)
+            VALUES (?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                last_seen = CURRENT_TIMESTAMP
+            """,
+            (user_id,),
+        )
+
+    run_write_with_retry(operation)

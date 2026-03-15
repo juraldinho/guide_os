@@ -1,5 +1,7 @@
 import logging
 
+from database.queries import register_user
+
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -10,12 +12,14 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
+
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
 
     user_id = message.from_user.id
     logger.info("User %s started the bot", user_id)
-
+    register_user(user_id)
+    
     text = (
         "👋 <b>Добро пожаловать в Guide OS</b>\n\n"
         "Этот бот помогает гидам управлять своей работой:\n\n"
