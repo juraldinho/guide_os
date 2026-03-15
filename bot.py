@@ -36,7 +36,7 @@ async def main() -> None:
     dp.include_router(stats.router)
 
 
-    await dp.start_polling(bot)
+    await dp.start_polling(bot, skip_updates=True)
 
 
 if __name__ == "__main__":
