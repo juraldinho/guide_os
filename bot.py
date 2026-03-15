@@ -3,7 +3,10 @@ import logging
 
 from dotenv import load_dotenv
 
-from handlers.admin_report import router as admin_report_router
+from handlers.admin_report import (
+    router as admin_report_router,
+    send_daily_admin_report,
+)
 
 from aiogram import Bot, Dispatcher
 
@@ -29,7 +32,10 @@ async def main() -> None:
     logger.info("Bot started")
 
     bot = Bot(token=BOT_TOKEN)
+    asyncio.create_task(send_daily_admin_report(bot))
+    
     dp = Dispatcher()
+
 
     dp.include_router(start_router)
     dp.include_router(add_tour_router)

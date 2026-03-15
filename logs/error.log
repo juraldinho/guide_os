@@ -79,3 +79,19 @@ Traceback (most recent call last):
     raise TelegramBadRequest(method=method, message=description)
 aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: query is too old and response timeout expired or query ID is invalid
 2026-03-15 21:33:58,095 | ERROR | aiogram.dispatcher | Failed to fetch updates - TelegramNetworkError: HTTP Client says - Request timeout error
+2026-03-16 02:22:19,357 | ERROR | handlers.admin_report | Failed to send daily admin report
+Traceback (most recent call last):
+  File "/Users/otabekdjuraev/guide_os/handlers/admin_report.py", line 113, in send_daily_admin_report
+    sleep_seconds = seconds_until_next_midnight()
+  File "/Users/otabekdjuraev/guide_os/handlers/admin_report.py", line 95, in seconds_until_next_midnight
+    now = datetime.now(REPORT_TZ)
+          ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-03-16 02:23:19,364 | ERROR | handlers.admin_report | Failed to send daily admin report
+Traceback (most recent call last):
+  File "/Users/otabekdjuraev/guide_os/handlers/admin_report.py", line 113, in send_daily_admin_report
+    sleep_seconds = seconds_until_next_midnight()
+  File "/Users/otabekdjuraev/guide_os/handlers/admin_report.py", line 95, in seconds_until_next_midnight
+    now = datetime.now(REPORT_TZ)
+          ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
