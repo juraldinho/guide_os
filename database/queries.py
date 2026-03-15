@@ -424,3 +424,81 @@ def register_user(user_id: int) -> None:
         )
 
     run_write_with_retry(operation)
+    
+def track_event(user_id: int | None, event_name: str) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO events (user_id, event_name)
+            VALUES (?, ?)
+            """,
+            (user_id, event_name),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_total_users_count() -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) AS total_count FROM users")
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0
+
+
+def get_new_users_today_count() -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*) AS total_count
+        FROM users
+        WHERE date(first_seen) = date('now')
+        """
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0
+
+
+def get_active_users_last_days(days: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"""
+        SELECT COUNT(*) AS total_count
+        FROM users
+        WHERE datetime(last_seen) >= datetime('now', '-{days} days')
+        """
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0
+
+
+def get_event_count_today(event_name: str) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*) AS total_count
+        FROM events
+        WHERE event_name = ?
+          AND date(created_at) = date('now')
+        """,
+        (event_name,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    return int(row["total_count"]) if row else 0

@@ -145,5 +145,29 @@ def init_db() -> None:
         ON users(last_seen)
         """)
 
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            event_name TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_events_created_at
+        ON events(created_at)
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_events_user_created_at
+        ON events(user_id, created_at)
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_events_name_created_at
+        ON events(event_name, created_at)
+        """)
+
         conn.commit()
         logger.info("SQLite initialized with WAL, busy_timeout and indexes")

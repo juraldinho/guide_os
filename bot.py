@@ -1,6 +1,10 @@
 import asyncio
 import logging
 
+from dotenv import load_dotenv
+
+from handlers.admin_report import router as admin_report_router
+
 from aiogram import Bot, Dispatcher
 
 from config import BOT_TOKEN
@@ -36,7 +40,7 @@ async def main() -> None:
     dp.include_router(tour_edits_router)
     dp.include_router(stats.router)
     dp.include_router(errors.router)
-
+    dp.include_router(admin_report_router)
 
     await dp.start_polling(bot, skip_updates=True)
 

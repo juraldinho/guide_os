@@ -1,6 +1,6 @@
 import logging
 
-from database.queries import register_user
+from database.queries import register_user, track_event
 
 from aiogram import Router
 from aiogram.filters import CommandStart
@@ -19,6 +19,7 @@ async def cmd_start(message: Message) -> None:
     user_id = message.from_user.id
     logger.info("event=start_used user_id=%s", user_id)
     register_user(user_id)
+    track_event(user_id, "start_used")
     
     text = (
         "👋 <b>Добро пожаловать в Guide OS</b>\n\n"

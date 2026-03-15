@@ -1,5 +1,7 @@
 from datetime import date
 
+from database.queries import track_event
+
 import logging
 
 from aiogram import Router, F
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 @router.message(F.text == "🗓 Календарь")
 async def show_calendar_entry(message: Message) -> None:
     logger.info("event=calendar_opened user_id=%s", message.from_user.id)
+    track_event(message.from_user.id, "calendar_opened")
     
     today = date.today()
     months = get_month_window(today.year, today.month)
@@ -75,7 +78,8 @@ async def open_month(callback: CallbackQuery) -> None:
         year,
         month,
     )
-
+    track_event(callback.from_user.id, "calendar_month_opened")
+    
     user_id = callback.from_user.id
     calendar_data = build_month_calendar(user_id, year, month)
     text = format_month_calendar(calendar_data)
@@ -99,7 +103,8 @@ async def open_free_days(callback: CallbackQuery) -> None:
         year,
         month,
     )
-
+    track_event(callback.from_user.id, "free_days_opened")
+    
     user_id = callback.from_user.id
     free_days_data = get_free_days(user_id, year, month)
     text = format_free_days(free_days_data)

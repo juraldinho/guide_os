@@ -1,5 +1,6 @@
 from datetime import date
 
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 
@@ -13,6 +14,7 @@ from services.stats_service import get_stats_summary, get_all_time_stats_summary
 from aiogram.exceptions import TelegramBadRequest
 
 import logging
+from database.queries import track_event
 logger = logging.getLogger(__name__)
 
 
@@ -70,6 +72,7 @@ def format_all_time_stats_text(stats: dict) -> str:
 async def show_stats_entry(message: Message) -> None:
 
     logger.info("event=stats_opened user_id=%s", message.from_user.id)
+    track_event(message.from_user.id, "stats_opened")
     
     today = date.today()
     months = get_month_window(today.year, today.month)

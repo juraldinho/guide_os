@@ -1,6 +1,7 @@
 import logging
 
 logger = logging.getLogger(__name__)
+from database.queries import track_event
 
 from aiogram import Router, F
 from aiogram.types import (
@@ -164,6 +165,7 @@ async def cancel_conflict_save(callback: CallbackQuery, state: FSMContext) -> No
 async def add_tour_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddTourState.date)
     logger.info("event=add_tour_started user_id=%s", message.from_user.id)
+    track_event(message.from_user.id, "add_tour_started")
     
     await message.answer(
         f"➕ Новый тур\n\n{DATE_INPUT_HINT}",
@@ -255,6 +257,7 @@ async def add_tour_company(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         
         logger.info("event=day_off_saved user_id=%s", message.from_user.id)
+        track_event(message.from_user.id, "day_off_saved")
         
         logger.info(
             "User %s saving day off for %s",
@@ -375,6 +378,7 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
         return
     
     logger.info("event=tour_saved user_id=%s", user_id)
+    track_event(user_id, "tour_saved")
     
     logger.info(
         "User %s saving tour: company=%r city=%r date_text=%r status=%r income=%r",
@@ -406,7 +410,10 @@ async def add_tour_income(message: Message, state: FSMContext) -> None:
 async def confirm_conflict_save(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     user_id = callback.from_user.id
-
+    
+    logger.info("event=conflict_tour_saved user_id=%s", user_id)
+    track_event(user_id, "conflict_tour_saved")
+    
     logger.info(
         "User %s saving conflicting tour: company=%r city=%r date_text=%r status=%r income=%r",
         user_id,
