@@ -9,6 +9,7 @@ from handlers.admin_report import (
 )
 
 from aiogram import Bot, Dispatcher
+from handlers.help import router as help_router
 
 from config import BOT_TOKEN
 from handlers.start import router as start_router
@@ -47,6 +48,7 @@ async def main() -> None:
     dp.include_router(stats.router)
     dp.include_router(errors.router)
     dp.include_router(admin_report_router)
+    dp.include_router(help_router)
 
     await dp.start_polling(bot, skip_updates=True)
 
