@@ -1,5 +1,10 @@
 import os
 
+import shutil
+import datetime
+from aiogram.types import FSInputFile
+from database.db import DB_PATH
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -84,3 +89,28 @@ async def admin_report(message: Message) -> None:
     )
 
     await message.answer(text, parse_mode="HTML")
+
+@router.message(Command("backup"))
+async def backup_database(message: Message) -> None:
+
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("Нет доступа")
+        return
+
+    try:
+        timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+
+        backup_name = f"guide_os_backup_{timestamp}.db"
+        backup_path = f"/tmp/{backup_name}"
+
+        shutil.copy(DB_PATH, backup_path)
+
+        file = FSInputFile(backup_path)
+
+        await message.answer_document(
+            file,
+            caption="📦 SQLite backup"
+        )
+
+    except Exception as e:
+        await message.answer(f"❌ Backup error: {e}")
