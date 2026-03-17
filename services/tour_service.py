@@ -3,6 +3,16 @@ from datetime import datetime
 from uuid import uuid4
 import re
 
+from utils.constants import (
+    ENTRY_TYPE_TOUR,
+    ENTRY_TYPE_DAY_OFF,
+    STATUS_RESERVED,
+    STATUS_CONFIRMED,
+    PAYMENT_PAID,
+    PAYMENT_UNPAID,
+    DAY_OFF_LABEL,
+)
+
 from database.queries import (
     create_tour,
     get_tours_for_month,
@@ -80,7 +90,7 @@ def save_tour(
     date_text: str,
     status: str,
     income: int | None = None,
-    entry_type: str = "tour",
+    entry_type: str = ENTRY_TYPE_TOUR,
 ) -> None:
     intervals = _parse_single_iso_date(date_text)
 
@@ -105,12 +115,12 @@ def save_tour(
 def save_day_off(user_id: int, date_text: str) -> None:
     save_tour(
         user_id=user_id,
-        company="У меня выходной",
+        company=DAY_OFF_LABEL,
         city="—",
         date_text=date_text,
-        status="confirmed",
+        status=STATUS_CONFIRMED,
         income=0,
-        entry_type="day_off",
+        entry_type=ENTRY_TYPE_DAY_OFF,
     )
 
 def get_current_month_tours(user_id: int) -> list[dict]:
@@ -164,14 +174,14 @@ def edit_tour_note(user_id: int, tour_id: int, note: str) -> bool:
     return update_tour_note(user_id, tour_id, note)
 
 def edit_tour_status(user_id: int, tour_id: int, status: str) -> bool:
-    if status not in ("reserved", "confirmed"):
+    if status not in (STATUS_RESERVED, STATUS_CONFIRMED):
         return False
 
     return update_tour_status(user_id, tour_id, status)
 
 
 def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
-    if payment_status not in ("paid", "unpaid"):
+    if payment_status not in (PAYMENT_PAID, PAYMENT_UNPAID):
         return False
 
     return update_tour_payment_status(user_id, tour_id, payment_status)
