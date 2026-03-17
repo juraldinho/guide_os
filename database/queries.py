@@ -602,10 +602,11 @@ def set_notification_time(user_id: int, time_text: str) -> None:
 
         cursor.execute(
             """
-            INSERT INTO users (user_id, notification_time)
-            VALUES (?, ?)
+            INSERT INTO users (user_id, notification_time, last_tour_reminder_date)
+            VALUES (?, ?, NULL)
             ON CONFLICT(user_id) DO UPDATE SET
-                notification_time = excluded.notification_time
+                notification_time = excluded.notification_time,
+                last_tour_reminder_date = NULL
             """,
             (user_id, time_text),
         )
