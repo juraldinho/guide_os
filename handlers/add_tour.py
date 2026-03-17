@@ -1,5 +1,7 @@
 import logging
 
+from utils.constants import STATUS_RESERVED, STATUS_CONFIRMED
+
 logger = logging.getLogger(__name__)
 from database.queries import track_event
 
@@ -305,8 +307,8 @@ async def add_tour_status(message: Message, state: FSMContext) -> None:
     raw_status = message.text.strip()
 
     status_map = {
-        "Бронь": "reserved",
-        "Занято": "confirmed",
+        "Бронь": STATUS_RESERVED,
+        "Занято": STATUS_CONFIRMED,
     }
 
     if raw_status not in status_map:
