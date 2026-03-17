@@ -4,6 +4,7 @@ import time
 from contextlib import contextmanager
 from typing import Iterator, Callable, TypeVar
 
+from utils.constants import STATUS_RESERVED, STATUS_CONFIRMED
 
 import os
 
@@ -140,6 +141,24 @@ def init_db() -> None:
         )
         """)
 
+        cursor.execute("PRAGMA table_info(users)")
+        user_columns = [row["name"] for row in cursor.fetchall()]
+
+        if "notifications_enabled" not in user_columns:
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "notification_time" not in user_columns:
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN notification_time TEXT NOT NULL DEFAULT '21:00'"
+            )
+
+        if "last_tour_reminder_date" not in user_columns:
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN last_tour_reminder_date TEXT"
+            )
+
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_users_last_seen
         ON users(last_seen)
@@ -168,6 +187,24 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_events_name_created_at
         ON events(event_name, created_at)
         """)
+        cursor.execute(
+            """
+            UPDATE tours
+            SET status = ?
+            WHERE status = 'Бронь'
+            """,
+            (STATUS_RESERVED,),
+        )
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET status = ?
+            WHERE status = 'Занято'
+            """,
+            (STATUS_CONFIRMED,),
+        )
+        logger.info("SQLite status migration checked")
 
         conn.commit()
         logger.info("SQLite initialized with WAL, busy_timeout and indexes")
