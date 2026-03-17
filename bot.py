@@ -1,6 +1,9 @@
 import asyncio
 import logging
 
+from handlers.notifications import router as notifications_router
+from services.reminder_service import send_tour_reminders
+
 from dotenv import load_dotenv
 
 from handlers.admin_report import (
@@ -31,9 +34,10 @@ async def main() -> None:
 
     init_db()
     logger.info("Bot started")
-
+    logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
     bot = Bot(token=BOT_TOKEN)
     asyncio.create_task(send_daily_admin_report(bot))
+    asyncio.create_task(send_tour_reminders(bot))
     
     dp = Dispatcher()
 
@@ -49,6 +53,7 @@ async def main() -> None:
     dp.include_router(errors.router)
     dp.include_router(admin_report_router)
     dp.include_router(help_router)
+    dp.include_router(notifications_router)
 
     await dp.start_polling(bot, skip_updates=True)
 
