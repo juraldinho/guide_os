@@ -11,3 +11,4 @@ guide_os.db
 project_code.txt
 logs/
 *.log
+._*
