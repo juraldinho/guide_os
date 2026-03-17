@@ -6,6 +6,8 @@ from utils.constants import (
     PAYMENT_UNPAID,
     ENTRY_TYPE_TOUR,
     ENTRY_TYPE_DAY_OFF,
+    STATUS_RESERVED,
+    STATUS_CONFIRMED,
 )
 
 def create_tour(
@@ -67,12 +69,12 @@ def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[
         SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
         FROM tours
         WHERE user_id = ?
-          AND status IN ('reserved', 'confirmed')
+          AND status IN (?, ?)
           AND start_date <= ?
           AND end_date >= ?
         ORDER BY start_date ASC
         """,
-        (user_id, month_end, month_start),
+        (user_id, STATUS_RESERVED, STATUS_CONFIRMED, month_end, month_start),
     )
 
     rows = cursor.fetchall()
@@ -247,11 +249,11 @@ def get_total_income(user_id: int) -> int:
         ) AS total_income
         FROM tours
         WHERE user_id = ?
-          AND status IN ('reserved', 'confirmed')
+          AND status IN (?, ?)
           AND income IS NOT NULL
           AND entry_type = ?
         """,
-        (user_id, ENTRY_TYPE_TOUR),
+        (user_id, STATUS_RESERVED, STATUS_CONFIRMED, ENTRY_TYPE_TOUR),
     )
 
     row = cursor.fetchone()
@@ -269,11 +271,17 @@ def get_unpaid_tours_count(user_id: int) -> int:
         SELECT COUNT(*) AS unpaid_count
         FROM tours
         WHERE user_id = ?
-          AND status IN ('reserved', 'confirmed')
+          AND status IN (?, ?)
           AND payment_status = ?
           AND entry_type = ?
         """,
-        (user_id, PAYMENT_UNPAID, ENTRY_TYPE_TOUR),
+        (
+            user_id,
+            STATUS_RESERVED,
+            STATUS_CONFIRMED,
+            PAYMENT_UNPAID,
+            ENTRY_TYPE_TOUR,
+        ),
     )
 
     row = cursor.fetchone()
@@ -290,17 +298,16 @@ def get_total_tours_count(user_id: int) -> int:
         SELECT COUNT(*) AS total_count
         FROM tours
         WHERE user_id = ?
-          AND status IN ('reserved', 'confirmed')
+          AND status IN (?, ?)
           AND entry_type = ?
         """,
-        (user_id, ENTRY_TYPE_TOUR),
+        (user_id, STATUS_RESERVED, STATUS_CONFIRMED, ENTRY_TYPE_TOUR),
     )
 
     row = cursor.fetchone()
     conn.close()
 
     return int(row["total_count"]) if row else 0
-
 
 def get_all_tours_for_stats(user_id: int) -> list[dict]:
     conn = get_connection()
@@ -311,11 +318,11 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
         SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
         FROM tours
         WHERE user_id = ?
-          AND status IN ('reserved', 'confirmed')
+          AND status IN (?, ?)
           AND entry_type = ?
         ORDER BY start_date ASC
         """,
-        (user_id, ENTRY_TYPE_TOUR),
+        (user_id, STATUS_RESERVED, STATUS_CONFIRMED, ENTRY_TYPE_TOUR),
     )
 
     rows = cursor.fetchall()
@@ -539,3 +546,156 @@ def get_repeat_active_users_last_days(days: int) -> int:
     conn.close()
 
     return int(row["total_count"]) if row else 0
+
+
+def get_user_notification_settings(user_id: int) -> dict:
+    register_user(user_id)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT notifications_enabled, notification_time
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return {
+            "notifications_enabled": False,
+            "notification_time": "21:00",
+        }
+
+    return {
+        "notifications_enabled": bool(row["notifications_enabled"]),
+        "notification_time": row["notification_time"] or "21:00",
+    }
+
+
+def set_notifications_enabled(user_id: int, enabled: bool) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO users (user_id, notifications_enabled)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                notifications_enabled = excluded.notifications_enabled
+            """,
+            (user_id, int(enabled)),
+        )
+
+    run_write_with_retry(operation)
+
+
+def set_notification_time(user_id: int, time_text: str) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO users (user_id, notification_time)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                notification_time = excluded.notification_time
+            """,
+            (user_id, time_text),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_users_with_notifications_enabled() -> list[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT user_id, notification_time, last_tour_reminder_date
+        FROM users
+        WHERE notifications_enabled = 1
+        """
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+def update_last_tour_reminder_date(user_id: int, reminder_date: str) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET last_tour_reminder_date = ?
+            WHERE user_id = ?
+            """,
+            (reminder_date, user_id),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_entries_for_reminder_date(user_id: int, target_date: str) -> list[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, company, city, start_date, end_date, status, note, entry_type
+        FROM tours
+        WHERE user_id = ?
+          AND status IN (?, ?)
+          AND start_date <= ?
+          AND end_date >= ?
+          AND entry_type IN (?, ?)
+        ORDER BY
+            CASE
+                WHEN entry_type = ? THEN 1
+                ELSE 0
+            END,
+            start_date,
+            end_date,
+            id
+        """,
+        (
+            user_id,
+            STATUS_RESERVED,
+            STATUS_CONFIRMED,
+            target_date,
+            target_date,
+            ENTRY_TYPE_TOUR,
+            ENTRY_TYPE_DAY_OFF,
+            ENTRY_TYPE_DAY_OFF,
+        ),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+def reset_last_tour_reminder_date(user_id: int) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE users
+            SET last_tour_reminder_date = NULL
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+
+    run_write_with_retry(operation)
