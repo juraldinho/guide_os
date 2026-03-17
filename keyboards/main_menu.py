@@ -6,6 +6,7 @@ def get_main_menu():
         [KeyboardButton(text="➕ Добавить тур")],
         [KeyboardButton(text="🗓 Календарь")],
         [KeyboardButton(text="🔎 Проверить дату")],
+        [KeyboardButton(text="🔔 Уведомления")],
         [KeyboardButton(text="📊 Статистика")],
     ]
 
