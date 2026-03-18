@@ -1,5 +1,9 @@
 import asyncio
 import logging
+import os
+
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
+from handlers.broadcast import router as broadcast_router
 
 from handlers.notifications import router as notifications_router
 from services.reminder_service import send_tour_reminders
@@ -28,14 +32,46 @@ from handlers.tour_edits import router as tour_edits_router
 
 from utils.logger import setup_logging
 
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+async def setup_bot_commands(bot: Bot) -> None:
+    user_commands = [
+        BotCommand(command="start", description="Открыть главное меню"),
+        BotCommand(command="help", description="Помощь и инструкция"),
+    ]
+
+    admin_commands = [
+        BotCommand(command="start", description="Открыть главное меню"),
+        BotCommand(command="help", description="Помощь и инструкция"),
+        BotCommand(command="admin_report", description="Админ-отчет"),
+        BotCommand(command="broadcast", description="Рассылка"),
+        BotCommand(command="backup", description="Скачать backup БД"),
+    ]
+
+    await bot.set_my_commands(
+        commands=user_commands,
+        scope=BotCommandScopeAllPrivateChats(),
+    )
+
+    if ADMIN_ID:
+        await bot.set_my_commands(
+            commands=admin_commands,
+            scope=BotCommandScopeChat(chat_id=ADMIN_ID),
+        )
+
+
 async def main() -> None:
     setup_logging()
     logger = logging.getLogger(__name__)
 
+
+    bot = Bot(token=BOT_TOKEN)
+    await setup_bot_commands(bot)
+    
     init_db()
     logger.info("Bot started")
     logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
-    bot = Bot(token=BOT_TOKEN)
+    
     asyncio.create_task(send_daily_admin_report(bot))
     asyncio.create_task(send_tour_reminders(bot))
     
@@ -54,6 +90,7 @@ async def main() -> None:
     dp.include_router(admin_report_router)
     dp.include_router(help_router)
     dp.include_router(notifications_router)
+    dp.include_router(broadcast_router)
 
     await dp.start_polling(bot, skip_updates=True)
 

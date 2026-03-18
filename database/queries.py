@@ -700,3 +700,20 @@ def reset_last_tour_reminder_date(user_id: int) -> None:
         )
 
     run_write_with_retry(operation)
+    
+def get_all_user_ids() -> list[int]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT user_id
+        FROM users
+        ORDER BY user_id
+        """
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row["user_id"] for row in rows]

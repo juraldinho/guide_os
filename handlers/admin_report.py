@@ -1,4 +1,4 @@
-import os
+
 import asyncio
 import logging
 
@@ -14,7 +14,7 @@ from aiogram import Bot, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from config import TIMEZONE
+from config import TIMEZONE, ADMIN_ID
 from database.queries import (
     get_total_users_count,
     get_new_users_today_count,
@@ -26,7 +26,7 @@ from database.queries import (
 
 router = Router()
 
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
 
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ async def backup_database(message: Message) -> None:
         return
 
     try:
-        timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
         backup_name = f"guide_os_backup_{timestamp}.db"
         backup_path = f"/tmp/{backup_name}"
