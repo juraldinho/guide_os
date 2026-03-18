@@ -12,3 +12,9 @@ project_code.txt
 logs/
 *.log
 ._*
+*.db-wal
+*.db-shm
+*.log
+database.db
+.DS_Store
+._*
