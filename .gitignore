@@ -18,3 +18,11 @@ logs/
 database.db
 .DS_Store
 ._*
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
