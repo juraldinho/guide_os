@@ -1,28 +1,31 @@
+# Environment
 .env
+
+# Python
 venv/
 .venv/
 __pycache__/
 *.pyc
-guide_os.db
-.idea/
-.vscode/
-.DS_Store
-*.tar.gz
-project_code.txt
-logs/
-*.log
-._*
-*.db-wal
-*.db-shm
-*.log
-database.db
-.DS_Store
-._*
+
 # SQLite
 *.db
 *.db-shm
 *.db-wal
 
+# IDE
+.idea/
+.vscode/
+
+# MacOS
+.DS_Store
+._*
+
 # Logs
 logs/
 *.log
+
+# Archives
+*.tar.gz
+
+# Temporary
+project_code.txt

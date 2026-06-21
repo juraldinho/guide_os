@@ -1,0 +1,204 @@
+# Guide OS - Cursor Rules
+
+## Main Goal
+
+Build a working Guide OS MVP.
+
+Priority:
+
+1. Working MVP
+2. Simple architecture
+3. Stable code
+4. Minimal changes
+5. Fast launch
+
+Main principle:
+
+Working MVP > perfect system
+
+
+## Required Workflow
+
+Always follow this order:
+
+ANALYZE → PLAN → CODE
+
+Never write code immediately.
+
+
+## Before Any Code Change
+
+Before changing code, always show:
+
+1. What you found
+2. Files to change
+3. Why these files
+4. Risks
+5. Step-by-step plan
+
+Wait for approval before writing code.
+
+
+## Forbidden Actions
+
+Do NOT:
+
+- refactor without request
+- change architecture
+- rename files
+- move files
+- change project structure
+- add dependencies
+- delete existing code
+- rewrite working logic
+- optimize without request
+- fix unrelated issues
+- change more than 5 files at once
+- add functionality outside the current task
+
+
+## Minimal Change Rule
+
+Change only the minimum necessary files.
+
+If one file is enough, change one file.
+
+Do not touch unrelated files.
+
+
+## Architecture Rules
+
+handlers/
+- Telegram UX only
+- receive input
+- call services
+- return response
+
+Handlers must NOT contain:
+- SQL
+- business logic
+- complex calculations
+
+services/
+- business logic
+- date parsing
+- income calculation
+- conflict checking
+- calendar logic
+- stats logic
+
+database/
+- SQLite connection
+- SQL queries
+- reading data
+- writing data
+
+utils/
+- formatting
+- validation
+- logging helpers
+
+states/
+- FSM states only
+
+keyboards/
+- Telegram buttons only
+
+
+## MVP Scope
+
+Allowed MVP features:
+
+- Calendar
+- Add Tour
+- Income
+- Stats
+- Delete Tour
+- Day Off
+
+Not allowed for MVP:
+
+- AI features
+- Marketplace
+- CRM
+- user roles
+- shared calendars
+- Google Calendar sync
+- multi-language
+- multi-currency
+- complex analytics
+- external integrations
+
+
+## Business Rules
+
+income means daily_rate.
+
+total_income = daily_rate × days_count
+
+tour status:
+- reserved
+- confirmed
+
+payment_status:
+- paid
+- unpaid
+
+reserved blocks dates.
+
+confirmed blocks dates.
+
+Overlapping tours:
+- show warning
+- do not block saving
+
+day_off:
+- is not a tour
+- does not count as income
+- does not count as working day
+- only blocks dates
+
+cancelled is not used in MVP.
+
+If a tour is cancelled, delete the tour.
+
+
+## Red Flags
+
+Stop if:
+
+- handler becomes larger than 150 lines
+- SQL appears inside handler
+- business logic appears inside handler
+- more than 5 files need changes
+- new dependency is needed
+- architecture changes are needed
+- working code is being rewritten
+
+
+## Response Format
+
+Always answer in this format before coding:
+
+ANALYSIS
+
+FILES TO CHANGE
+
+RISKS
+
+PLAN
+
+WAITING FOR APPROVAL
+
+After approval, write only the necessary code.
+
+
+## Final Rule
+
+Do not build the future platform.
+
+Do not build Marketplace.
+
+Do not build Guide Network.
+
+Build only what is needed for the current Guide OS MVP.

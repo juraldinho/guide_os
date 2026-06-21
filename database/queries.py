@@ -717,3 +717,21 @@ def get_all_user_ids() -> list[int]:
     conn.close()
 
     return [row["user_id"] for row in rows]
+
+def has_user_tours(user_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT 1 FROM tours
+        WHERE user_id = ?
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+
+    result = cursor.fetchone()
+    conn.close()
+
+    return result is not None
