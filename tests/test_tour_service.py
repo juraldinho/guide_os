@@ -88,3 +88,20 @@ def test_delete_multi_date_group():
 
     assert "2026-08-01" not in get_conflicting_dates(TEST_USER, "2026-08-01")
     assert "2026-08-03" not in get_conflicting_dates(TEST_USER, "2026-08-03")
+
+
+def test_conflict_check_excludes_tour_id():
+    save_tour(
+        user_id=TEST_USER,
+        company=random_company(),
+        city="Ташкент",
+        date_text="2026-09-15",
+        status="reserved",
+    )
+
+    rows = get_tours_for_date(TEST_USER, "2026-09-15")
+    tour_id = rows[0]["id"]
+
+    assert "2026-09-15" in get_conflicting_dates(TEST_USER, "2026-09-15")
+
+    assert get_conflicting_dates(TEST_USER, "2026-09-15", exclude_tour_id=tour_id) == []

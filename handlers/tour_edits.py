@@ -16,6 +16,7 @@ from services.tour_service import (
     edit_tour_status,
     edit_tour_payment_status,
     edit_tour_dates,
+    get_conflicting_dates,
 )
 
 from utils.validators import (
@@ -323,6 +324,8 @@ async def process_edit_dates(message: Message, state: FSMContext):
         )
         return
 
+    conflicts = get_conflicting_dates(user_id, date_text, exclude_tour_id=tour_id)
+
     tour = get_tour(user_id, tour_id)
     await state.clear()
 
@@ -330,8 +333,16 @@ async def process_edit_dates(message: Message, state: FSMContext):
         await message.answer("Даты обновлены, но тур не найден.")
         return
 
+    card_text = format_tour_card(tour)
+
+    if conflicts:
+        formatted = ", ".join(format_date(d) for d in conflicts)
+        text = f"⚠️ Даты сохранены.\nСовпадение с другими турами: {formatted}\n\n{card_text}"
+    else:
+        text = card_text
+
     await message.answer(
-        format_tour_card(tour),
+        text,
         reply_markup=get_tour_view_keyboard(tour_id, year, month),
     )
 

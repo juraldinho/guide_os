@@ -32,7 +32,11 @@ from database.queries import (
 from services.date_parser import parse_date_input
 
 
-def get_conflicting_dates(user_id: int, date_text: str) -> list[str]:
+def get_conflicting_dates(
+    user_id: int,
+    date_text: str,
+    exclude_tour_id: int | None = None,
+) -> list[str]:
     intervals = _parse_single_iso_date(date_text)
 
     if intervals is None:
@@ -53,6 +57,9 @@ def get_conflicting_dates(user_id: int, date_text: str) -> list[str]:
         requested_end = datetime.strptime(end_date, "%Y-%m-%d").date()
 
         for row in rows:
+            if exclude_tour_id is not None and row["id"] == exclude_tour_id:
+                continue
+
             row_start = datetime.strptime(row["start_date"], "%Y-%m-%d").date()
             row_end = datetime.strptime(row["end_date"], "%Y-%m-%d").date()
 
