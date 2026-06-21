@@ -1,9 +1,11 @@
 import re
 from datetime import date, datetime
 
+from utils.date_utils import today_tz
+
 
 def resolve_year(day: int, month: int) -> int:
-    today = date.today()
+    today = today_tz()
     candidate = date(today.year, month, day)
 
     if candidate >= today:

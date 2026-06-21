@@ -1,5 +1,8 @@
 from calendar import monthrange
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+from config import TIMEZONE
 
 
 def get_month_bounds(year: int, month: int) -> tuple[str, str]:
@@ -14,3 +17,7 @@ def shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
     new_year = total // 12
     new_month = total % 12 + 1
     return new_year, new_month
+
+
+def today_tz() -> date:
+    return datetime.now(ZoneInfo(TIMEZONE)).date()

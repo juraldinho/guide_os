@@ -1,4 +1,4 @@
-from datetime import date
+from utils.date_utils import today_tz
 
 from database.queries import track_event
 
@@ -25,7 +25,7 @@ async def show_calendar_entry(message: Message) -> None:
     logger.info("event=calendar_opened user_id=%s", message.from_user.id)
     track_event(message.from_user.id, "calendar_opened")
     
-    today = date.today()
+    today = today_tz()
     months = get_month_window(today.year, today.month)
 
     await message.answer(

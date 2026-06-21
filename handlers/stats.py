@@ -1,5 +1,7 @@
 from datetime import date
 
+from utils.date_utils import today_tz
+
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -74,7 +76,7 @@ async def show_stats_entry(message: Message) -> None:
     logger.info("event=stats_opened user_id=%s", message.from_user.id)
     track_event(message.from_user.id, "stats_opened")
     
-    today = date.today()
+    today = today_tz()
     months = get_month_window(today.year, today.month)
 
     await message.answer(
@@ -139,7 +141,7 @@ async def open_stats_all_time(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id
     stats = get_all_time_stats_summary(user_id)
 
-    today = date.today()
+    today = today_tz()
     months = get_month_window(today.year, today.month)
 
     await safe_edit_text(
