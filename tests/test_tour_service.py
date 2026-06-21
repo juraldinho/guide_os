@@ -105,3 +105,23 @@ def test_conflict_check_excludes_tour_id():
     assert "2026-09-15" in get_conflicting_dates(TEST_USER, "2026-09-15")
 
     assert get_conflicting_dates(TEST_USER, "2026-09-15", exclude_tour_id=tour_id) == []
+
+
+def test_edit_company_propagates_to_group():
+    original_company = random_company()
+    save_tour(
+        user_id=TEST_USER,
+        company=original_company,
+        city="Самарканд",
+        date_text="2026-10-01, 2026-10-03",
+        status="reserved",
+    )
+
+    rows_day1 = get_tours_for_date(TEST_USER, "2026-10-01")
+    tour_id = rows_day1[0]["id"]
+
+    updated = edit_tour_company(TEST_USER, tour_id, "NewCompany")
+    assert updated is True
+
+    rows_day3 = get_tours_for_date(TEST_USER, "2026-10-03")
+    assert rows_day3[0]["company"] == "NewCompany"

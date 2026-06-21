@@ -20,11 +20,17 @@ from database.queries import (
     delete_tour_by_id,
     delete_tours_by_group_id,
     update_tour_company,
+    update_tour_company_by_group,
     update_tour_city,
+    update_tour_city_by_group,
     update_tour_income,
+    update_tour_income_by_group,
     update_tour_note,
+    update_tour_note_by_group,
     update_tour_status,
+    update_tour_status_by_group,
     update_tour_payment_status,
+    update_tour_payment_status_by_group,
     update_tour_dates,
     get_tours_in_range,
 )
@@ -165,6 +171,14 @@ def edit_tour_company(user_id: int, tour_id: int, company: str) -> bool:
     if not company:
         return False
 
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_company_by_group(user_id, tour_group_id, company)
+
     return update_tour_company(user_id, tour_id, company)
 
 def edit_tour_city(user_id: int, tour_id: int, city: str) -> bool:
@@ -173,11 +187,27 @@ def edit_tour_city(user_id: int, tour_id: int, city: str) -> bool:
     if not city:
         return False
 
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_city_by_group(user_id, tour_group_id, city)
+
     return update_tour_city(user_id, tour_id, city)
 
 def edit_tour_income(user_id: int, tour_id: int, income: int) -> bool:
     if income < 0:
         return False
+
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_income_by_group(user_id, tour_group_id, income)
 
     return update_tour_income(user_id, tour_id, income)
 
@@ -187,11 +217,27 @@ def edit_tour_note(user_id: int, tour_id: int, note: str) -> bool:
     if not note:
         note = None
 
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_note_by_group(user_id, tour_group_id, note)
+
     return update_tour_note(user_id, tour_id, note)
 
 def edit_tour_status(user_id: int, tour_id: int, status: str) -> bool:
     if status not in (STATUS_RESERVED, STATUS_CONFIRMED):
         return False
+
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_status_by_group(user_id, tour_group_id, status)
 
     return update_tour_status(user_id, tour_id, status)
 
@@ -199,6 +245,14 @@ def edit_tour_status(user_id: int, tour_id: int, status: str) -> bool:
 def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
     if payment_status not in (PAYMENT_PAID, PAYMENT_UNPAID):
         return False
+
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return update_tour_payment_status_by_group(user_id, tour_group_id, payment_status)
 
     return update_tour_payment_status(user_id, tour_id, payment_status)
 

@@ -151,6 +151,23 @@ def update_tour_company(user_id: int, tour_id: int, company: str) -> bool:
 
     return run_write_with_retry(operation)
 
+def update_tour_company_by_group(user_id: int, tour_group_id: str, company: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET company = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (company, tour_group_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
 def update_tour_city(user_id: int, tour_id: int, city: str) -> bool:
     def operation(conn):
         cursor = conn.cursor()
@@ -162,6 +179,23 @@ def update_tour_city(user_id: int, tour_id: int, city: str) -> bool:
             WHERE id = ? AND user_id = ?
             """,
             (city, tour_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+def update_tour_city_by_group(user_id: int, tour_group_id: str, city: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET city = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (city, tour_group_id, user_id),
         )
 
         return cursor.rowcount > 0
@@ -185,6 +219,23 @@ def update_tour_income(user_id: int, tour_id: int, income: int) -> bool:
 
     return run_write_with_retry(operation)
 
+def update_tour_income_by_group(user_id: int, tour_group_id: str, income: int) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET income = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (income, tour_group_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
 def update_tour_note(user_id: int, tour_id: int, note: str | None) -> bool:
     def operation(conn):
         cursor = conn.cursor()
@@ -196,6 +247,23 @@ def update_tour_note(user_id: int, tour_id: int, note: str | None) -> bool:
             WHERE id = ? AND user_id = ?
             """,
             (note, tour_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+def update_tour_note_by_group(user_id: int, tour_group_id: str, note: str | None) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET note = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (note, tour_group_id, user_id),
         )
 
         return cursor.rowcount > 0
@@ -220,6 +288,24 @@ def update_tour_status(user_id: int, tour_id: int, status: str) -> bool:
     return run_write_with_retry(operation)
 
 
+def update_tour_status_by_group(user_id: int, tour_group_id: str, status: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET status = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (status, tour_group_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+
 def update_tour_payment_status(user_id: int, tour_id: int, payment_status: str) -> bool:
     def operation(conn):
         cursor = conn.cursor()
@@ -231,6 +317,23 @@ def update_tour_payment_status(user_id: int, tour_id: int, payment_status: str) 
             WHERE id = ? AND user_id = ?
             """,
             (payment_status, tour_id, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+def update_tour_payment_status_by_group(user_id: int, tour_group_id: str, payment_status: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE tours
+            SET payment_status = ?
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (payment_status, tour_group_id, user_id),
         )
 
         return cursor.rowcount > 0
