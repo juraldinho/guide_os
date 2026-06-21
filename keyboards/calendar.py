@@ -24,7 +24,7 @@ def get_month_picker_keyboard(months: list[tuple[int, int]], window_year: int, w
 def get_month_actions_keyboard(year: int, month: int, picker_year: int, picker_month: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Карточка тура", callback_data=f"cal_tours:{year}:{month}")],
+            [InlineKeyboardButton(text="⬅️ К дням месяца", callback_data=f"cal_month:{year}:{month}")],
             [InlineKeyboardButton(text="Свободные даты", callback_data=f"cal_free:{year}:{month}")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"cal_picker:{picker_year}:{picker_month}")],
         ]

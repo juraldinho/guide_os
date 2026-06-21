@@ -242,8 +242,17 @@ def get_day_entries_keyboard(days: list[dict], year: int, month: int) -> InlineK
     buttons.append(
         [
             InlineKeyboardButton(
+                text="📋 Список всего месяца",
+                callback_data=f"cal_month_list:{year}:{month}"
+            )
+        ]
+    )
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
                 text="⬅️ Назад к месяцу",
-                callback_data=f"cal_month:{year}:{month}"
+                callback_data=f"cal_picker:{year}:{month}"
             )
         ]
     )

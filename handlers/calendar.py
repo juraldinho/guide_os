@@ -14,7 +14,10 @@ from services.calendar_service import (
     build_month_calendar,
     get_free_days,
 )
+from services.day_view_service import build_day_entries_for_month
+from keyboards.tour_management import get_day_entries_keyboard
 from utils.formatters import format_month_calendar, format_free_days
+from utils.constants import MONTH_NAMES_RU
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -79,7 +82,25 @@ async def open_month(callback: CallbackQuery) -> None:
         month,
     )
     track_event(callback.from_user.id, "calendar_month_opened")
-    
+
+    user_id = callback.from_user.id
+    days = build_day_entries_for_month(user_id, year, month)
+    month_title = f"{MONTH_NAMES_RU[month]} {year}"
+    text = f"Карточка тура — {month_title}\n\nВыберите день:"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_day_entries_keyboard(days, year, month),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("cal_month_list:"))
+async def open_month_list(callback: CallbackQuery) -> None:
+    _, year_str, month_str = callback.data.split(":")
+    year = int(year_str)
+    month = int(month_str)
+
     user_id = callback.from_user.id
     calendar_data = build_month_calendar(user_id, year, month)
     text = format_month_calendar(calendar_data)
