@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import date, datetime, timedelta
+from html import escape
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
@@ -58,31 +59,34 @@ def build_open_tour_keyboard(target_date: str) -> InlineKeyboardMarkup:
 def build_reminder_text(entry: dict, target_date: str) -> str:
     target_date_ru = format_ru_date(target_date)
     date_range_ru = format_ru_date_range(entry["start_date"], entry["end_date"])
+    company = escape(entry["company"])
 
     if entry["entry_type"] == ENTRY_TYPE_DAY_OFF:
         text = (
             "🌴 <b>Напоминание на завтра</b>\n\n"
             f"Дата: {target_date_ru}\n"
-            f"Запись: {entry['company']}\n"
+            f"Запись: {company}\n"
             f"Период: {date_range_ru}"
         )
 
         if entry.get("note"):
-            text += f"\nЗаметка: {entry['note']}"
+            text += f"\nЗаметка: {escape(entry['note'])}"
 
         return text
+
+    city = escape(entry["city"])
 
     text = (
         "🔔 <b>Напоминание о туре на завтра</b>\n\n"
         f"Дата: {target_date_ru}\n"
-        f"Компания: {entry['company']}\n"
-        f"Маршрут: {entry['city']}\n"
+        f"Компания: {company}\n"
+        f"Маршрут: {city}\n"
         f"Статус: {format_tour_status(entry['status'])}\n"
         f"Даты тура: {date_range_ru}"
     )
 
     if entry.get("note"):
-        text += f"\nЗаметка: {entry['note']}"
+        text += f"\nЗаметка: {escape(entry['note'])}"
 
     return text
 

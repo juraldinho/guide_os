@@ -1,4 +1,5 @@
 from datetime import date
+from html import escape
 
 from utils.constants import (
     WEEKDAY_NAMES_RU,
@@ -29,7 +30,7 @@ def format_month_calendar(calendar_data: dict) -> str:
             label = "🟡 несколько туров"
 
         else:
-            label = f"🔵 <b>{value}</b>"
+            label = f"🔵 <b>{escape(value)}</b>"
 
         lines.append(f"{weekday} {day_str} — {label}")
 
