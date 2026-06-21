@@ -89,7 +89,7 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     cursor.execute(
         """
-        SELECT id, user_id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
+        SELECT id, user_id, company, city, start_date, end_date, status, income, payment_status, note, entry_type, tour_group_id
         FROM tours
         WHERE id = ? AND user_id = ?
         LIMIT 1
@@ -115,6 +115,22 @@ def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
         )
 
         return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+def delete_tours_by_group_id(user_id: int, tour_group_id: str) -> int:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM tours
+            WHERE tour_group_id = ? AND user_id = ?
+            """,
+            (tour_group_id, user_id),
+        )
+
+        return cursor.rowcount
 
     return run_write_with_retry(operation)
 

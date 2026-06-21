@@ -18,6 +18,7 @@ from database.queries import (
     get_tours_for_month,
     get_tour_by_id,
     delete_tour_by_id,
+    delete_tours_by_group_id,
     update_tour_company,
     update_tour_city,
     update_tour_income,
@@ -141,6 +142,14 @@ def get_tour(user_id: int, tour_id: int) -> dict | None:
     return get_tour_by_id(user_id, tour_id)
 
 def delete_tour(user_id: int, tour_id: int) -> bool:
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour:
+        return False
+
+    tour_group_id = tour.get("tour_group_id")
+    if tour_group_id:
+        return delete_tours_by_group_id(user_id, tour_group_id) > 0
+
     return delete_tour_by_id(user_id, tour_id)
 
 def edit_tour_company(user_id: int, tour_id: int, company: str) -> bool:

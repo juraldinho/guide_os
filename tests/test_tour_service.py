@@ -11,6 +11,7 @@ from services.tour_service import (
     edit_tour_payment_status,
     get_conflicting_dates
 )
+from database.queries import get_tours_for_date
 
 TEST_USER = 999999
 
@@ -65,3 +66,25 @@ def test_conflict_detection():
     conflicts = get_conflicting_dates(TEST_USER, "2026-07-01")
 
     assert "2026-07-01" in conflicts
+
+
+def test_delete_multi_date_group():
+    save_tour(
+        user_id=TEST_USER,
+        company=random_company(),
+        city="Бухара",
+        date_text="2026-08-01, 2026-08-03",
+        status="reserved",
+    )
+
+    assert "2026-08-01" in get_conflicting_dates(TEST_USER, "2026-08-01")
+    assert "2026-08-03" in get_conflicting_dates(TEST_USER, "2026-08-03")
+
+    rows = get_tours_for_date(TEST_USER, "2026-08-01")
+    tour_id = rows[0]["id"]
+
+    deleted = delete_tour(TEST_USER, tour_id)
+    assert deleted is True
+
+    assert "2026-08-01" not in get_conflicting_dates(TEST_USER, "2026-08-01")
+    assert "2026-08-03" not in get_conflicting_dates(TEST_USER, "2026-08-03")
