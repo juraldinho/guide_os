@@ -8,6 +8,7 @@ def get_main_menu():
         [KeyboardButton(text="🔎 Проверить дату")],
         [KeyboardButton(text="🔔 Уведомления")],
         [KeyboardButton(text="📊 Статистика")],
+        [KeyboardButton(text="👤 Профиль")],
     ]
 
     return ReplyKeyboardMarkup(

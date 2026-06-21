@@ -159,6 +159,11 @@ def init_db() -> None:
                 "ALTER TABLE users ADD COLUMN last_tour_reminder_date TEXT"
             )
 
+        if "display_name" not in user_columns:
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN display_name TEXT"
+            )
+
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_users_last_seen
         ON users(last_seen)

@@ -854,3 +854,41 @@ def has_user_tours(user_id: int) -> bool:
     conn.close()
 
     return result is not None
+
+
+def get_user_profile(user_id: int) -> dict | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT user_id, display_name, first_seen
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return dict(row) if row else None
+
+
+def update_user_display_name(user_id: int, display_name: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET display_name = ?
+            WHERE user_id = ?
+            """,
+            (display_name, user_id),
+        )
+
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)

@@ -29,6 +29,7 @@ from handlers import errors
 from handlers.check_date import router as check_date_router
 from handlers.tour_cards import router as tour_cards_router
 from handlers.tour_edits import router as tour_edits_router
+from handlers.profile import router as profile_router
 
 from utils.logger import setup_logging
 
@@ -38,6 +39,7 @@ async def setup_bot_commands(bot: Bot) -> None:
     user_commands = [
         BotCommand(command="start", description="Открыть главное меню"),
         BotCommand(command="help", description="Помощь и инструкция"),
+        BotCommand(command="profile", description="Мой профиль"),
     ]
 
     admin_commands = [
@@ -85,6 +87,7 @@ async def main() -> None:
     dp.include_router(check_date_router)
     dp.include_router(tour_cards_router)
     dp.include_router(tour_edits_router)
+    dp.include_router(profile_router)
     dp.include_router(stats.router)
     dp.include_router(errors.router)
     dp.include_router(admin_report_router)
