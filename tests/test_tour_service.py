@@ -107,6 +107,28 @@ def test_conflict_check_excludes_tour_id():
     assert get_conflicting_dates(TEST_USER, "2026-09-15", exclude_tour_id=tour_id) == []
 
 
+def test_conflict_excludes_own_group():
+    save_tour(
+        user_id=TEST_USER,
+        company=random_company(),
+        city="Самарканд",
+        date_text="2026-11-05, 2026-11-07",
+        status="reserved",
+    )
+
+    rows = get_tours_for_date(TEST_USER, "2026-11-05")
+    tour_group_id = rows[0]["tour_group_id"]
+
+    assert "2026-11-05" in get_conflicting_dates(TEST_USER, "2026-11-05")
+
+    result = get_conflicting_dates(
+        TEST_USER,
+        "2026-11-05",
+        exclude_tour_group_id=tour_group_id,
+    )
+    assert result == []
+
+
 def test_edit_company_propagates_to_group():
     original_company = random_company()
     save_tour(

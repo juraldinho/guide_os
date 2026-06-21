@@ -42,6 +42,7 @@ def get_conflicting_dates(
     user_id: int,
     date_text: str,
     exclude_tour_id: int | None = None,
+    exclude_tour_group_id: str | None = None,
 ) -> list[str]:
     intervals = _parse_single_iso_date(date_text)
 
@@ -64,6 +65,8 @@ def get_conflicting_dates(
 
         for row in rows:
             if exclude_tour_id is not None and row["id"] == exclude_tour_id:
+                continue
+            if exclude_tour_group_id is not None and row["tour_group_id"] == exclude_tour_group_id:
                 continue
 
             row_start = datetime.strptime(row["start_date"], "%Y-%m-%d").date()

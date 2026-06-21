@@ -324,14 +324,19 @@ async def process_edit_dates(message: Message, state: FSMContext):
         )
         return
 
-    conflicts = get_conflicting_dates(user_id, date_text, exclude_tour_id=tour_id)
-
     tour = get_tour(user_id, tour_id)
     await state.clear()
 
     if not tour:
         await message.answer("Даты обновлены, но тур не найден.")
         return
+
+    conflicts = get_conflicting_dates(
+        user_id,
+        date_text,
+        exclude_tour_id=tour_id,
+        exclude_tour_group_id=tour.get("tour_group_id"),
+    )
 
     card_text = format_tour_card(tour)
 
