@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 from database.queries import track_event
 
 from aiogram import Router, F
+from aiogram.filters import StateFilter
 from aiogram.types import (
     Message,
     ReplyKeyboardMarkup,
@@ -174,7 +175,17 @@ async def add_tour_start(message: Message, state: FSMContext) -> None:
         reply_markup=get_date_keyboard()
     )
     
-@router.message(F.text == "❌ Отмена")
+@router.message(
+    StateFilter(
+        AddTourState.date,
+        AddTourState.company,
+        AddTourState.city,
+        AddTourState.status,
+        AddTourState.income,
+        AddTourState.conflict_confirm,
+    ),
+    F.text == "❌ Отмена",
+)
 async def cancel_add_tour(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if not current_state:
