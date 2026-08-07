@@ -643,6 +643,93 @@ def revoke_guide_shop_link_requests(
         return cursor.rowcount
 
     return run_write_with_retry(operation)
+
+
+def create_guide_shop_navigation_token(
+    token_hash: str,
+    telegram_user_id: int,
+    route_kind: str,
+    object_id: str | None,
+    cursor: str | None,
+    points_status: str | None,
+    created_at: str,
+    expires_at: str,
+) -> None:
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO guide_shop_navigation_tokens (
+                token_hash, telegram_user_id, route_kind, object_id, cursor,
+                points_status, created_at, expires_at, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'issued')
+            """,
+            (
+                token_hash,
+                telegram_user_id,
+                route_kind,
+                object_id,
+                cursor,
+                points_status,
+                created_at,
+                expires_at,
+            ),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_guide_shop_navigation_token(token_hash: str) -> dict | None:
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT * FROM guide_shop_navigation_tokens
+        WHERE token_hash = ?
+        LIMIT 1
+        """,
+        (token_hash,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def consume_guide_shop_navigation_token(
+    token_hash: str, telegram_user_id: int, resolved_at: str
+) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE guide_shop_navigation_tokens
+            SET status = 'consumed', consumed_at = ?
+            WHERE token_hash = ?
+              AND telegram_user_id = ?
+              AND status = 'issued'
+              AND expires_at > ?
+            """,
+            (resolved_at, token_hash, telegram_user_id, resolved_at),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def revoke_guide_shop_navigation_tokens(
+    telegram_user_id: int, revoked_at: str
+) -> int:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE guide_shop_navigation_tokens
+            SET status = 'revoked', revoked_at = ?
+            WHERE telegram_user_id = ? AND status = 'issued'
+            """,
+            (revoked_at, telegram_user_id),
+        )
+        return cursor.rowcount
+
+    return run_write_with_retry(operation)
     
 def track_event(user_id: int | None, event_name: str) -> None:
     def operation(conn):

@@ -209,6 +209,28 @@ def init_db() -> None:
         """)
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_shop_navigation_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_hash TEXT NOT NULL UNIQUE,
+            telegram_user_id INTEGER NOT NULL,
+            route_kind TEXT NOT NULL,
+            object_id TEXT,
+            cursor TEXT,
+            points_status TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            revoked_at TEXT,
+            status TEXT NOT NULL CHECK(status IN ('issued', 'consumed', 'revoked'))
+        )
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_guide_shop_navigation_user_status
+        ON guide_shop_navigation_tokens(telegram_user_id, status)
+        """)
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
