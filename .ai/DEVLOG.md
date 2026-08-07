@@ -41,3 +41,21 @@
 Проверка: Stage 1B — `8 passed`; Stage 1A — `5 passed`; полный suite — `45 passed`; `git diff --check` clean.
 
 Остаточный риск: автоматическая очистка link-request history отложена до утверждения retention policy.
+
+## 2026-08-07 — Stage 2A завершён
+
+Выполнено:
+
+- добавлены строгие DTO для Company, Visit, Sale и points transaction;
+- добавлены pagination, API list/detail envelopes и безопасные API errors;
+- деньги и points ограничены Decimal-строками без numeric coercion;
+- timestamps ограничены UTC ISO 8601;
+- неизвестные поля и неподдерживаемые версии отклоняются;
+- добавлены четыре типизированных event payload v1;
+- event type, subject type, typed data и object ID проверяются совместно;
+- `subject.id` обязан совпадать с ID основного объекта внутри event data;
+- доказано отсутствие DB/network side effects при валидации.
+
+Проверка: contract suite — `40 passed`; Stage 1 regression — `13 passed`; полный suite — `85 passed`; `git diff --check` clean.
+
+Следующее действие: Stage 3A — feature flags и mockable GuideShop client boundary без реальной сети.

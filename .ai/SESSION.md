@@ -6,41 +6,40 @@
 
 Подготовка Guide OS к будущей интеграции с GuideShop до начала изменений GuideShop.
 
-## Текущий этап
+## Завершённые этапы
 
-Stage 1 завершён на стороне Guide OS:
-
-- Stage 1A — stable `guide_os_id`: завершён;
-- Stage 1B — secure temporary linking requests: завершён;
-- следующий этап — Stage 2A, Guide OS-side contract и mock payloads.
+- Stage 0 — закрыт Product Owner;
+- Stage 1A — stable UUID4 `guide_os_id`;
+- Stage 1B — secure one-time linking requests;
+- Stage 2A — strict GuideShop DTO and event contract baseline.
 
 ## Проверенное состояние
 
-- Stage 0 закрыт Product Owner;
-- stable identity использует UUID4;
 - raw linking tokens не сохраняются;
-- linking token TTL — 10 минут UTC;
 - atomic consume учитывает status и expiration;
-- Stage 1B tests: `8 passed`;
-- Stage 1A tests: `5 passed`;
-- full suite: `45 passed`;
-- GuideShop, HTTP API, Telegram integration UI и события ещё не подключены.
+- Decimal values не принимаются из `float`/`int`;
+- timestamps принимаются только в UTC;
+- event type, subject type, typed payload и object ID согласованы;
+- contract suite: `40 passed`;
+- Stage 1 regression: `13 passed`;
+- full suite: `85 passed`;
+- GuideShop network connection, Telegram integration UI и event processing отсутствуют.
 
 ## Следующее действие
 
-Подготовить Cursor Prompt для Stage 2A согласно `.ai/NEXT_TASK.md`.
+Подготовить и выполнить Stage 3A согласно `.ai/NEXT_TASK.md`: default-off feature flags и mockable read-only client boundary.
 
 ## Открытые решения
 
 1. Service authentication: OAuth2 client credentials или signed JWT.
 2. Event delivery: webhook endpoint или очередь.
 3. Retention для link requests, event inbox/outbox и audit log.
-4. Правило отображения corrected/reversed points.
+4. Формальное сопоставление Guide OS DTO с GuideShop OpenAPI/JSON Schema.
 5. Право принудительного unlink/relink.
 
 ## Production gate
 
-Shared staging, end-to-end, recovery/reconciliation и live production-safety evidence обязательны до production activation. Завершение Stage 1 не является разрешением production rollout.
+Shared staging, end-to-end, recovery/reconciliation и live production-safety evidence обязательны до production activation.
 
 ## Ограничения сессии
 

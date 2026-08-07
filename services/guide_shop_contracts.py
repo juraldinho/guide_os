@@ -244,20 +244,24 @@ class EventEnvelopeDTO(StrictDTO):
     @model_validator(mode="after")
     def validate_event_shape(self) -> "EventEnvelopeDTO":
         expected = {
-            "visit.created.v1": ("visit", VisitCreatedDataDTO),
-            "sale.created.v1": ("sale", SaleCreatedDataDTO),
+            "visit.created.v1": ("visit", VisitCreatedDataDTO, "visit_id"),
+            "sale.created.v1": ("sale", SaleCreatedDataDTO, "sale_id"),
             "points.recalculated.v1": (
                 "points_transaction",
                 PointsRecalculatedDataDTO,
+                "points_transaction_id",
             ),
             "points.credited.v1": (
                 "points_transaction",
                 PointsCreditedDataDTO,
+                "points_transaction_id",
             ),
         }
-        subject_type, data_type = expected[self.event_type]
+        subject_type, data_type, data_id_field = expected[self.event_type]
         if self.subject.type != subject_type:
             raise ValueError("event subject does not match event_type")
         if not isinstance(self.data, data_type):
             raise ValueError("event data does not match event_type")
+        if self.subject.id != getattr(self.data, data_id_field):
+            raise ValueError("event subject id does not match event data id")
         return self

@@ -267,6 +267,34 @@ def test_each_required_event_has_typed_valid_data(event_type):
     parsed = EventEnvelopeDTO.model_validate(event_payload(event_type))
     assert parsed.event_type == event_type
     assert not isinstance(parsed.data, dict)
+    id_field = {
+        "visit.created.v1": "visit_id",
+        "sale.created.v1": "sale_id",
+        "points.recalculated.v1": "points_transaction_id",
+        "points.credited.v1": "points_transaction_id",
+    }[event_type]
+    expected_id = getattr(parsed.data, id_field)
+    assert parsed.subject.id == expected_id
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "visit.created.v1",
+        "sale.created.v1",
+        "points.recalculated.v1",
+        "points.credited.v1",
+    ],
+)
+def test_event_subject_id_must_match_typed_data_id(event_type):
+    payload = event_payload(event_type)
+    payload["subject"]["id"] = "different-id"
+
+    with pytest.raises(
+        ValidationError,
+        match="event subject id does not match event data id",
+    ):
+        EventEnvelopeDTO.model_validate(payload)
 
 
 def test_event_type_subject_data_and_version_mismatches_are_rejected():

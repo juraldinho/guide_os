@@ -167,6 +167,8 @@ GuideShop должен оставаться источником истины д
 - Raw linking token не хранится; сохраняется только SHA-256 hash.
 - Token имеет 256 бит энтропии, audience `guideshop-link` и TTL 10 минут UTC.
 - Consume является атомарным, однократным и учитывает expiration в SQL-условии.
+- Stage 2A: реализованы строгие GuideShop DTO, API envelopes/errors и четыре типизированных event payload v1.
+- Decimal values, UTC timestamps, schema versions, unknown fields и event object identity валидируются до использования данных.
 - GuideShop API, Telegram integration UI, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией
@@ -175,7 +177,7 @@ GuideShop должен оставаться источником истины д
 - [x] Определены владельцы данных по каждой сущности.
 - [x] Guide OS выдаёт стабильный `guide_os_id`.
 - [x] Утверждён linking contract и реализована Guide OS-side token foundation.
-- [ ] Согласована версия API/event contract.
+- [ ] Guide OS contract baseline реализован; требуется формальное сопоставление и согласование с GuideShop.
 - [ ] Готовы маршруты для deep links.
 - [ ] Настроены staging-окружения обеих систем.
 - [ ] Есть тестовые Guides, Visits, Sales и разные статусы points.

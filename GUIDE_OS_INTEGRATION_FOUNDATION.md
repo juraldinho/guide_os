@@ -703,6 +703,24 @@ Runbook должен описывать:
 
 Принятый остаточный риск: временные link-request rows сохраняются без автоматической очистки. Retention/cleanup policy должна быть утверждена и реализована отдельной минимальной задачей после определения требований audit retention.
 
+### Stage 2A — Guide OS integration DTO contract
+
+**Статус:** Completed and verified 2026-08-07.
+
+- Добавлены строгие DTO для Company, Visit, Sale, points transaction, pagination, API envelopes и API errors.
+- ID принимаются только как непустые строки без числового coercion.
+- Деньги и points принимаются только как plain decimal strings с двумя знаками; `float`, exponent notation, NaN и Infinity отклоняются.
+- Timestamps принимаются только как timezone-aware UTC ISO 8601 (`Z` или `+00:00`).
+- Неизвестные поля и неподдерживаемая schema version отклоняются.
+- Зафиксированы Visit, Sale и points statuses, а также cancelled/voided/reversed invariants.
+- Реализованы типизированные payload для четырёх событий v1.
+- `event_type`, `subject.type`, typed data и object ID обязаны согласовываться; `subject.id` равен ID объекта внутри event data.
+- Контрактная валидация не выполняет сетевых запросов и операций с базой данных.
+- Проверка: contract suite `40 passed`; Stage 1 regression `13 passed`; full suite `85 passed`; `git diff --check` clean.
+- GuideShop connection, Telegram UI, persistence, event processing и deployment не затронуты.
+
+Оставшееся условие: Guide OS DTO являются утверждённым implementation baseline, но должны быть сопоставлены с формальным GuideShop OpenAPI/JSON Schema до staging connection.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.
