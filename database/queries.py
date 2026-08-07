@@ -567,6 +567,82 @@ def get_guide_os_id(user_id: int) -> str | None:
     conn.close()
 
     return row["guide_os_id"] if row else None
+
+
+def create_guide_shop_link_request(
+    guide_os_id: str,
+    token_hash: str,
+    audience: str,
+    created_at: str,
+    expires_at: str,
+) -> None:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE guide_shop_link_requests
+            SET status = 'revoked', revoked_at = ?
+            WHERE guide_os_id = ? AND audience = ? AND status = 'issued'
+            """,
+            (created_at, guide_os_id, audience),
+        )
+        cursor.execute(
+            """
+            INSERT INTO guide_shop_link_requests (
+                guide_os_id, token_hash, audience, status, created_at, expires_at
+            )
+            VALUES (?, ?, ?, 'issued', ?, ?)
+            """,
+            (guide_os_id, token_hash, audience, created_at, expires_at),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_guide_shop_link_request(token_hash: str) -> dict | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM guide_shop_link_requests WHERE token_hash = ? LIMIT 1",
+        (token_hash,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def consume_guide_shop_link_request(request_id: int, consumed_at: str) -> bool:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE guide_shop_link_requests
+            SET status = 'consumed', consumed_at = ?
+            WHERE id = ? AND status = 'issued' AND expires_at > ?
+            """,
+            (consumed_at, request_id, consumed_at),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def revoke_guide_shop_link_requests(
+    guide_os_id: str, audience: str, revoked_at: str
+) -> int:
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE guide_shop_link_requests
+            SET status = 'revoked', revoked_at = ?
+            WHERE guide_os_id = ? AND audience = ? AND status = 'issued'
+            """,
+            (revoked_at, guide_os_id, audience),
+        )
+        return cursor.rowcount
+
+    return run_write_with_retry(operation)
     
 def track_event(user_id: int | None, event_name: str) -> None:
     def operation(conn):

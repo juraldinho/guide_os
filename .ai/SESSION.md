@@ -1,40 +1,49 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-06
+> Обновлено: 2026-08-07
 
 ## Текущий фокус
 
-Архитектурное планирование интеграции Guide OS ↔ GuideShop до подготовки Cursor Prompt и до любых изменений исходного кода.
-
-## Принятые исходные решения
-
-- Интеграция начинается со стабильного `guide_os_id` и безопасного связывания профилей.
-- GuideShop остаётся источником истины для Companies, Visits, Sales и points.
-- Для MVP используется read-only API, дополненный событиями для уведомлений.
-- Прямой доступ Guide OS к базе данных GuideShop не допускается.
-- Реализация идёт по этапам и по принципу Minimal Change.
-- Cursor Prompt всегда составляется на английском языке, но первый prompt будет подготовлен только после завершения planning/readiness.
+Подготовка Guide OS к будущей интеграции с GuideShop до начала изменений GuideShop.
 
 ## Текущий этап
 
-Stage 0 — Readiness и владельцы данных.
+Stage 1 завершён на стороне Guide OS:
+
+- Stage 1A — stable `guide_os_id`: завершён;
+- Stage 1B — secure temporary linking requests: завершён;
+- следующий этап — Stage 2A, Guide OS-side contract и mock payloads.
+
+## Проверенное состояние
+
+- Stage 0 закрыт Product Owner;
+- stable identity использует UUID4;
+- raw linking tokens не сохраняются;
+- linking token TTL — 10 минут UTC;
+- atomic consume учитывает status и expiration;
+- Stage 1B tests: `8 passed`;
+- Stage 1A tests: `5 passed`;
+- full suite: `45 passed`;
+- GuideShop, HTTP API, Telegram integration UI и события ещё не подключены.
 
 ## Следующее действие
 
-Собрать недостающие подтверждения и заполнить readiness checklist, описанный в `.ai/NEXT_TASK.md`.
+Подготовить Cursor Prompt для Stage 2A согласно `.ai/NEXT_TASK.md`.
 
-## Открытые вопросы
+## Открытые решения
 
-1. Что именно входит в Phase 2 и где зафиксирована её production-safety проверка?
-2. Какая система сейчас хранит надёжный уникальный идентификатор существующего гида?
-3. Кто имеет право подтверждать спорное связывание и выполнять `unlink`/`relink`?
-4. Какие персональные и платёжные поля действительно нужны на экранах Guide OS?
-5. Какие staging endpoints, credentials и тестовые данные уже существуют?
-6. Кто владеет контрактом API/events и процессом reconciliation?
-7. В каком интерфейсе Guide OS должны жить указанные URL-подобные deep links, учитывая текущий Telegram-only runtime?
+1. Service authentication: OAuth2 client credentials или signed JWT.
+2. Event delivery: webhook endpoint или очередь.
+3. Retention для link requests, event inbox/outbox и audit log.
+4. Правило отображения corrected/reversed points.
+5. Право принудительного unlink/relink.
+
+## Production gate
+
+Shared staging, end-to-end, recovery/reconciliation и live production-safety evidence обязательны до production activation. Завершение Stage 1 не является разрешением production rollout.
 
 ## Ограничения сессии
 
-- Исходный код не изменяется этим чатом.
-- До завершения Stage 0 Cursor Prompt не формируется.
-- `docs/project_context.md` отражает только фактическую реализацию и не обновляется планами будущих функций.
+- Исходный код изменяет только Cursor.
+- Этот чат анализирует, проектирует, проверяет и обновляет Markdown-документацию.
+- Все изменения выполняются по Minimal Change без несвязанного рефакторинга.

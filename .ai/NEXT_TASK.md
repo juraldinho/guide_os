@@ -1,38 +1,39 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-06
+> Обновлено: 2026-08-07
 
 ## Единственная следующая задача
 
-Провести Stage 0: подготовить и согласовать readiness checklist интеграции Guide OS ↔ GuideShop.
+Stage 2A — формализовать Guide OS-side integration contract и mock payloads до создания Telegram-экранов и подключения GuideShop.
 
 ## Цель
 
-Закрыть организационные и архитектурные неизвестные до проектирования identity/linking и до подготовки первого Cursor Prompt.
+Зафиксировать стабильные модели входных данных, ошибок и событий, которые Guide OS сможет валидировать независимо от реального GuideShop API.
 
 ## Требуемый результат
 
-Один согласованный документ, в котором:
-
-- подтверждён статус Phase 2 и результат production-safety проверки;
-- назначены владельцы данных для Guide, Company, Visit, Sale, points transaction и integration link;
-- указан источник истины для каждой сущности;
-- определён минимальный набор персональных и платёжных данных, доступных Guide OS;
-- подтверждена готовность staging обеих систем;
-- перечислены тестовые гиды и наборы Visits, Sales и points statuses;
-- назначены ответственные за API, события, безопасность, мониторинг и reconciliation;
-- перечислены все блокеры Stage 1.
+- DTO для Company, Visit, Sale и points transaction;
+- Decimal-compatible строки без `float`;
+- UTC ISO 8601 timestamps;
+- pagination envelope и стабильные identifiers;
+- versioned event envelope;
+- состояния cancelled, voided, corrected и reversed;
+- безопасные error codes;
+- валидные и негативные mock payloads;
+- focused contract tests без сетевого подключения.
 
 ## Ограничения
 
-- Не изменять исходный код.
-- Не начинать реализацию `guide_os_id`, API, экранов или событий.
-- Не готовить Cursor Prompt до согласования readiness checklist.
-- Не расширять интеграцию за пределы read-only MVP.
+- Не подключать GuideShop.
+- Не добавлять HTTP server или production credentials.
+- Не создавать Telegram UI на этом этапе.
+- Не реализовывать события и уведомления.
+- Использовать Minimal Change и существующие зависимости.
+- Сохранить все текущие сценарии Guide OS.
 
 ## Definition of Done
 
-- Все пункты Stage 0 имеют владельца и подтверждённый статус.
-- Все неизвестные явно записаны как решения или блокеры.
-- Нет неявного доступа Guide OS к базе GuideShop.
-- Можно безопасно перейти к проектированию Stage 1 — Identity и linking.
+- Контрактные решения согласованы с `GUIDE_OS_INTEGRATION_FOUNDATION.md`.
+- Mock payloads покрывают успешные и негативные случаи.
+- Focused contract tests и полный suite проходят.
+- Нет сетевых вызовов, GuideShop coupling и production activation.

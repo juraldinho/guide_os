@@ -190,6 +190,25 @@ def init_db() -> None:
         """)
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_shop_link_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guide_os_id TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            audience TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('issued', 'consumed', 'revoked')),
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            revoked_at TEXT
+        )
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_guide_shop_link_requests_guide
+        ON guide_shop_link_requests(guide_os_id, audience)
+        """)
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,

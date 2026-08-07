@@ -1,10 +1,10 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-06
+> Обновлено: 2026-08-07
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Интеграция с GuideShop ещё не реализована и находится на стадии архитектурного планирования.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0 закрыт решением Product Owner. Подготовка Guide OS к интеграции начата: Stage 1A и Stage 1B реализованы и проверены, прямое подключение к GuideShop ещё отсутствует.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -159,12 +159,22 @@ GuideShop должен оставаться источником истины д
 
 Следующий этап не начинается, пока не выполнены критерии готовности предыдущего этапа.
 
-## Readiness checklist перед реализацией интеграции
+## Реализованная основа интеграции
 
-- [ ] Phase 2 завершена и прошла production-safety проверку.
-- [ ] Определены владельцы данных по каждой сущности.
-- [ ] Guide OS выдаёт стабильный `guide_os_id`.
-- [ ] Утверждён процесс связывания существующих гидов.
+- Stage 1A: каждому пользователю назначается стабильный уникальный UUID4 `guide_os_id`.
+- Существующие пользователи получают ID через additive idempotent migration.
+- Stage 1B: реализованы временные одноразовые GuideShop linking requests.
+- Raw linking token не хранится; сохраняется только SHA-256 hash.
+- Token имеет 256 бит энтропии, audience `guideshop-link` и TTL 10 минут UTC.
+- Consume является атомарным, однократным и учитывает expiration в SQL-условии.
+- GuideShop API, Telegram integration UI, события и production activation ещё не реализованы.
+
+## Readiness checklist перед production-интеграцией
+
+- [x] Phase 2 подтверждена на repository level; live production-safety остаётся activation gate.
+- [x] Определены владельцы данных по каждой сущности.
+- [x] Guide OS выдаёт стабильный `guide_os_id`.
+- [x] Утверждён linking contract и реализована Guide OS-side token foundation.
 - [ ] Согласована версия API/event contract.
 - [ ] Готовы маршруты для deep links.
 - [ ] Настроены staging-окружения обеих систем.

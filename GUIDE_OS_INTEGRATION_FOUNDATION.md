@@ -669,6 +669,40 @@ Runbook должен описывать:
 
 ## 17. План реализации
 
+### Stage 1A — stable Guide OS identity
+
+**Статус:** Completed and verified 2026-08-07.
+
+- Guide OS создаёт непрозрачный UUID4 `guide_os_id` для каждого нового пользователя.
+- Существующие пользователи получают ID через additive idempotent migration.
+- Повторная регистрация и повторный `init_db()` сохраняют исходный ID.
+- Уникальность обеспечивается индексом `idx_users_guide_os_id`.
+- Все существующие application paths создания пользователя назначают ID.
+- Добавлен read-only lookup `get_guide_os_id(user_id)` без побочного создания пользователя.
+- Изменения ограничены `database/db.py`, `database/queries.py` и `tests/test_guide_os_identity.py`.
+- Проверка: focused suite `5 passed`; full suite `37 passed`; `git diff --check` clean.
+- GuideShop linking, API, events, Telegram UI и deployment не затронуты.
+
+Принятый остаточный риск: колонка остаётся nullable для совместимости с additive SQLite migration, поэтому прямой out-of-band SQL технически может вставить `NULL`. Application paths назначают ID, а startup migration исправляет `NULL` и пустые значения.
+
+### Stage 1B — secure GuideShop linking requests
+
+**Статус:** Completed and verified 2026-08-07.
+
+- Guide OS создаёт URL-safe одноразовые linking tokens с 256 битами криптографической случайности.
+- В SQLite хранится только SHA-256 hash; raw token возвращается только при создании и не логируется.
+- Запрос привязан к стабильному `guide_os_id`, audience `guideshop-link` и TTL 10 минут в UTC.
+- Временные состояния запроса ограничены `issued`, `consumed` и `revoked`; authoritative GuideShop link status не дублируется.
+- Новый запрос атомарно отзывает предыдущие issued-запросы того же гида и audience.
+- Consume выполняется условным атомарным UPDATE и может успешно пройти только один раз.
+- Проверка `expires_at > consumed_at` включена непосредственно в атомарное SQL-условие, исключая TTL race между предварительной проверкой и записью.
+- Неизвестные, истёкшие, использованные, отозванные токены и неверный audience различаются доменными ошибками.
+- Повторный `init_db()` сохраняет link-request history.
+- Проверка: Stage 1B suite `8 passed`; Stage 1A suite `5 passed`; full suite `45 passed`; `git diff --check` clean.
+- GuideShop, HTTP API, Telegram UI, events и deployment не затронуты.
+
+Принятый остаточный риск: временные link-request rows сохраняются без автоматической очистки. Retention/cleanup policy должна быть утверждена и реализована отдельной минимальной задачей после определения требований audit retention.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.
@@ -715,7 +749,7 @@ Runbook должен описывать:
 
 До coding freeze должны быть закрыты:
 
-1. Формат стабильного `guide_os_id`: UUID/ULID/другая opaque string.
+1. Формат стабильного `guide_os_id`: **закрыто 2026-08-07 — UUID4 opaque string, владельцем является Guide OS**.
 2. Способ service authentication: OAuth2 client credentials или signed JWT.
 3. Механизм доставки событий: webhook endpoint Guide OS либо очередь.
 4. Нужно ли показывать payment method гиду. Default: нет.
