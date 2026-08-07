@@ -169,6 +169,8 @@ GuideShop должен оставаться источником истины д
 - Consume является атомарным, однократным и учитывает expiration в SQL-условии.
 - Stage 2A: реализованы строгие GuideShop DTO, API envelopes/errors и четыре типизированных event payload v1.
 - Decimal values, UTC timestamps, schema versions, unknown fields и event object identity валидируются до использования данных.
+- Stage 3A: добавлены default-off integration flags и async read-only client protocol.
+- Disabled client и explicit in-memory fake не выполняют network/database operations; production factory не включает fake автоматически.
 - GuideShop API, Telegram integration UI, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией

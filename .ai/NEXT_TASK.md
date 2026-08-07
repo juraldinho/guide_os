@@ -4,36 +4,38 @@
 
 ## Единственная следующая задача
 
-Stage 3A — добавить безопасные feature flags и mockable GuideShop client boundary без сетевого подключения.
+Stage 3B — реализовать внутренние GuideShop routes и короткие server-side navigation tokens для Telegram callbacks/deep links без создания экранов.
 
 ## Цель
 
-Создать отключённую по умолчанию границу интеграции, через которую будущие Telegram-сервисы смогут получать уже валидированные DTO, не связываясь напрямую с HTTP implementation.
+Подготовить безопасную маршрутизацию к Visit, Sale и points transaction, не помещая длинные IDs, credentials или персональные данные в callback/deep link.
 
 ## Требуемый результат
 
-- отдельные flags для GuideShop reads, linking, events и notifications;
-- все flags выключены по умолчанию;
-- строгий client protocol/interface для read-only operations;
-- disabled client, который не выполняет сеть и возвращает безопасную domain error;
-- in-memory fake client для будущих экранов и тестов;
-- методы companies, visits/detail, sales/detail, points/detail и history;
-- focused tests на default-off, отсутствие сети и DTO boundary.
+- typed route model для home, lists и object details;
+- разрешённые route kinds и обязательные параметры;
+- короткий криптографический navigation token;
+- хранение только hash токена и server-side route payload;
+- TTL, привязка к Telegram user ID и одноразовое либо ограниченное использование;
+- revoke/expiry и безопасные domain errors;
+- payload size, callback safety и cross-user negative tests;
+- отсутствие Telegram UI и реальных GuideShop calls.
 
 ## Ограничения
 
-- Не реализовывать HTTP client.
-- Не подключать GuideShop.
-- Не добавлять credentials.
-- Не изменять Telegram UI.
-- Не сохранять GuideShop business data в SQLite.
-- Не реализовывать события или уведомления.
-- Сохранить текущие сценарии Guide OS.
+- Не добавлять handlers или keyboards.
+- Не подключать GuideShop и HTTP.
+- Не помещать object IDs в публичный token.
+- Не помещать token/PII в логи.
+- Не переиспользовать linking tokens как navigation tokens.
+- Не включать integration flags.
+- Сохранить все существующие сценарии Guide OS.
 
 ## Definition of Done
 
-- Integration flags безопасно выключены по умолчанию.
-- Disabled client не выполняет network/database operations.
-- Fake client возвращает только Stage 2A DTO.
-- Focused tests, Stage 1/2 regression и полный suite проходят.
-- Нет production activation и GuideShop coupling.
+- Navigation tokens короткие, opaque, expiring и user-bound.
+- Другой Telegram user не может разрешить token.
+- Route payload валидируется до сохранения и после чтения.
+- Raw token не хранится.
+- Focused tests и полный suite проходят.
+- Нет Telegram UI, network calls и production activation.

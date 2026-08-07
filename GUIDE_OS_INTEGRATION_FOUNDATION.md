@@ -721,6 +721,22 @@ Runbook должен описывать:
 
 Оставшееся условие: Guide OS DTO являются утверждённым implementation baseline, но должны быть сопоставлены с формальным GuideShop OpenAPI/JSON Schema до staging connection.
 
+### Stage 3A — feature flags and mockable client boundary
+
+**Статус:** Completed and verified 2026-08-07.
+
+- Добавлены четыре независимых immutable feature flags: reads, linking, events и notifications.
+- Все flags выключены по умолчанию; неизвестные и пустые явно заданные значения отклоняются.
+- Добавлен runtime-checkable async read-only GuideShop client protocol без user-controlled guide identity parameters.
+- Disabled client безопасно отклоняет все операции без сети и базы данных.
+- Production factory при выключенных reads возвращает disabled client, а при включённых reads отказывает до появления реального authenticated client; fake fallback отсутствует.
+- In-memory fake принимает и возвращает только Stage 2A DTO, использует deep-copy isolation и не сохраняет данные.
+- Fake поддерживает deterministic ordering, status filtering, detail lookup, history и opaque scoped pagination.
+- Проверка: Stage 3A suite `27 passed`; Stage 1/2 regression `53 passed`; full suite `112 passed`; `git diff --check` clean.
+- HTTP, credentials, Telegram UI, persistence, events и deployment не затронуты.
+
+Оставшееся условие: включение reads намеренно завершается configuration error до реализации authenticated HTTP client на одном из следующих этапов.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

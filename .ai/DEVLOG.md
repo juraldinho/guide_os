@@ -59,3 +59,19 @@
 Проверка: contract suite — `40 passed`; Stage 1 regression — `13 passed`; полный suite — `85 passed`; `git diff --check` clean.
 
 Следующее действие: Stage 3A — feature flags и mockable GuideShop client boundary без реальной сети.
+
+## 2026-08-07 — Stage 3A завершён
+
+Выполнено:
+
+- добавлены независимые default-off flags для reads, linking, events и notifications;
+- добавлен async read-only GuideShop client protocol;
+- identity scope исключён из user-controlled method arguments;
+- disabled client не выполняет сеть и SQLite;
+- production factory не включает fake при reads-enabled;
+- explicit in-memory fake возвращает только валидированные Stage 2A DTO;
+- реализованы deep-copy isolation, deterministic ordering, filtering, details, history и opaque scoped pagination.
+
+Проверка: Stage 3A — `27 passed`; Stage 1/2 regression — `53 passed`; полный suite — `112 passed`; `git diff --check` clean.
+
+Остаточный риск: reads-enabled намеренно неработоспособен до реализации реального authenticated client.

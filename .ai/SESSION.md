@@ -4,38 +4,38 @@
 
 ## Текущий фокус
 
-Подготовка Guide OS к будущей интеграции с GuideShop до начала изменений GuideShop.
+Подготовка Guide OS routes и Telegram-safe navigation foundation до создания GuideShop UI.
 
 ## Завершённые этапы
 
 - Stage 0 — закрыт Product Owner;
 - Stage 1A — stable UUID4 `guide_os_id`;
 - Stage 1B — secure one-time linking requests;
-- Stage 2A — strict GuideShop DTO and event contract baseline.
+- Stage 2A — strict DTO/event contract baseline;
+- Stage 3A — default-off flags и mockable read-only client boundary.
 
 ## Проверенное состояние
 
-- raw linking tokens не сохраняются;
-- atomic consume учитывает status и expiration;
-- Decimal values не принимаются из `float`/`int`;
-- timestamps принимаются только в UTC;
-- event type, subject type, typed payload и object ID согласованы;
-- contract suite: `40 passed`;
-- Stage 1 regression: `13 passed`;
-- full suite: `85 passed`;
-- GuideShop network connection, Telegram integration UI и event processing отсутствуют.
+- integration flags выключены по умолчанию;
+- disabled/fake clients не выполняют сеть или SQLite;
+- fake возвращает только валидированные DTO;
+- production factory не использует fake fallback;
+- Stage 3A: `27 passed`;
+- Stage 1/2 regression: `53 passed`;
+- full suite: `112 passed`;
+- реальный HTTP client и Telegram integration UI отсутствуют.
 
 ## Следующее действие
 
-Подготовить и выполнить Stage 3A согласно `.ai/NEXT_TASK.md`: default-off feature flags и mockable read-only client boundary.
+Stage 3B согласно `.ai/NEXT_TASK.md`: typed internal routes и user-bound navigation tokens.
 
 ## Открытые решения
 
 1. Service authentication: OAuth2 client credentials или signed JWT.
 2. Event delivery: webhook endpoint или очередь.
-3. Retention для link requests, event inbox/outbox и audit log.
-4. Формальное сопоставление Guide OS DTO с GuideShop OpenAPI/JSON Schema.
-5. Право принудительного unlink/relink.
+3. Retention для linking/navigation requests, event inbox/outbox и audit log.
+4. Формальное сопоставление DTO с GuideShop OpenAPI/JSON Schema.
+5. Финальный TTL и single-use policy для notification deep links.
 
 ## Production gate
 
