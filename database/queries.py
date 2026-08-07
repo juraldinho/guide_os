@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 
 from database.db import get_connection, run_write_with_retry
 
@@ -535,21 +536,37 @@ def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> l
     return rows
 
 def register_user(user_id: int) -> None:
+    guide_os_id = str(uuid.uuid4())
 
     def operation(conn):
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            INSERT INTO users (user_id)
-            VALUES (?)
+            INSERT INTO users (user_id, guide_os_id)
+            VALUES (?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 last_seen = CURRENT_TIMESTAMP
             """,
-            (user_id,),
+            (user_id, guide_os_id),
         )
 
     run_write_with_retry(operation)
+
+
+def get_guide_os_id(user_id: int) -> str | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT guide_os_id FROM users WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row["guide_os_id"] if row else None
     
 def track_event(user_id: int | None, event_name: str) -> None:
     def operation(conn):
@@ -699,35 +716,41 @@ def get_user_notification_settings(user_id: int) -> dict:
 
 
 def set_notifications_enabled(user_id: int, enabled: bool) -> None:
+    guide_os_id = str(uuid.uuid4())
+
     def operation(conn):
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            INSERT INTO users (user_id, notifications_enabled)
-            VALUES (?, ?)
+            INSERT INTO users (user_id, notifications_enabled, guide_os_id)
+            VALUES (?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 notifications_enabled = excluded.notifications_enabled
             """,
-            (user_id, int(enabled)),
+            (user_id, int(enabled), guide_os_id),
         )
 
     run_write_with_retry(operation)
 
 
 def set_notification_time(user_id: int, time_text: str) -> None:
+    guide_os_id = str(uuid.uuid4())
+
     def operation(conn):
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            INSERT INTO users (user_id, notification_time, last_tour_reminder_date)
-            VALUES (?, ?, NULL)
+            INSERT INTO users (
+                user_id, notification_time, last_tour_reminder_date, guide_os_id
+            )
+            VALUES (?, ?, NULL, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 notification_time = excluded.notification_time,
                 last_tour_reminder_date = NULL
             """,
-            (user_id, time_text),
+            (user_id, time_text, guide_os_id),
         )
 
     run_write_with_retry(operation)

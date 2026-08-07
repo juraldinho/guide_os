@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import time
+import uuid
 from contextlib import contextmanager
 from typing import Iterator, Callable, TypeVar
 
@@ -163,6 +164,25 @@ def init_db() -> None:
             cursor.execute(
                 "ALTER TABLE users ADD COLUMN display_name TEXT"
             )
+
+        if "guide_os_id" not in user_columns:
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN guide_os_id TEXT"
+            )
+
+        cursor.execute(
+            "SELECT user_id FROM users WHERE guide_os_id IS NULL OR guide_os_id = ''"
+        )
+        for row in cursor.fetchall():
+            cursor.execute(
+                "UPDATE users SET guide_os_id = ? WHERE user_id = ?",
+                (str(uuid.uuid4()), row["user_id"]),
+            )
+
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_guide_os_id
+        ON users(guide_os_id)
+        """)
 
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_users_last_seen
