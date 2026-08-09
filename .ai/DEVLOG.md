@@ -176,3 +176,18 @@
 Проверка: runtime/handlers/deep-links — `124 passed`; полный suite — `420 passed`; `git diff --check` clean. Ручной fake smoke test в `@Guideosbot` успешен: entry, Visits и возврат работают без изменений.
 
 Открытая зависимость: выбор service authentication и реальный access-token provider остаются обязательными до production composition.
+
+## 2026-08-09 — Stage 4C завершён
+
+Документально утверждён production service-auth contract:
+
+- asymmetric signed JWT Ed25519/`EdDSA` без OAuth token endpoint;
+- strict `alg`, `typ`, `kid`, `iss`, `aud`, `sub`, `guide_os_id`, `scope`, `iat`, `nbf`, `exp`, `jti`;
+- TTL 60 секунд и clock skew максимум 10 секунд;
+- identity equality и active-link resolution обязательны на GuideShop side;
+- bounded read retries могут повторно использовать token до expiration;
+- staging/production key pairs разделены;
+- описаны overlap rotation, emergency revocation, denylist и feature-flag rollback;
+- private keys и реальные tokens запрещены в Git и логах.
+
+Этап документальный: исходный код не менялся, автоматические и ручные тесты не требовались.

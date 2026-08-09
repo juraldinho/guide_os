@@ -4,37 +4,37 @@
 
 ## Единственная следующая задача
 
-Stage 4C — утвердить service authentication contract Guide OS ↔ GuideShop.
+Stage 4D — реализовать Guide OS EdDSA access-token provider по утверждённому Stage 4C contract.
 
 ## Цель
 
-Выбрать и зафиксировать один production-механизм получения короткоживущего Bearer token до реализации access-token provider и GuideShop verification endpoint.
+Безопасно выпускать короткоживущий identity-bound Bearer JWT для существующего Stage 4A HTTP client, не активируя реальный runtime.
 
 ## Требуемый результат
 
-- решение: OAuth2 client credentials или asymmetric signed JWT;
-- threat model и trust boundaries;
-- точные token claims/fields, issuer, audience, subject, guide identity и scopes;
-- TTL, clock skew, replay protection и `jti` policy;
-- key/secret storage, rotation, revocation и environment separation;
-- failure/status contract между Guide OS и GuideShop;
-- staging bootstrap и production activation checklist;
-- согласованный план реализации обеих сторон без добавления credentials в repository.
+- immutable strict signing settings;
+- Ed25519 private-key loading только из injected secret/environment;
+- async provider, реализующий существующий `GuideShopAccessTokenProvider`;
+- strict header `alg=EdDSA`, `typ=guideshop-service+jwt`, allowlisted `kid`;
+- claims из Stage 4C с TTL 60 секунд и unique 128-bit `jti`;
+- injectable UTC clock и cryptographic randomness;
+- safe errors без key/token/identity leakage;
+- deterministic contract и negative security tests.
 
 ## Ограничения
 
-- На этом шаге не менять исходный код.
-- Не создавать реальные keys/secrets.
-- Не помещать credentials или token examples с рабочими значениями в Git.
-- Не активировать reads в staging/production.
-- Не проектировать events/notifications раньше завершения read-only authentication.
-- Учитывать разные filesystem/deployment paths Guide OS и GuideShop на Mac Neo/Railway.
+- Не создавать и не коммитить реальные production keys.
+- Не добавлять token в логи, exceptions или persistent storage.
+- Не подключать provider в `bot.py` и не включать reads.
+- Не реализовывать GuideShop verifier в этом repository.
+- Не менять HTTP endpoints, UI, navigation, linking, events или notifications.
+- Не использовать symmetric shared secret или алгоритм, выбираемый из JWT header.
 
 ## Definition of Done
 
-- Выбран ровно один production auth mechanism с обоснованием.
-- GuideShop может независимо проверить service identity, guide scope, audience, expiry и scopes.
-- Replay, rotation, revocation и clock skew имеют конкретные правила.
-- Staging и production credentials полностью разделены.
-- Документ определяет следующую реализационную задачу отдельно для Guide OS и GuideShop.
-- До согласования contract production composition остаётся fail-closed.
+- Provider удовлетворяет существующему runtime-checkable protocol.
+- Каждый вызов создаёт новый signed token только для переданного trusted `guide_os_id`.
+- Header и claims точно соответствуют Stage 4C.
+- Invalid key/settings/identity fail before token return.
+- Tests независимо проверяют signature и все claims через public key.
+- Production runtime остаётся fail-closed и default-off.

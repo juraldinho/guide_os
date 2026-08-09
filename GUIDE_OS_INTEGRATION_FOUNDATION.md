@@ -354,6 +354,74 @@ WHERE status = 'active';
 - Claims: `iss`, `aud`, `sub`, `iat`, `exp`, `jti`, scopes.
 - Минимальные scopes: `guideshop:read`, `guideshop:events:consume`, `guideshop:link`.
 
+### 7.1 Production service-auth contract
+
+**Решение:** asymmetric signed JWT, Ed25519/`EdDSA`. OAuth2 client credentials и статический API key для production не используются.
+
+Обоснование:
+
+- Guide OS должен выпускать короткоживущий token для конкретного `guide_os_id`, а GuideShop — проверять его локально без отдельного token endpoint;
+- private key остаётся только в Guide OS, GuideShop получает только public key;
+- компрометация GuideShop verification material не позволяет выпускать новые tokens;
+- explicit JWT profile соответствует request-scoped `/integration/v1/me/...` contract.
+
+JOSE header:
+
+- `alg`: только `EdDSA`; значение из token не выбирает алгоритм проверки;
+- `typ`: `guideshop-service+jwt`;
+- `kid`: allowlisted environment-specific key ID;
+- `jku`, `x5u` и любые remote key URLs запрещены.
+
+Обязательные claims:
+
+- `iss`: `guide-os`;
+- `aud`: `guideshop-integration`;
+- `sub`: `guide_os:<guide_os_id>`;
+- `guide_os_id`: тот же стабильный UUID, что закодирован в `sub`;
+- `scope`: ровно необходимый space-delimited scope; для read API — `guideshop:read`;
+- `iat`: UTC NumericDate выпуска;
+- `nbf`: равен `iat`;
+- `exp`: `iat + 60 seconds`;
+- `jti`: минимум 128 bits криптографической случайности.
+
+GuideShop обязан:
+
+1. Разрешать только allowlisted `kid` и ровно `EdDSA`.
+2. Проверять signature, `typ`, `iss`, `aud`, `sub`, `guide_os_id`, `scope`, `iat`, `nbf`, `exp` и `jti`.
+3. Требовать равенство identity в `sub` и `guide_os_id`.
+4. Разрешать clock skew не более 10 секунд; token старше TTL или из будущего за пределами skew отклоняется.
+5. Разрешать `guide_os_id` только через active, non-conflicted link.
+6. Не принимать identity из URL, query, Telegram data или отдельного недоверенного header.
+7. Возвращать `401` при invalid/expired token, `403` при missing scope или inactive/conflicted link и `404` для отсутствующего/чужого объекта.
+
+Replay policy для read-only MVP:
+
+- один token выпускается на один логический API request; bounded transport retries могут повторно использовать тот же token до `exp`;
+- `jti` записывается только в security telemetry без payload/PII и может быть помещён в краткоживущий denylist;
+- hard single-use rejection не применяется к идемпотентным GET, поскольку она нарушит разрешённые retries;
+- replay window ограничивается HTTPS, TTL 60 секунд, audience/scope/guide binding и отсутствием token в логах;
+- любые будущие write endpoints требуют отдельного auth profile и не наследуют read-only replay policy автоматически.
+
+Keys и rotation:
+
+- staging и production используют разные key pairs и разные `kid`;
+- private key хранится только как Railway/локальный deployment secret Guide OS, не в Git, SQLite, логах или GuideShop;
+- GuideShop public keys задаются allowlist configuration, без runtime загрузки `jku`;
+- rotation: новый public key сначала добавляется в GuideShop allowlist, затем Guide OS переключает active private key; предыдущий public key сохраняется минимум `token TTL + clock skew`, после чего удаляется;
+- emergency revocation удаляет/блокирует `kid`, отключает reads feature flag и требует выпуска новой key pair;
+- token и private key никогда не выводятся в error messages, audit payload или monitoring labels.
+
+Bootstrap gate:
+
+1. Создать отдельные staging key pairs вне repository.
+2. Установить staging private key и `kid` в Guide OS secrets.
+3. Установить соответствующий public key allowlist в GuideShop staging.
+4. Проверить valid, expired, wrong audience, wrong issuer, wrong scope, unknown `kid`, altered identity и revoked-link cases.
+5. Только после staging E2E повторить независимую процедуру для production.
+6. Production reads flag остаётся выключенным до security review и rollback test.
+
+Нормативная основа: RFC 7519, RFC 8037 и JWT Best Current Practices RFC 8725 — algorithm allowlist, issuer/subject/audience validation, explicit typing и mutually exclusive validation rules.
+
 ## 8. Минимальный состав данных
 
 Передаются только поля, необходимые для Telegram UI.
@@ -836,6 +904,22 @@ Runbook должен описывать:
 - Ручной smoke test в `@Guideosbot`: entry, Visits и возврат работают без изменений.
 
 Открытая зависимость: service-auth contract и реальный access-token provider должны быть утверждены до staging/production composition.
+
+### Stage 4C — service authentication contract
+
+**Статус:** Completed and approved 2026-08-09.
+
+- Выбран asymmetric signed JWT Ed25519/`EdDSA`; OAuth2 token endpoint и static production API key исключены.
+- Зафиксированы JOSE header, обязательные claims, 60-second TTL, 10-second clock skew и `guideshop:read` scope.
+- `sub` и `guide_os_id` обязаны содержать одну identity; GuideShop независимо разрешает active link.
+- Bounded retries могут повторить read-only token до expiration; `jti` используется для telemetry/denylist, а не hard single-use GET rejection.
+- Staging/production key pairs и `kid` полностью разделены.
+- Определены overlap rotation, emergency revocation, feature-flag rollback и staging bootstrap gate.
+- Private keys и реальные token examples запрещены в repository и логах.
+
+Следующая реализационная задача Guide OS: Stage 4D — EdDSA access-token provider с injectable clock/randomness и без runtime activation.
+
+Будущая задача GuideShop на Mac Neo: verifier middleware для того же profile, public-key allowlist, active-link resolution и negative security tests.
 
 ### Track A — можно начать немедленно
 
