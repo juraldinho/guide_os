@@ -30,10 +30,50 @@ from handlers.check_date import router as check_date_router
 from handlers.tour_cards import router as tour_cards_router
 from handlers.tour_edits import router as tour_edits_router
 from handlers.profile import router as profile_router
+from handlers.guide_shop import (
+    configure_guide_shop_ui,
+    router as guide_shop_router,
+)
+from keyboards.main_menu import configure_guide_shop_menu
+from services.guide_shop_client import (
+    InMemoryGuideShopClient,
+    build_guide_shop_client,
+)
+from services.guide_shop_settings import (
+    GuideShopFeatureFlags,
+    GuideShopRuntimeSettings,
+)
+from services.guide_shop_ui import GuideShopUIService
 
 from utils.logger import setup_logging
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+
+def configure_guide_shop_runtime(values=None) -> None:
+    flags = GuideShopFeatureFlags.from_env(values)
+    runtime = GuideShopRuntimeSettings.from_env(values)
+    configure_guide_shop_menu(flags.reads_enabled)
+
+    if not flags.reads_enabled:
+        configure_guide_shop_ui(None, reads_enabled=False)
+        return
+
+    if runtime.use_fake:
+        client = InMemoryGuideShopClient(
+            companies=(),
+            visits=(),
+            sales=(),
+            points=(),
+            points_history=(),
+        )
+    else:
+        client = build_guide_shop_client(flags)
+
+    configure_guide_shop_ui(
+        GuideShopUIService(client),
+        reads_enabled=True,
+    )
 
 async def setup_bot_commands(bot: Bot) -> None:
     user_commands = [
@@ -66,6 +106,7 @@ async def main() -> None:
     setup_logging()
     logger = logging.getLogger(__name__)
 
+    configure_guide_shop_runtime()
 
     bot = Bot(token=BOT_TOKEN)
     await setup_bot_commands(bot)
@@ -89,6 +130,7 @@ async def main() -> None:
     dp.include_router(tour_edits_router)
     dp.include_router(profile_router)
     dp.include_router(stats.router)
+    dp.include_router(guide_shop_router)
     dp.include_router(errors.router)
     dp.include_router(admin_report_router)
     dp.include_router(help_router)

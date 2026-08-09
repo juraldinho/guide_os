@@ -47,3 +47,25 @@ class GuideShopFeatureFlags:
                 source, "GUIDESHOP_NOTIFICATIONS_ENABLED"
             ),
         )
+
+
+@dataclass(frozen=True)
+class GuideShopRuntimeSettings:
+    use_fake: bool = False
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopRuntimeSettings":
+        source = os.environ if values is None else values
+        use_fake = _read_flag(source, "GUIDESHOP_USE_FAKE")
+        if use_fake:
+            app_env = source.get("APP_ENV")
+            if not isinstance(app_env, str) or app_env.casefold() not in {
+                "development",
+                "test",
+            }:
+                raise GuideShopSettingsError(
+                    "GuideShop fake is allowed only in development or test"
+                )
+        return cls(use_fake=use_fake)
