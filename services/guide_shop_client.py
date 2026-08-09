@@ -1,6 +1,14 @@
+import asyncio
+import json
+import re
 import secrets
 from collections.abc import Sequence
-from typing import Protocol, TypeVar, runtime_checkable
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol, TypeVar, runtime_checkable
+from urllib.parse import quote
+
+import aiohttp
+from pydantic import ValidationError
 
 from services.guide_shop_contracts import (
     APIDetailResponseDTO,
@@ -12,7 +20,7 @@ from services.guide_shop_contracts import (
     SaleDTO,
     VisitDTO,
 )
-from services.guide_shop_settings import GuideShopFeatureFlags
+from services.guide_shop_settings import GuideShopFeatureFlags, GuideShopHTTPSettings
 
 
 class GuideShopClientError(Exception):
@@ -33,6 +41,15 @@ class GuideShopAccessDeniedError(GuideShopClientError):
 
 class GuideShopTemporarilyUnavailableError(GuideShopClientError):
     pass
+
+
+class GuideShopAuthenticationError(GuideShopClientError):
+    pass
+
+
+@runtime_checkable
+class GuideShopAccessTokenProvider(Protocol):
+    async def get_access_token(self, guide_os_id: str) -> str: ...
 
 
 @runtime_checkable
@@ -116,6 +133,261 @@ class DisabledGuideShopClient:
         self, cursor: str | None = None
     ) -> APIListResponseDTO[PointsTransactionDTO]:
         self._disabled()
+
+
+_MAX_RESPONSE_BYTES = 1_000_000
+_TRANSIENT_STATUSES = {429, 502, 503, 504}
+_BEARER_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9\-._~+/]+=*\Z")
+
+
+class HTTPGuideShopClient:
+    def __init__(
+        self,
+        settings: GuideShopHTTPSettings,
+        guide_os_id: str,
+        token_provider: GuideShopAccessTokenProvider,
+        *,
+        session: Any | None = None,
+        owns_session: bool | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        if not isinstance(settings, GuideShopHTTPSettings):
+            raise TypeError("Validated GuideShopHTTPSettings required")
+        if not isinstance(guide_os_id, str) or not guide_os_id.strip():
+            raise GuideShopClientError("Invalid GuideShop client identity")
+        if not isinstance(token_provider, GuideShopAccessTokenProvider):
+            raise TypeError("GuideShopAccessTokenProvider required")
+        if session is None and owns_session is False:
+            raise ValueError("A lazily created session must be client-owned")
+
+        self._settings = settings
+        self._guide_os_id = guide_os_id
+        self._token_provider = token_provider
+        self._session = session
+        self._owns_session = session is None or owns_session is True
+        self._sleep = sleep
+        self._closed = False
+
+    async def __aenter__(self) -> "HTTPGuideShopClient":
+        if self._closed:
+            raise GuideShopClientError("GuideShop client is closed")
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback) -> None:
+        await self.close()
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._owns_session and self._session is not None:
+            await self._session.close()
+
+    async def _get_session(self):
+        if self._closed:
+            raise GuideShopClientError("GuideShop client is closed")
+        if self._session is None:
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(
+                    total=self._settings.request_timeout_seconds
+                )
+            )
+        return self._session
+
+    @staticmethod
+    def _required_string(value: str, name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise GuideShopClientError(f"Invalid {name}")
+        return value
+
+    @staticmethod
+    def _optional_cursor(cursor: str | None) -> str | None:
+        if cursor is None:
+            return None
+        return HTTPGuideShopClient._required_string(cursor, "cursor")
+
+    async def _access_token(self) -> str:
+        token = await self._token_provider.get_access_token(self._guide_os_id)
+        if (
+            not isinstance(token, str)
+            or not token
+            or _BEARER_TOKEN_PATTERN.fullmatch(token) is None
+        ):
+            raise GuideShopAuthenticationError("GuideShop authentication failed")
+        return token
+
+    def _retry_delay(self, response, retry_number: int) -> float:
+        raw_value = response.headers.get("Retry-After")
+        if raw_value is not None and raw_value.isdigit():
+            return min(float(raw_value), self._settings.max_retry_after_seconds)
+        return min(
+            0.25 * (2 ** (retry_number - 1)),
+            self._settings.max_retry_after_seconds,
+        )
+
+    @staticmethod
+    def _raise_status(status: int) -> None:
+        if status == 401:
+            raise GuideShopAuthenticationError("GuideShop authentication failed")
+        if status in {403, 409}:
+            raise GuideShopAccessDeniedError("GuideShop access denied")
+        if status == 404:
+            raise GuideShopObjectNotFoundError("GuideShop object was not found")
+        if status == 429 or status in {500, 502, 503, 504}:
+            raise GuideShopTemporarilyUnavailableError(
+                "GuideShop is temporarily unavailable"
+            )
+        raise GuideShopClientError("GuideShop request failed")
+
+    async def _request(
+        self,
+        path: str,
+        params: dict[str, str] | None,
+        response_type,
+    ):
+        token = await self._access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        }
+        url = f"{self._settings.base_url}{path}"
+        session = await self._get_session()
+
+        for attempt in range(self._settings.max_retries + 1):
+            response = None
+            try:
+                response = await session.request(
+                    "GET", url, params=params, headers=headers
+                )
+                if 200 <= response.status < 300:
+                    body = await response.read()
+                    if len(body) > _MAX_RESPONSE_BYTES:
+                        raise GuideShopClientError("Invalid GuideShop response")
+                    try:
+                        payload = json.loads(body.decode("utf-8"))
+                        return response_type.model_validate(payload)
+                    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
+                        raise GuideShopClientError(
+                            "Invalid GuideShop response"
+                        ) from exc
+
+                if (
+                    response.status in _TRANSIENT_STATUSES
+                    and attempt < self._settings.max_retries
+                ):
+                    await self._sleep(self._retry_delay(response, attempt + 1))
+                    continue
+                self._raise_status(response.status)
+            except (asyncio.TimeoutError, aiohttp.ClientError) as exc:
+                if attempt < self._settings.max_retries:
+                    await self._sleep(
+                        min(
+                            0.25 * (2**attempt),
+                            self._settings.max_retry_after_seconds,
+                        )
+                    )
+                    continue
+                raise GuideShopTemporarilyUnavailableError(
+                    "GuideShop is temporarily unavailable"
+                ) from exc
+            finally:
+                if response is not None:
+                    response.release()
+
+        raise GuideShopTemporarilyUnavailableError(
+            "GuideShop is temporarily unavailable"
+        )
+
+    async def list_companies(self) -> APIListResponseDTO[CompanyDTO]:
+        return await self._request(
+            "/integration/v1/me/companies",
+            None,
+            APIListResponseDTO[CompanyDTO],
+        )
+
+    async def list_visits(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[VisitDTO]:
+        cursor = self._optional_cursor(cursor)
+        params = {"cursor": cursor} if cursor is not None else None
+        return await self._request(
+            "/integration/v1/me/visits", params, APIListResponseDTO[VisitDTO]
+        )
+
+    async def get_visit(
+        self, visit_id: str
+    ) -> APIDetailResponseDTO[VisitDTO]:
+        visit_id = self._required_string(visit_id, "visit ID")
+        return await self._request(
+            f"/integration/v1/me/visits/{quote(visit_id, safe='')}",
+            None,
+            APIDetailResponseDTO[VisitDTO],
+        )
+
+    async def list_sales(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[SaleDTO]:
+        cursor = self._optional_cursor(cursor)
+        params = {"cursor": cursor} if cursor is not None else None
+        return await self._request(
+            "/integration/v1/me/sales", params, APIListResponseDTO[SaleDTO]
+        )
+
+    async def get_sale(
+        self, sale_id: str
+    ) -> APIDetailResponseDTO[SaleDTO]:
+        sale_id = self._required_string(sale_id, "sale ID")
+        return await self._request(
+            f"/integration/v1/me/sales/{quote(sale_id, safe='')}",
+            None,
+            APIDetailResponseDTO[SaleDTO],
+        )
+
+    async def list_points(
+        self,
+        status: PointsStatus | None = None,
+        cursor: str | None = None,
+    ) -> APIListResponseDTO[PointsTransactionDTO]:
+        if status is not None and not isinstance(status, PointsStatus):
+            raise GuideShopClientError("Invalid points status")
+        cursor = self._optional_cursor(cursor)
+        params = {}
+        if status is not None:
+            params["status"] = status.value
+        if cursor is not None:
+            params["cursor"] = cursor
+        return await self._request(
+            "/integration/v1/me/points",
+            params or None,
+            APIListResponseDTO[PointsTransactionDTO],
+        )
+
+    async def get_points_transaction(
+        self, points_transaction_id: str
+    ) -> APIDetailResponseDTO[PointsTransactionDTO]:
+        points_transaction_id = self._required_string(
+            points_transaction_id, "points transaction ID"
+        )
+        return await self._request(
+            "/integration/v1/me/points/"
+            f"{quote(points_transaction_id, safe='')}",
+            None,
+            APIDetailResponseDTO[PointsTransactionDTO],
+        )
+
+    async def list_history(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[PointsTransactionDTO]:
+        cursor = self._optional_cursor(cursor)
+        params = {"cursor": cursor} if cursor is not None else None
+        return await self._request(
+            "/integration/v1/me/history",
+            params,
+            APIListResponseDTO[PointsTransactionDTO],
+        )
+
+
+GuideShopHTTPClient = HTTPGuideShopClient
 
 
 DTO = TypeVar("DTO", CompanyDTO, VisitDTO, SaleDTO, PointsTransactionDTO)
