@@ -92,3 +92,20 @@
 Проверка: Stage 3B — `50 passed`; previous integration regression — `80 passed`; полный suite — `162 passed`; `git diff --check` clean.
 
 Остаточный риск: navigation audit rows сохраняются без cleanup до утверждения retention policy.
+
+## 2026-08-09 — Stage 3C1 завершён
+
+Выполнено:
+
+- добавлены immutable GuideShop screen/action models;
+- добавлен async presentation service с client injection;
+- реализованы home, list, detail, pagination, empty и error screens;
+- внешние DTO values экранируются для HTML;
+- Decimal strings отображаются без пересчётов;
+- detail actions различаются ordinal labels без object IDs в тексте кнопки;
+- keyboard callbacks содержат только user-bound `gs_` navigation tokens;
+- исправлен probabilistic Stage 3B opacity test через deterministic random source.
+
+Проверка: navigation — `50 passed`; UI — `18 passed`; полный suite — `180 passed`; `git diff --check` clean.
+
+Остаточный риск: abandoned unsent keyboards оставляют issued navigation tokens до TTL/revocation.

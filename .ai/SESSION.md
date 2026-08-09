@@ -1,42 +1,43 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-07
+> Обновлено: 2026-08-09
 
 ## Текущий фокус
 
-Подготовка feature-gated Telegram GuideShop UI на mock data без реального GuideShop connection.
+Подключение mock-backed GuideShop presentation к локальному Telegram UX через default-off feature gate.
 
 ## Завершённые этапы
 
 - Stage 0 — закрыт Product Owner;
-- Stage 1A — stable UUID4 `guide_os_id`;
-- Stage 1B — secure one-time linking requests;
-- Stage 2A — strict DTO/event contract baseline;
-- Stage 3A — default-off flags и mockable client boundary;
-- Stage 3B — typed routes и user-bound navigation tokens.
+- Stage 1A — stable UUID4 identity;
+- Stage 1B — secure linking requests;
+- Stage 2A — strict DTO/event contract;
+- Stage 3A — flags и mockable client boundary;
+- Stage 3B — typed routes и navigation tokens;
+- Stage 3C1 — presentation layer и tokenized keyboards.
 
 ## Проверенное состояние
 
-- navigation token: `gs_...`, 35 символов, 192 bits entropy;
-- raw token и public route payload не сохраняются;
-- TTL 24 часа, atomic single-use consume;
-- cross-user resolution безопасно отклоняется;
-- Stage 3B: `50 passed`;
-- previous integration regression: `80 passed`;
-- full suite: `162 passed`;
-- Telegram integration UI и реальный HTTP client отсутствуют.
+- HTML external values экранируются;
+- Decimal values не пересчитываются;
+- list buttons различимы без object IDs;
+- callbacks содержат только `gs_` tokens;
+- navigation suite: `50 passed`;
+- UI suite: `18 passed`;
+- full suite: `180 passed`;
+- handlers/main menu ещё не подключены.
 
 ## Следующее действие
 
-Stage 3C согласно `.ai/NEXT_TASK.md`: feature-gated Telegram entry и mock-backed screens.
+Stage 3C2 согласно `.ai/NEXT_TASK.md`: feature-gated handler, menu entry и callback dispatch.
 
 ## Открытые решения
 
 1. Service authentication: OAuth2 client credentials или signed JWT.
 2. Event delivery: webhook endpoint или очередь.
-3. Retention для linking/navigation requests, event inbox/outbox и audit log.
+3. Общая retention policy для temporary/audit rows.
 4. Формальное сопоставление DTO с GuideShop OpenAPI/JSON Schema.
-5. Финальная UX-политика TTL/single-use для notification deep links.
+5. Реальный staging client composition после подготовки GuideShop API.
 
 ## Production gate
 

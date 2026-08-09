@@ -754,6 +754,22 @@ Runbook должен описывать:
 
 Остаточный риск: consumed/revoked navigation rows сохраняются бессрочно до утверждения общей audit retention policy.
 
+### Stage 3C1 — GuideShop presentation layer
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Добавлены immutable screen/action presentation models и async UI service с client injection.
+- Реализованы home, companies, Visits, Sales, points, history и detail screens на Stage 2A DTO.
+- Все внешние DTO values экранируются для HTML; Decimal values отображаются без вычислений.
+- Реализованы pagination, empty, disabled, unavailable, forbidden и not-found состояния.
+- Detail actions имеют детерминированные ordinal labels без object IDs или внешних данных.
+- Inline keyboard создаёт по одному user-bound Stage 3B token на action; callback содержит только `gs_...`.
+- Flaky Stage 3B opacity test исправлен deterministic randomness injection без изменений production-кода.
+- Проверка: navigation suite `50 passed`; UI suite `18 passed`; full suite `180 passed`; `git diff --check` clean.
+- Telegram handlers, main menu, router registration, HTTP и GuideShop connection не добавлены.
+
+Остаточный риск: создание keyboard выпускает tokens до отправки сообщения; неотправленные tokens остаются issued до TTL/revocation и будущей cleanup policy.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

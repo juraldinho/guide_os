@@ -173,6 +173,8 @@ GuideShop должен оставаться источником истины д
 - Disabled client и explicit in-memory fake не выполняют network/database operations; production factory не включает fake автоматически.
 - Stage 3B: реализованы typed internal routes и короткие user-bound navigation tokens с server-side payload.
 - Navigation resolution является single-use, TTL-aware и защищено от cross-user доступа.
+- Stage 3C1: реализован безопасный presentation layer и tokenized inline keyboards для mock-backed экранов.
+- HTML экранируется, Decimal values не пересчитываются, list actions различимы ordinal labels.
 - GuideShop API, Telegram integration UI, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией

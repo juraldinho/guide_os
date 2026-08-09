@@ -106,18 +106,32 @@ def stored_row(raw_token: str) -> dict:
     return dict(row)
 
 
-def test_token_is_short_opaque_hashed_and_route_stays_server_side():
+def test_token_is_short_opaque_hashed_and_route_stays_server_side(monkeypatch):
+    import services.guide_shop_navigation as navigation
+
+    fixed_random_value = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
+    requested_bytes = []
+
+    def fixed_token_urlsafe(byte_count):
+        requested_bytes.append(byte_count)
+        return fixed_random_value
+
+    monkeypatch.setattr(
+        navigation.secrets,
+        "token_urlsafe",
+        fixed_token_urlsafe,
+    )
+
     route = GuideShopRoute(
         kind="points", cursor="private-cursor", points_status=PointsStatus.CREDITED
     )
     result = create_navigation_token(101, route, now=NOW)
 
+    assert requested_bytes == [24]
+    assert result.raw_token == f"gs_{fixed_random_value}"
     assert re.fullmatch(r"gs_[A-Za-z0-9_-]{32}", result.raw_token)
     assert len(result.raw_token) <= 48
     assert result.expires_at == NOW + timedelta(hours=24)
-    assert "points" not in result.raw_token
-    assert "private-cursor" not in result.raw_token
-    assert "101" not in result.raw_token
 
     row = stored_row(result.raw_token)
     assert row["token_hash"] == hashlib.sha256(

@@ -173,10 +173,10 @@ class GuideShopUIService:
 
         actions = [
             GuideShopAction(
-                "Открыть визит",
+                f"Открыть визит {position}",
                 GuideShopRoute(kind="visit_detail", object_id=visit.visit_id),
             )
-            for visit in response.data
+            for position, visit in enumerate(response.data, start=1)
         ]
         if response.page.next_cursor is not None:
             actions.append(
@@ -222,10 +222,10 @@ class GuideShopUIService:
 
         actions = [
             GuideShopAction(
-                "Открыть продажу",
+                f"Открыть продажу {position}",
                 GuideShopRoute(kind="sale_detail", object_id=sale.sale_id),
             )
-            for sale in response.data
+            for position, sale in enumerate(response.data, start=1)
         ]
         if response.page.next_cursor is not None:
             actions.append(
@@ -274,13 +274,13 @@ class GuideShopUIService:
 
         actions = [
             GuideShopAction(
-                "Открыть операцию",
+                f"Открыть операцию {position}",
                 GuideShopRoute(
                     kind="points_detail",
                     object_id=transaction.points_transaction_id,
                 ),
             )
-            for transaction in response.data
+            for position, transaction in enumerate(response.data, start=1)
         ]
         if response.page.next_cursor is not None:
             actions.append(
@@ -334,13 +334,13 @@ class GuideShopUIService:
 
         actions = [
             GuideShopAction(
-                "Открыть операцию",
+                f"Открыть операцию {position}",
                 GuideShopRoute(
                     kind="points_detail",
                     object_id=transaction.points_transaction_id,
                 ),
             )
-            for transaction in response.data
+            for position, transaction in enumerate(response.data, start=1)
         ]
         if response.page.next_cursor is not None:
             actions.append(

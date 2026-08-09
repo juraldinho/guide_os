@@ -162,12 +162,28 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
     assert "&lt;active&gt;" in company_screen.text
     assert company_screen.text.index("First") < company_screen.text.index("Second")
     assert "&lt;company-2&gt;" in visit_screen.text
+    assert [a.label for a in visit_screen.actions[:-1]] == [
+        "Открыть визит 1",
+        "Открыть визит 2",
+    ]
     assert [a.route.object_id for a in visit_screen.actions[:-1]] == ["v-2", "v-1"]
     assert "125.40 USD" in sale_screen.text
     assert "&lt;Textiles&gt;" in sale_screen.text
+    assert [a.label for a in sale_screen.actions[:-1]] == [
+        "Открыть продажу 1",
+        "Открыть продажу 2",
+    ]
     assert [a.route.object_id for a in sale_screen.actions[:-1]] == ["s-2", "s-1"]
     assert "16.00" in points_screen.text
     assert "&lt;reward&gt;" in points_screen.text
+    assert [a.label for a in points_screen.actions[:-1]] == [
+        "Открыть операцию 1",
+        "Открыть операцию 2",
+    ]
+    assert [a.label for a in history_screen.actions[:-1]] == [
+        "Открыть операцию 1",
+        "Открыть операцию 2",
+    ]
     assert [a.route.object_id for a in history_screen.actions[:-1]] == ["p-2", "p-1"]
     assert [item.model_dump() for item in companies + visits + sales + transactions] == snapshots
 
