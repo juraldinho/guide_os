@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовка Guide OS routes и Telegram-safe navigation foundation до создания GuideShop UI.
+Подготовка feature-gated Telegram GuideShop UI на mock data без реального GuideShop connection.
 
 ## Завершённые этапы
 
@@ -12,22 +12,23 @@
 - Stage 1A — stable UUID4 `guide_os_id`;
 - Stage 1B — secure one-time linking requests;
 - Stage 2A — strict DTO/event contract baseline;
-- Stage 3A — default-off flags и mockable read-only client boundary.
+- Stage 3A — default-off flags и mockable client boundary;
+- Stage 3B — typed routes и user-bound navigation tokens.
 
 ## Проверенное состояние
 
-- integration flags выключены по умолчанию;
-- disabled/fake clients не выполняют сеть или SQLite;
-- fake возвращает только валидированные DTO;
-- production factory не использует fake fallback;
-- Stage 3A: `27 passed`;
-- Stage 1/2 regression: `53 passed`;
-- full suite: `112 passed`;
-- реальный HTTP client и Telegram integration UI отсутствуют.
+- navigation token: `gs_...`, 35 символов, 192 bits entropy;
+- raw token и public route payload не сохраняются;
+- TTL 24 часа, atomic single-use consume;
+- cross-user resolution безопасно отклоняется;
+- Stage 3B: `50 passed`;
+- previous integration regression: `80 passed`;
+- full suite: `162 passed`;
+- Telegram integration UI и реальный HTTP client отсутствуют.
 
 ## Следующее действие
 
-Stage 3B согласно `.ai/NEXT_TASK.md`: typed internal routes и user-bound navigation tokens.
+Stage 3C согласно `.ai/NEXT_TASK.md`: feature-gated Telegram entry и mock-backed screens.
 
 ## Открытые решения
 
@@ -35,7 +36,7 @@ Stage 3B согласно `.ai/NEXT_TASK.md`: typed internal routes и user-boun
 2. Event delivery: webhook endpoint или очередь.
 3. Retention для linking/navigation requests, event inbox/outbox и audit log.
 4. Формальное сопоставление DTO с GuideShop OpenAPI/JSON Schema.
-5. Финальный TTL и single-use policy для notification deep links.
+5. Финальная UX-политика TTL/single-use для notification deep links.
 
 ## Production gate
 

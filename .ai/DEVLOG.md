@@ -75,3 +75,20 @@
 Проверка: Stage 3A — `27 passed`; Stage 1/2 regression — `53 passed`; полный suite — `112 passed`; `git diff --check` clean.
 
 Остаточный риск: reads-enabled намеренно неработоспособен до реализации реального authenticated client.
+
+## 2026-08-07 — Stage 3B завершён
+
+Выполнено:
+
+- добавлена строгая immutable GuideShop route model;
+- добавлено server-side хранение navigation route payload;
+- реализованы 192-bit tokens длиной 35 символов с SHA-256-only persistence;
+- tokens привязаны к Telegram user ID и TTL 24 часа;
+- resolution single-use и атомарно проверяет user, status и expiration;
+- cross-user доступ не consumes и не revokes token;
+- повреждённые server-side routes повторно валидируются и безопасно отклоняются;
+- linking tokens и navigation tokens полностью разделены.
+
+Проверка: Stage 3B — `50 passed`; previous integration regression — `80 passed`; полный suite — `162 passed`; `git diff --check` clean.
+
+Остаточный риск: navigation audit rows сохраняются без cleanup до утверждения retention policy.

@@ -737,6 +737,23 @@ Runbook должен описывать:
 
 Оставшееся условие: включение reads намеренно завершается configuration error до реализации authenticated HTTP client на одном из следующих этапов.
 
+### Stage 3B — typed routes and navigation tokens
+
+**Статус:** Completed and verified 2026-08-07.
+
+- Добавлена immutable typed route model для home, lists и Visit/Sale/points details.
+- Route invariants ограничивают object ID, cursor и points status только допустимыми route kinds.
+- Navigation token содержит 192 бита случайности, имеет формат `gs_...`, длину 35 символов и не содержит route payload или identity.
+- В SQLite сохраняются только SHA-256 hash, Telegram user binding, server-side route columns и audit timestamps.
+- Token имеет TTL 24 часа, является single-use и атомарно проверяет token hash, Telegram user, status и expiration.
+- Cross-user попытка отклоняется без consume/revoke.
+- Route повторно валидируется после чтения; повреждённая запись не возвращает частичный маршрут.
+- Linking и navigation используют отдельные таблицы и сервисы.
+- Проверка: Stage 3B suite `50 passed`; previous integration regression `80 passed`; full suite `162 passed`; `git diff --check` clean.
+- Telegram handlers, callbacks, `/start`, GuideShop calls и feature activation не добавлены.
+
+Остаточный риск: consumed/revoked navigation rows сохраняются бессрочно до утверждения общей audit retention policy.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

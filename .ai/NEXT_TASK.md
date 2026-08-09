@@ -4,38 +4,38 @@
 
 ## Единственная следующая задача
 
-Stage 3B — реализовать внутренние GuideShop routes и короткие server-side navigation tokens для Telegram callbacks/deep links без создания экранов.
+Stage 3C — добавить feature-gated Telegram entry point и базовые GuideShop list/detail экраны на explicit in-memory fake client.
 
 ## Цель
 
-Подготовить безопасную маршрутизацию к Visit, Sale и points transaction, не помещая длинные IDs, credentials или персональные данные в callback/deep link.
+Проверить Telegram UX, маршрутизацию и состояния экранов до подключения реального GuideShop API.
 
 ## Требуемый результат
 
-- typed route model для home, lists и object details;
-- разрешённые route kinds и обязательные параметры;
-- короткий криптографический navigation token;
-- хранение только hash токена и server-side route payload;
-- TTL, привязка к Telegram user ID и одноразовое либо ограниченное использование;
-- revoke/expiry и безопасные domain errors;
-- payload size, callback safety и cross-user negative tests;
-- отсутствие Telegram UI и реальных GuideShop calls.
+- пункт входа GuideShop, скрытый при выключенном reads flag;
+- home menu: компании, визиты, продажи, баллы и история;
+- list/detail rendering из Stage 2A DTO;
+- inline keyboards через Stage 3B navigation tokens;
+- состояния empty, unavailable, forbidden и not found;
+- возврат назад без raw object IDs в callback data;
+- explicit fake composition только для development/test;
+- handler/service tests и ручной Telegram smoke checklist.
 
 ## Ограничения
 
-- Не добавлять handlers или keyboards.
-- Не подключать GuideShop и HTTP.
-- Не помещать object IDs в публичный token.
-- Не помещать token/PII в логи.
-- Не переиспользовать linking tokens как navigation tokens.
-- Не включать integration flags.
-- Сохранить все существующие сценарии Guide OS.
+- Не реализовывать HTTP client.
+- Не подключать GuideShop.
+- Не включать integration по умолчанию.
+- Не помещать object IDs или PII в callback data.
+- Не сохранять GuideShop business data в SQLite.
+- Не реализовывать `/start` deep-link entry и notifications на этом этапе.
+- Сохранить существующее главное меню при выключенном flag.
 
 ## Definition of Done
 
-- Navigation tokens короткие, opaque, expiring и user-bound.
-- Другой Telegram user не может разрешить token.
-- Route payload валидируется до сохранения и после чтения.
-- Raw token не хранится.
+- При default-off существующий UX не меняется.
+- При explicit development fake доступны базовые read-only экраны.
+- Все callback transitions используют user-bound navigation tokens.
+- Empty/error/not-found состояния безопасны.
 - Focused tests и полный suite проходят.
-- Нет Telegram UI, network calls и production activation.
+- Ручной smoke test выполняется на локальном `@Guideosbot` без production activation.
