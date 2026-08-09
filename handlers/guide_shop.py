@@ -54,6 +54,19 @@ def configure_guide_shop_provider(
     reads_enabled: bool,
 ) -> None:
     global _provider, _reads_enabled
+    _provider = None
+    _reads_enabled = False
+    if provider is not None:
+        try:
+            valid_provider = isinstance(provider, GuideShopUIServiceProvider)
+        except Exception as exc:
+            raise GuideShopRuntimeConfigurationError(
+                "GuideShop runtime is not configured"
+            ) from exc
+        if not valid_provider:
+            raise GuideShopRuntimeConfigurationError(
+                "GuideShop runtime is not configured"
+            )
     _provider = provider
     _reads_enabled = reads_enabled
 

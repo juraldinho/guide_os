@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from inspect import iscoroutinefunction
 from typing import AsyncContextManager, Protocol, runtime_checkable
 
 from services.guide_shop_client import GuideShopClient
@@ -79,6 +80,19 @@ class RequestScopedGuideShopUIServiceProvider:
             )
         return guide_os_id
 
+    @staticmethod
+    async def _reject_invalid_client(close: object) -> None:
+        if callable(close) and iscoroutinefunction(close):
+            try:
+                await close()
+            except BaseException as exc:
+                raise GuideShopClientLifecycleError(
+                    "GuideShop client cleanup failed"
+                ) from exc
+        raise GuideShopRuntimeConfigurationError(
+            "GuideShop runtime is not configured"
+        )
+
     @asynccontextmanager
     async def service_for(self, telegram_user_id: int):
         self._validate_user_id(telegram_user_id)
@@ -96,10 +110,19 @@ class RequestScopedGuideShopUIServiceProvider:
             raise GuideShopClientLifecycleError(
                 "GuideShop client creation failed"
             ) from exc
-        if client is None or not callable(getattr(client, "close", None)):
+        try:
+            close = getattr(client, "close", None)
+            valid_client = isinstance(client, GuideShopClient)
+        except Exception as exc:
             raise GuideShopRuntimeConfigurationError(
                 "GuideShop runtime is not configured"
-            )
+            ) from exc
+        if (
+            not valid_client
+            or not callable(close)
+            or not iscoroutinefunction(close)
+        ):
+            await self._reject_invalid_client(close)
 
         body_error: BaseException | None = None
         try:
@@ -109,7 +132,7 @@ class RequestScopedGuideShopUIServiceProvider:
             raise
         finally:
             try:
-                await client.close()
+                await close()
             except BaseException as exc:
                 if body_error is None:
                     raise GuideShopClientLifecycleError(

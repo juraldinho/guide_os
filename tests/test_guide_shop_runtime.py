@@ -18,6 +18,7 @@ from services.guide_shop_navigation import (
     GuideShopRoute,
     NavigationTokenUnknownError,
     create_navigation_token,
+    resolve_navigation_token,
 )
 from services.guide_shop_runtime import (
     GuideShopClientLifecycleError,
@@ -53,6 +54,21 @@ class CloseableClient:
     async def get_visit(self, visit_id):
         if self.failure is not None:
             raise self.failure
+        raise AssertionError("unused")
+
+    async def list_sales(self, cursor=None):
+        raise AssertionError("unused")
+
+    async def get_sale(self, sale_id):
+        raise AssertionError("unused")
+
+    async def list_points(self, status=None, cursor=None):
+        raise AssertionError("unused")
+
+    async def get_points_transaction(self, points_transaction_id):
+        raise AssertionError("unused")
+
+    async def list_history(self, cursor=None):
         raise AssertionError("unused")
 
 
@@ -107,6 +123,85 @@ def test_provider_protocol_and_one_lookup_client_and_service_per_scope():
     lookup.assert_called_once_with(101)
     assert [client.identity for client in clients] == ["guide-a"]
     clients[0].close.assert_awaited_once_with()
+
+
+def test_complete_closeable_client_satisfies_runtime_protocol():
+    client = CloseableClient("guide-a")
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="guide-a"), Mock(return_value=client)
+    )
+
+    async def exercise():
+        async with provider.service_for(101) as service:
+            assert service._client is client
+
+    run(exercise())
+    client.close.assert_awaited_once_with()
+
+
+def test_none_client_is_rejected_before_service_is_yielded():
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="guide-a"), Mock(return_value=None)
+    )
+    yielded = False
+
+    async def exercise():
+        nonlocal yielded
+        async with provider.service_for(101):
+            yielded = True
+
+    with pytest.raises(GuideShopRuntimeConfigurationError):
+        run(exercise())
+    assert yielded is False
+
+
+def test_close_only_partial_client_is_rejected_and_closed_once():
+    partial = SimpleNamespace(close=AsyncMock())
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="guide-a"), Mock(return_value=partial)
+    )
+
+    async def exercise():
+        async with provider.service_for(101):
+            raise AssertionError("must not yield")
+
+    with pytest.raises(GuideShopRuntimeConfigurationError):
+        run(exercise())
+    partial.close.assert_awaited_once_with()
+
+
+def test_complete_client_with_non_async_close_is_rejected_safely():
+    client = CloseableClient("private-identity")
+    client.close = Mock(return_value=None)
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="private-identity"), Mock(return_value=client)
+    )
+
+    async def exercise():
+        async with provider.service_for(101):
+            raise AssertionError("must not yield")
+
+    with pytest.raises(GuideShopRuntimeConfigurationError) as error:
+        run(exercise())
+    client.close.assert_not_called()
+    assert "private-identity" not in str(error.value)
+
+
+def test_invalid_client_cleanup_failure_is_focused_and_safe():
+    partial = SimpleNamespace(close=AsyncMock(side_effect=RuntimeError("private")))
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="secret-identity"), Mock(return_value=partial)
+    )
+
+    async def exercise():
+        async with provider.service_for(101):
+            pass
+
+    with pytest.raises(GuideShopClientLifecycleError) as error:
+        run(exercise())
+    assert "private" not in str(error.value)
+    assert "secret-identity" not in str(error.value)
+    partial.close.assert_awaited_once_with()
 
 
 @pytest.mark.parametrize("user_id", [True, False, 0, -1, "101", 1.5])
@@ -264,6 +359,47 @@ def test_configure_ui_remains_backward_compatible_static_provider():
     run(open_guide_shop(msg))
     service.home.assert_awaited_once_with()
     msg.answer.assert_awaited_once()
+
+
+@pytest.mark.parametrize("malformed", [object(), SimpleNamespace(), SimpleNamespace(service_for=None)])
+def test_malformed_service_provider_is_rejected_immediately(malformed):
+    with pytest.raises(GuideShopRuntimeConfigurationError):
+        configure_guide_shop_provider(malformed, reads_enabled=True)
+
+
+def test_failed_provider_reconfiguration_clears_previous_provider():
+    service = SimpleNamespace(home=AsyncMock(return_value=GuideShopScreen("Home", ())))
+    configure_guide_shop_ui(service, reads_enabled=True)
+    with pytest.raises(GuideShopRuntimeConfigurationError):
+        configure_guide_shop_provider(object(), reads_enabled=True)
+
+    msg = message(101)
+    run(open_guide_shop(msg))
+    service.home.assert_not_awaited()
+    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+
+
+def test_invalid_client_does_not_consume_callback_or_deep_link_tokens():
+    provider = RequestScopedGuideShopUIServiceProvider(
+        Mock(return_value="trusted-guide"), Mock(return_value=None)
+    )
+    configure_guide_shop_provider(provider, reads_enabled=True)
+
+    callback_token = create_navigation_token(101, GuideShopRoute(kind="home"))
+    cb = callback(callback_token.raw_token, 101)
+    run(navigate_guide_shop(cb))
+    cb.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert resolve_navigation_token(callback_token.raw_token, 101).kind == "home"
+
+    deep_link_token = create_navigation_token(101, GuideShopRoute(kind="home"))
+    msg = message(101)
+    run(
+        open_guide_shop_deep_link(
+            msg, SimpleNamespace(args=deep_link_token.raw_token)
+        )
+    )
+    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert resolve_navigation_token(deep_link_token.raw_token, 101).kind == "home"
 
 
 def test_handler_missing_identity_maps_safe_and_does_not_render():
