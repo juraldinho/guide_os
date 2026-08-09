@@ -1,10 +1,10 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-07
+> Обновлено: 2026-08-09
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0 закрыт решением Product Owner. Подготовка Guide OS к интеграции начата: Stage 1A и Stage 1B реализованы и проверены, прямое подключение к GuideShop ещё отсутствует.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–3D завершены и проверены. Identity, linking-token foundation, contracts, mockable read client boundary, typed routes, mock Telegram UI и одноразовые `/start` deep links готовы; прямое подключение к GuideShop ещё отсутствует.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -175,7 +175,9 @@ GuideShop должен оставаться источником истины д
 - Navigation resolution является single-use, TTL-aware и защищено от cross-user доступа.
 - Stage 3C1: реализован безопасный presentation layer и tokenized inline keyboards для mock-backed экранов.
 - HTML экранируется, Decimal values не пересчитываются, list actions различимы ordinal labels.
-- GuideShop API, Telegram integration UI, события и production activation ещё не реализованы.
+- Stage 3C2: mock-backed Telegram entry и callback dispatch доступны через explicit development flags.
+- Stage 3D: реализованы строгие user-bound single-use `/start` deep links и development-only smoke helper.
+- GuideShop API, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией
 
@@ -184,7 +186,7 @@ GuideShop должен оставаться источником истины д
 - [x] Guide OS выдаёт стабильный `guide_os_id`.
 - [x] Утверждён linking contract и реализована Guide OS-side token foundation.
 - [ ] Guide OS contract baseline реализован; требуется формальное сопоставление и согласование с GuideShop.
-- [x] Готовы внутренние маршруты и token foundation для callbacks/deep links; Telegram entry handlers ещё не добавлены.
+- [x] Готовы внутренние маршруты, callbacks и Telegram `/start` deep-link entry.
 - [ ] Настроены staging-окружения обеих систем.
 - [ ] Есть тестовые Guides, Visits, Sales и разные статусы points.
 - [ ] Реализованы авторизация, аудит, идемпотентность и мониторинг.

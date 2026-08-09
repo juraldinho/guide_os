@@ -4,38 +4,38 @@
 
 ## Единственная следующая задача
 
-Stage 3C2 — подключить feature-gated Telegram handler, main-menu entry и обработку Stage 3B navigation callbacks на explicit development fake.
+Stage 4A — реализовать production-safe authenticated read-only HTTP client foundation для GuideShop.
 
 ## Цель
 
-Сделать mock-backed GuideShop screens доступными в локальном Telegram-боте без подключения GuideShop и без изменения default-off production UX.
+Подготовить Guide OS к чтению согласованных Stage 2A DTO через настраиваемый GuideShop API, сохраняя интеграцию default-off и не подключаясь к базе GuideShop.
 
 ## Требуемый результат
 
-- кнопка `🛍 GuideShop` только при reads-enabled;
-- handler входа и callback dispatcher для typed routes;
-- разрешение token только для `callback.from_user.id`;
-- рендер Stage 3C1 screen и keyboard;
-- безопасные expired/consumed/revoked/access-denied ответы;
-- explicit fake composition только в development/test;
-- router registration без нарушения существующих handlers;
-- handler tests и ручной smoke test на `@Guideosbot`.
+- строгие настройки base URL, service credential, timeout и retry limits;
+- HTTPS обязательно вне test/development;
+- async HTTP implementation существующего read-only client protocol;
+- guide identity передаётся только из доверенного Guide OS context;
+- ответы валидируются существующими Stage 2A DTO;
+- ограниченные retries только для безопасных transient failures;
+- безопасная обработка timeout, rate limit, unauthorized, forbidden, not found и invalid payload;
+- fake и disabled clients сохраняют текущее поведение.
 
 ## Ограничения
 
-- Не реализовывать HTTP client.
-- Не подключать GuideShop.
 - Не включать reads по умолчанию.
-- Не помещать IDs/PII в callback data или логи.
-- Не добавлять `/start` deep links и notifications.
-- Не сохранять GuideShop business data в SQLite.
-- Сохранить существующий main menu при выключенном flag.
+- Не подключаться напрямую к базе GuideShop.
+- Не реализовывать linking completion, events или notifications.
+- Не хранить GuideShop business data в SQLite.
+- Не логировать credentials, response bodies, PII или payment data.
+- Не менять Telegram UI и navigation.
+- Не активировать staging/production без согласованного GuideShop endpoint и credentials.
 
 ## Definition of Done
 
-- Default-off UX полностью совместим с текущим ботом.
-- Explicit local development mode открывает mock GuideShop screens.
-- Все callbacks используют user-bound single-use tokens.
-- Error states безопасны и не раскрывают route/token details.
-- Focused handler tests и полный suite проходят.
-- Ручной smoke test на локальном bot успешен.
+- Клиент реализует существующий protocol без изменения DTO contract.
+- Конфигурация fail-closed и разделяет environments.
+- Ownership scope нельзя заменить пользовательским route/callback input.
+- Retry/timeout/rate-limit поведение ограничено и протестировано.
+- Ошибочные и чужие данные не достигают presentation layer.
+- Focused и полный suite проходят; production flags остаются выключенными.

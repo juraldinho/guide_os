@@ -121,6 +121,7 @@ async def main() -> None:
     dp = Dispatcher()
 
 
+    dp.include_router(guide_shop_router)
     dp.include_router(start_router)
     dp.include_router(add_tour_router)
     dp.include_router(calendar_router)
@@ -130,7 +131,6 @@ async def main() -> None:
     dp.include_router(tour_edits_router)
     dp.include_router(profile_router)
     dp.include_router(stats.router)
-    dp.include_router(guide_shop_router)
     dp.include_router(errors.router)
     dp.include_router(admin_report_router)
     dp.include_router(help_router)

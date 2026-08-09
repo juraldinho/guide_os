@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
+import re
 import secrets
 from typing import Annotated, Literal
 
@@ -43,6 +44,10 @@ class NavigationTokenAccessDeniedError(NavigationError):
 
 
 class NavigationRouteInvalidError(NavigationError):
+    pass
+
+
+class NavigationDeepLinkInvalidError(NavigationError):
     pass
 
 
@@ -96,6 +101,24 @@ class GuideShopRoute(BaseModel):
 class NavigationToken:
     raw_token: str
     expires_at: datetime
+
+
+def build_navigation_deep_link(bot_username: str, raw_token: str) -> str:
+    if not isinstance(bot_username, str):
+        raise NavigationDeepLinkInvalidError("Invalid bot username")
+    username = bot_username[1:] if bot_username.startswith("@") else bot_username
+    if (
+        re.fullmatch(r"[A-Za-z0-9_]{5,32}", username) is None
+        or not username.casefold().endswith("bot")
+    ):
+        raise NavigationDeepLinkInvalidError("Invalid bot username")
+    if (
+        not isinstance(raw_token, str)
+        or re.fullmatch(r"gs_[A-Za-z0-9_-]{32}", raw_token) is None
+        or len(raw_token) > 64
+    ):
+        raise NavigationDeepLinkInvalidError("Invalid navigation token")
+    return f"https://t.me/{username}?start={raw_token}"
 
 
 def _validate_user_id(telegram_user_id: int) -> None:

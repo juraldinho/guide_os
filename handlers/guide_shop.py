@@ -1,4 +1,7 @@
+import re
+
 from aiogram import F, Router
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from keyboards.guide_shop import build_guide_shop_keyboard
@@ -24,6 +27,10 @@ DISABLED_TEXT = "Раздел GuideShop временно отключён."
 STALE_TOKEN_TEXT = "Кнопка устарела. Откройте GuideShop снова."
 ACCESS_DENIED_TEXT = "Эта кнопка недоступна."
 INVALID_ROUTE_TEXT = "Не удалось открыть раздел GuideShop."
+STALE_LINK_TEXT = "Ссылка устарела. Откройте GuideShop снова."
+LINK_ACCESS_DENIED_TEXT = "Эта ссылка недоступна."
+
+_NAVIGATION_TOKEN_PATTERN = r"\Ags_[A-Za-z0-9_-]{32}\Z"
 
 
 def configure_guide_shop_ui(
@@ -80,6 +87,47 @@ async def _dispatch_route(
     if route.kind == "history":
         return await service.history(route.cursor)
     raise NavigationRouteInvalidError("Unsupported GuideShop route")
+
+
+@router.message(
+    CommandStart(
+        deep_link=True,
+        magic=F.args.regexp(_NAVIGATION_TOKEN_PATTERN),
+    )
+)
+async def open_guide_shop_deep_link(
+    message: Message,
+    command: CommandObject,
+) -> None:
+    if not _reads_enabled or _service is None:
+        await message.answer(DISABLED_TEXT)
+        return
+
+    raw_token = command.args
+    if not isinstance(raw_token, str) or re.fullmatch(
+        _NAVIGATION_TOKEN_PATTERN, raw_token
+    ) is None:
+        return
+
+    try:
+        route = resolve_navigation_token(raw_token, message.from_user.id)
+    except (
+        NavigationTokenExpiredError,
+        NavigationTokenConsumedError,
+        NavigationTokenRevokedError,
+        NavigationTokenUnknownError,
+    ):
+        await message.answer(STALE_LINK_TEXT)
+        return
+    except NavigationTokenAccessDeniedError:
+        await message.answer(LINK_ACCESS_DENIED_TEXT)
+        return
+    except NavigationRouteInvalidError:
+        await message.answer(INVALID_ROUTE_TEXT)
+        return
+
+    screen = await _dispatch_route(_service, route)
+    await _answer_screen(message, message.from_user.id, screen)
 
 
 @router.message(F.text == "🛍 GuideShop")

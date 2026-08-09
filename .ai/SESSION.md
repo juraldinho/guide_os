@@ -4,47 +4,38 @@
 
 ## Текущий фокус
 
-Подключение mock-backed GuideShop presentation к локальному Telegram UX через default-off feature gate.
+Подготовка реального read-only GuideShop API client без production activation.
 
 ## Завершённые этапы
 
-- Stage 0 — закрыт Product Owner;
-- Stage 1A — stable UUID4 identity;
-- Stage 1B — secure linking requests;
-- Stage 2A — strict DTO/event contract;
-- Stage 3A — flags и mockable client boundary;
-- Stage 3B — typed routes и navigation tokens;
-- Stage 3C1 — presentation layer и tokenized keyboards.
+- Stage 0;
+- Stage 1A/1B — identity и linking requests;
+- Stage 2A — DTO/event contract;
+- Stage 3A — flags/client boundary;
+- Stage 3B — navigation tokens;
+- Stage 3C1 — presentation/keyboards;
+- Stage 3C2 — feature-gated mock Telegram UI.
+- Stage 3D — user-bound `/start` deep links и development smoke helper.
 
 ## Проверенное состояние
 
-- HTML external values экранируются;
-- Decimal values не пересчитываются;
-- list buttons различимы без object IDs;
-- callbacks содержат только `gs_` tokens;
-- navigation suite: `50 passed`;
-- UI suite: `18 passed`;
-- full suite: `180 passed`;
-- handlers/main menu ещё не подключены.
+- callbacks и `/start` deep links user-bound и single-use;
+- GuideShop deep-link handler не перехватывает обычный `/start`;
+- development helper не доступен через Telegram и запрещён вне development;
+- Stage 3D/helper regression: `58 passed`;
+- full suite: `278 passed`;
+- ручной smoke test в `@Guideosbot` успешен.
 
 ## Следующее действие
 
-Stage 3C2 согласно `.ai/NEXT_TASK.md`: feature-gated handler, menu entry и callback dispatch.
-
-## Открытые решения
-
-1. Service authentication: OAuth2 client credentials или signed JWT.
-2. Event delivery: webhook endpoint или очередь.
-3. Общая retention policy для temporary/audit rows.
-4. Формальное сопоставление DTO с GuideShop OpenAPI/JSON Schema.
-5. Реальный staging client composition после подготовки GuideShop API.
+Stage 4A согласно `.ai/NEXT_TASK.md`: authenticated read-only HTTP client foundation, default-off и без production activation.
 
 ## Production gate
 
-Shared staging, end-to-end, recovery/reconciliation и live production-safety evidence обязательны до production activation.
+GuideShop API, shared staging, E2E, recovery и live production-safety evidence обязательны до production activation.
 
 ## Ограничения сессии
 
 - Исходный код изменяет только Cursor.
-- Этот чат анализирует, проектирует, проверяет и обновляет Markdown-документацию.
-- Все изменения выполняются по Minimal Change без несвязанного рефакторинга.
+- Этот чат анализирует, проектирует, проверяет и обновляет Markdown.
+- Minimal Change; никаких несвязанных изменений.

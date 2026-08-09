@@ -770,6 +770,38 @@ Runbook должен описывать:
 
 Остаточный риск: создание keyboard выпускает tokens до отправки сообщения; неотправленные tokens остаются issued до TTL/revocation и будущей cleanup policy.
 
+### Stage 3C2 — feature-gated Telegram mock UI
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Добавлена отдельная development/test-only fake setting; fake запрещён в staging/production.
+- Main menu сохраняет default-off совместимость и показывает `🛍 GuideShop` только при reads-enabled.
+- Добавлены feature-gated entry handler и typed route callback dispatch.
+- Callback token разрешается только для `callback.from_user.id`; raw route parameters не используются.
+- Disabled state не consumes token; expired/consumed/revoked/access-denied/invalid-route состояния отображаются безопасно.
+- Explicit local fake создаётся только в разрешённом environment и содержит пустые synthetic collections.
+- GuideShop router зарегистрирован до global errors router.
+- Environment-sensitive test изолирован от локального `.env`.
+- Проверка: Stage 3C2 suite `40 passed`; full suite `220 passed`; `git diff --check` clean.
+- Локальный `@Guideosbot` показывает feature-gated GuideShop entry при explicit development flags.
+
+Остаточный риск: navigation token consumes до Telegram message edit; при неожиданной ошибке edit пользователь должен заново открыть GuideShop.
+
+### Stage 3D — Telegram `/start` deep links
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Добавлен строгий builder Telegram deep link, содержащий только opaque `gs_` token.
+- GuideShop handler принимает только точный navigation payload и зарегистрирован до generic `/start`.
+- Разрешение использует существующие typed routes и user-bound single-use token semantics.
+- Disabled integration не consumes token; stale, denied и invalid состояния не раскрывают внутренние данные.
+- Plain `/start` и unrelated payload сохраняют прежний flow.
+- Development-only helper создаёт локальную тестовую ссылку и недоступен через Telegram или вне development.
+- Проверка: deep-link/helper regression `58 passed`; full suite `278 passed`; `git diff --check` clean.
+- Ручной smoke test в `@Guideosbot`: первое открытие показало Visits, повторное открытие той же ссылки показало stale-link state.
+
+Остаточный риск: navigation token consumes до отправки Telegram screen; при ошибке доставки требуется выпустить новую ссылку или заново открыть GuideShop.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

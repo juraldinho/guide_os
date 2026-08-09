@@ -109,3 +109,35 @@
 Проверка: navigation — `50 passed`; UI — `18 passed`; полный suite — `180 passed`; `git diff --check` clean.
 
 Остаточный риск: abandoned unsent keyboards оставляют issued navigation tokens до TTL/revocation.
+
+## 2026-08-09 — Stage 3C2 завершён
+
+Выполнено:
+
+- добавлена development/test-only fake runtime setting;
+- main menu остаётся default-off и показывает GuideShop только при reads flag;
+- добавлены entry handler и user-bound typed callback dispatch;
+- navigation errors отображаются безопасно без message edit и replacement tokens;
+- disabled callback не consumes token;
+- explicit local fake composition не допускается в staging/production;
+- GuideShop router подключён до global errors router;
+- тесты изолированы от локального `.env`.
+
+Проверка: Stage 3C2 — `40 passed`; полный suite — `220 passed`; `git diff --check` clean. Локальная кнопка подтверждена в `@Guideosbot`.
+
+Остаточный риск: token consumes до Telegram edit; восстановление выполняется повторным входом в GuideShop.
+
+## 2026-08-09 — Stage 3D завершён
+
+Выполнено:
+
+- добавлен строгий builder `https://t.me/<bot>?start=<opaque-token>`;
+- GuideShop handler принимает только точный `gs_` payload и зарегистрирован до generic `/start`;
+- deep links используют существующие typed routes и user-bound single-use navigation tokens;
+- disabled, stale, access-denied и invalid-route состояния отображаются безопасно;
+- обычный `/start` и посторонние payload сохраняют прежний flow;
+- добавлен development-only локальный helper для выпуска smoke-test ссылки без Telegram-команды.
+
+Проверка: deep-link и helper regression — `58 passed`; полный suite — `278 passed`; `git diff --check` clean. Ручная проверка в `@Guideosbot`: первое открытие показало Visits, повторное открытие вернуло stale-link state.
+
+Остаточный риск: token consumes до отправки Telegram screen; при ошибке доставки требуется новая ссылка или повторный вход в GuideShop.
