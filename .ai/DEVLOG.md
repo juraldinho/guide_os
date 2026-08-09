@@ -159,3 +159,20 @@
 Проверка: Stage 4A и выбранные regressions — `169 passed`; полный suite — `380 passed`; `git diff --check` clean.
 
 Открытая зависимость: production composition требует реального GuideShop access-token provider и доступного Integration API.
+
+## 2026-08-09 — Stage 4B завершён
+
+Выполнено:
+
+- добавлены static и request-scoped GuideShop UI service providers;
+- trusted identity lookup выполняется один раз на request до navigation token consumption;
+- каждый реальный request получает отдельный client, привязанный только к разрешённому `guide_os_id`;
+- route, cursor, object ID, callback и deep-link payload не могут подменить identity;
+- client закрывается ровно один раз при success, exception, cancellation и Telegram rendering failure;
+- runtime проверяет полный `GuideShopClient` protocol и async cleanup до выдачи UI service;
+- invalid client/provider configuration обрабатывается fail-closed и не consumes navigation token;
+- существующий development fake flow сохранён через backward-compatible static provider.
+
+Проверка: runtime/handlers/deep-links — `124 passed`; полный suite — `420 passed`; `git diff --check` clean. Ручной fake smoke test в `@Guideosbot` успешен: entry, Visits и возврат работают без изменений.
+
+Открытая зависимость: выбор service authentication и реальный access-token provider остаются обязательными до production composition.

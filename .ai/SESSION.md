@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовка request-scoped композиции GuideShop client для изоляции гидов без production activation.
+Утверждение service authentication contract Guide OS ↔ GuideShop до production composition.
 
 ## Завершённые этапы
 
@@ -17,19 +17,21 @@
 - Stage 3C2 — feature-gated mock Telegram UI.
 - Stage 3D — user-bound `/start` deep links и development smoke helper.
 - Stage 4A — authenticated identity-bound read-only HTTP client foundation.
+- Stage 4B — request-scoped identity/client composition.
 
 ## Проверенное состояние
 
-- HTTP settings fail-closed при env и direct construction;
-- HTTP client использует только `/integration/v1/me/...` и Bearer auth;
-- guide identity связан с экземпляром клиента и не передаётся через route;
-- transient retries и response size строго ограничены;
-- Stage 4A/regression: `169 passed`;
-- full suite: `380 passed`.
+- identity lookup выполняется до token consumption;
+- client/service не переиспользуются между requests или guides;
+- invalid runtime configuration fail-closed;
+- cleanup гарантирован при success/error/cancellation;
+- Stage 4B regression: `124 passed`;
+- full suite: `420 passed`;
+- локальный fake smoke test успешен.
 
 ## Следующее действие
 
-Stage 4B согласно `.ai/NEXT_TASK.md`: request-scoped client/UI composition по доверенному `guide_os_id`.
+Stage 4C согласно `.ai/NEXT_TASK.md`: утвердить service-auth contract и только затем реализовать access-token provider.
 
 ## Production gate
 

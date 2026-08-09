@@ -819,6 +819,24 @@ Runbook должен описывать:
 
 Открытая зависимость: реальный GuideShop access-token provider, доступность Integration API и staging composition ещё не реализованы.
 
+### Stage 4B — request-scoped identity composition
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Добавлены static и request-scoped GuideShop UI service provider boundaries.
+- Реальный scope разрешает `guide_os_id` только через trusted lookup текущего Telegram user.
+- Identity lookup и client validation завершаются до navigation token consumption.
+- Каждый request получает отдельный identity-bound client; cross-user/client reuse отсутствует.
+- Route, cursor, object ID, callback и deep-link payload не участвуют в identity resolution.
+- Client cleanup выполняется ровно один раз при success, exception, cancellation и Telegram rendering failure.
+- Полный runtime protocol и async close проверяются до создания UI service.
+- Invalid client/provider configuration fail-closed и не оставляет предыдущий provider активным.
+- Existing development fake сохраняет backward-compatible static composition.
+- Проверка: runtime/handler/deep-link regression `124 passed`; full suite `420 passed`; `git diff --check` clean.
+- Ручной smoke test в `@Guideosbot`: entry, Visits и возврат работают без изменений.
+
+Открытая зависимость: service-auth contract и реальный access-token provider должны быть утверждены до staging/production composition.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

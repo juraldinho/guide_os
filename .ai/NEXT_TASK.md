@@ -4,37 +4,37 @@
 
 ## Единственная следующая задача
 
-Stage 4B — подготовить request-scoped GuideShop client composition с доверенным разрешением `telegram_user_id -> guide_os_id`.
+Stage 4C — утвердить service authentication contract Guide OS ↔ GuideShop.
 
 ## Цель
 
-Исключить общий HTTP client между гидами: каждый пользовательский GuideShop request должен получать клиент, навсегда привязанный к `guide_os_id`, разрешённому серверной частью Guide OS.
+Выбрать и зафиксировать один production-механизм получения короткоживущего Bearer token до реализации access-token provider и GuideShop verification endpoint.
 
 ## Требуемый результат
 
-- отдельный async client/service factory boundary;
-- lookup `guide_os_id` только по текущему Telegram user ID через существующий database query;
-- новый identity-bound HTTP client на пользовательский request или безопасно определённый lifecycle;
-- client всегда закрывается при success и exception;
-- missing user/identity, disabled integration и configuration failure обрабатываются fail-closed;
-- fake development flow и текущий default-off UX сохраняются;
-- tests доказывают отсутствие cross-user reuse и identity substitution.
+- решение: OAuth2 client credentials или asymmetric signed JWT;
+- threat model и trust boundaries;
+- точные token claims/fields, issuer, audience, subject, guide identity и scopes;
+- TTL, clock skew, replay protection и `jti` policy;
+- key/secret storage, rotation, revocation и environment separation;
+- failure/status contract между Guide OS и GuideShop;
+- staging bootstrap и production activation checklist;
+- согласованный план реализации обеих сторон без добавления credentials в repository.
 
 ## Ограничения
 
-- Не включать reads по умолчанию.
-- Не подключаться напрямую к базе GuideShop.
-- Не реализовывать OAuth/JWT provider, linking completion, events или notifications.
-- Не хранить GuideShop business data в SQLite.
-- Не логировать credentials, response bodies, PII или payment data.
-- Не менять тексты и структуру Telegram UI без необходимости композиции.
-- Не активировать staging/production без согласованного GuideShop endpoint и credentials.
+- На этом шаге не менять исходный код.
+- Не создавать реальные keys/secrets.
+- Не помещать credentials или token examples с рабочими значениями в Git.
+- Не активировать reads в staging/production.
+- Не проектировать events/notifications раньше завершения read-only authentication.
+- Учитывать разные filesystem/deployment paths Guide OS и GuideShop на Mac Neo/Railway.
 
 ## Definition of Done
 
-- Ни один HTTP client не используется для двух разных `guide_os_id`.
-- Route, callback и deep-link payload не могут подменить identity.
-- Database lookup не создаёт пользователя как побочный эффект.
-- Client cleanup гарантирован на всех путях.
-- Existing fake/manual UX остаётся работоспособным.
-- Focused и полный suite проходят; production composition остаётся fail-closed без token provider.
+- Выбран ровно один production auth mechanism с обоснованием.
+- GuideShop может независимо проверить service identity, guide scope, audience, expiry и scopes.
+- Replay, rotation, revocation и clock skew имеют конкретные правила.
+- Staging и production credentials полностью разделены.
+- Документ определяет следующую реализационную задачу отдельно для Guide OS и GuideShop.
+- До согласования contract production composition остаётся fail-closed.
