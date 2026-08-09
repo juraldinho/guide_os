@@ -802,6 +802,23 @@ Runbook должен описывать:
 
 Остаточный риск: navigation token consumes до отправки Telegram screen; при ошибке доставки требуется выпустить новую ссылку или заново открыть GuideShop.
 
+### Stage 4A — authenticated read-only HTTP client foundation
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Реализованы immutable HTTP settings с одинаковой fail-closed validation для environment и direct construction.
+- Staging/production требуют HTTPS; unsafe URL, credentials в URL и неограниченные timeout/retry параметры отклоняются.
+- Добавлен async access-token provider protocol без преждевременного выбора OAuth2 или signed JWT реализации.
+- Identity-bound aiohttp client реализует восемь утверждённых `/integration/v1/me/...` endpoints.
+- `guide_os_id` передаётся только token provider и отсутствует в URL/query; token отправляется только в Bearer header.
+- Ответы валидируются существующими Stage 2A typed envelopes/DTO.
+- Retry разрешён только для утверждённых transient GET failures и ограничен настройками.
+- Response body читается потоково с hard limit 1,000,000 bytes плюс один detection byte.
+- Session lifecycle явный; production factory остаётся default-off и fail-closed.
+- Проверка: Stage 4A/regression `169 passed`; full suite `380 passed`; `git diff --check` clean.
+
+Открытая зависимость: реальный GuideShop access-token provider, доступность Integration API и staging composition ещё не реализованы.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

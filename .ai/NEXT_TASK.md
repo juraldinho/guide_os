@@ -4,38 +4,37 @@
 
 ## Единственная следующая задача
 
-Stage 4A — реализовать production-safe authenticated read-only HTTP client foundation для GuideShop.
+Stage 4B — подготовить request-scoped GuideShop client composition с доверенным разрешением `telegram_user_id -> guide_os_id`.
 
 ## Цель
 
-Подготовить Guide OS к чтению согласованных Stage 2A DTO через настраиваемый GuideShop API, сохраняя интеграцию default-off и не подключаясь к базе GuideShop.
+Исключить общий HTTP client между гидами: каждый пользовательский GuideShop request должен получать клиент, навсегда привязанный к `guide_os_id`, разрешённому серверной частью Guide OS.
 
 ## Требуемый результат
 
-- строгие настройки base URL, service credential, timeout и retry limits;
-- HTTPS обязательно вне test/development;
-- async HTTP implementation существующего read-only client protocol;
-- guide identity передаётся только из доверенного Guide OS context;
-- ответы валидируются существующими Stage 2A DTO;
-- ограниченные retries только для безопасных transient failures;
-- безопасная обработка timeout, rate limit, unauthorized, forbidden, not found и invalid payload;
-- fake и disabled clients сохраняют текущее поведение.
+- отдельный async client/service factory boundary;
+- lookup `guide_os_id` только по текущему Telegram user ID через существующий database query;
+- новый identity-bound HTTP client на пользовательский request или безопасно определённый lifecycle;
+- client всегда закрывается при success и exception;
+- missing user/identity, disabled integration и configuration failure обрабатываются fail-closed;
+- fake development flow и текущий default-off UX сохраняются;
+- tests доказывают отсутствие cross-user reuse и identity substitution.
 
 ## Ограничения
 
 - Не включать reads по умолчанию.
 - Не подключаться напрямую к базе GuideShop.
-- Не реализовывать linking completion, events или notifications.
+- Не реализовывать OAuth/JWT provider, linking completion, events или notifications.
 - Не хранить GuideShop business data в SQLite.
 - Не логировать credentials, response bodies, PII или payment data.
-- Не менять Telegram UI и navigation.
+- Не менять тексты и структуру Telegram UI без необходимости композиции.
 - Не активировать staging/production без согласованного GuideShop endpoint и credentials.
 
 ## Definition of Done
 
-- Клиент реализует существующий protocol без изменения DTO contract.
-- Конфигурация fail-closed и разделяет environments.
-- Ownership scope нельзя заменить пользовательским route/callback input.
-- Retry/timeout/rate-limit поведение ограничено и протестировано.
-- Ошибочные и чужие данные не достигают presentation layer.
-- Focused и полный suite проходят; production flags остаются выключенными.
+- Ни один HTTP client не используется для двух разных `guide_os_id`.
+- Route, callback и deep-link payload не могут подменить identity.
+- Database lookup не создаёт пользователя как побочный эффект.
+- Client cleanup гарантирован на всех путях.
+- Existing fake/manual UX остаётся работоспособным.
+- Focused и полный suite проходят; production composition остаётся fail-closed без token provider.

@@ -141,3 +141,21 @@
 Проверка: deep-link и helper regression — `58 passed`; полный suite — `278 passed`; `git diff --check` clean. Ручная проверка в `@Guideosbot`: первое открытие показало Visits, повторное открытие вернуло stale-link state.
 
 Остаточный риск: token consumes до отправки Telegram screen; при ошибке доставки требуется новая ссылка или повторный вход в GuideShop.
+
+## 2026-08-09 — Stage 4A завершён
+
+Выполнено:
+
+- добавлены immutable HTTP settings с централизованной валидацией direct/env construction;
+- HTTPS обязателен для staging/production, unsafe URL и неограниченные числовые параметры отклоняются;
+- добавлен runtime-checkable async access-token provider boundary без выбора OAuth/JWT реализации;
+- identity-bound aiohttp client реализует восемь `/integration/v1/me/...` read endpoints;
+- service token передаётся только через Bearer header, guide identity отсутствует в URL/query;
+- успешные ответы проходят строгую Stage 2A DTO validation;
+- timeout, connection, rate-limit и transient retries ограничены;
+- response body читается потоково не более 1,000,000 bytes плюс один detection byte;
+- lifecycle сессии явный, production factory остаётся default-off/fail-closed.
+
+Проверка: Stage 4A и выбранные regressions — `169 passed`; полный suite — `380 passed`; `git diff --check` clean.
+
+Открытая зависимость: production composition требует реального GuideShop access-token provider и доступного Integration API.

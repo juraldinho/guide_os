@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовка реального read-only GuideShop API client без production activation.
+Подготовка request-scoped композиции GuideShop client для изоляции гидов без production activation.
 
 ## Завершённые этапы
 
@@ -16,19 +16,20 @@
 - Stage 3C1 — presentation/keyboards;
 - Stage 3C2 — feature-gated mock Telegram UI.
 - Stage 3D — user-bound `/start` deep links и development smoke helper.
+- Stage 4A — authenticated identity-bound read-only HTTP client foundation.
 
 ## Проверенное состояние
 
-- callbacks и `/start` deep links user-bound и single-use;
-- GuideShop deep-link handler не перехватывает обычный `/start`;
-- development helper не доступен через Telegram и запрещён вне development;
-- Stage 3D/helper regression: `58 passed`;
-- full suite: `278 passed`;
-- ручной smoke test в `@Guideosbot` успешен.
+- HTTP settings fail-closed при env и direct construction;
+- HTTP client использует только `/integration/v1/me/...` и Bearer auth;
+- guide identity связан с экземпляром клиента и не передаётся через route;
+- transient retries и response size строго ограничены;
+- Stage 4A/regression: `169 passed`;
+- full suite: `380 passed`.
 
 ## Следующее действие
 
-Stage 4A согласно `.ai/NEXT_TASK.md`: authenticated read-only HTTP client foundation, default-off и без production activation.
+Stage 4B согласно `.ai/NEXT_TASK.md`: request-scoped client/UI composition по доверенному `guide_os_id`.
 
 ## Production gate
 

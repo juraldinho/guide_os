@@ -4,7 +4,7 @@
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–3D завершены и проверены. Identity, linking-token foundation, contracts, mockable read client boundary, typed routes, mock Telegram UI и одноразовые `/start` deep links готовы; прямое подключение к GuideShop ещё отсутствует.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4A завершены и проверены. Identity, linking-token foundation, contracts, typed routes, mock Telegram UI, одноразовые `/start` deep links и production-safe read-only HTTP client foundation готовы; production composition с GuideShop ещё отсутствует.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -177,7 +177,8 @@ GuideShop должен оставаться источником истины д
 - HTML экранируется, Decimal values не пересчитываются, list actions различимы ordinal labels.
 - Stage 3C2: mock-backed Telegram entry и callback dispatch доступны через explicit development flags.
 - Stage 3D: реализованы строгие user-bound single-use `/start` deep links и development-only smoke helper.
-- GuideShop API, события и production activation ещё не реализованы.
+- Stage 4A: реализован identity-bound authenticated async HTTP client для `/integration/v1/me/...` с typed validation, bounded retries и bounded response reading.
+- Реальный access-token provider, GuideShop API availability, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией
 
