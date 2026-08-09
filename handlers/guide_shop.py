@@ -16,11 +16,17 @@ from services.guide_shop_navigation import (
     resolve_navigation_token,
 )
 from services.guide_shop_ui import GuideShopScreen, GuideShopUIService
+from services.guide_shop_runtime import (
+    GuideShopIdentityUnavailableError,
+    GuideShopRuntimeConfigurationError,
+    GuideShopUIServiceProvider,
+    StaticGuideShopUIServiceProvider,
+)
 
 
 router = Router()
 
-_service: GuideShopUIService | None = None
+_provider: GuideShopUIServiceProvider | None = None
 _reads_enabled = False
 
 DISABLED_TEXT = "Раздел GuideShop временно отключён."
@@ -38,8 +44,17 @@ def configure_guide_shop_ui(
     *,
     reads_enabled: bool,
 ) -> None:
-    global _service, _reads_enabled
-    _service = service
+    provider = StaticGuideShopUIServiceProvider(service) if service is not None else None
+    configure_guide_shop_provider(provider, reads_enabled=reads_enabled)
+
+
+def configure_guide_shop_provider(
+    provider: GuideShopUIServiceProvider | None,
+    *,
+    reads_enabled: bool,
+) -> None:
+    global _provider, _reads_enabled
+    _provider = provider
     _reads_enabled = reads_enabled
 
 
@@ -99,7 +114,7 @@ async def open_guide_shop_deep_link(
     message: Message,
     command: CommandObject,
 ) -> None:
-    if not _reads_enabled or _service is None:
+    if not _reads_enabled or _provider is None:
         await message.answer(DISABLED_TEXT)
         return
 
@@ -110,62 +125,74 @@ async def open_guide_shop_deep_link(
         return
 
     try:
-        route = resolve_navigation_token(raw_token, message.from_user.id)
-    except (
-        NavigationTokenExpiredError,
-        NavigationTokenConsumedError,
-        NavigationTokenRevokedError,
-        NavigationTokenUnknownError,
-    ):
-        await message.answer(STALE_LINK_TEXT)
-        return
-    except NavigationTokenAccessDeniedError:
-        await message.answer(LINK_ACCESS_DENIED_TEXT)
-        return
-    except NavigationRouteInvalidError:
-        await message.answer(INVALID_ROUTE_TEXT)
-        return
+        async with _provider.service_for(message.from_user.id) as service:
+            try:
+                route = resolve_navigation_token(raw_token, message.from_user.id)
+            except (
+                NavigationTokenExpiredError,
+                NavigationTokenConsumedError,
+                NavigationTokenRevokedError,
+                NavigationTokenUnknownError,
+            ):
+                await message.answer(STALE_LINK_TEXT)
+                return
+            except NavigationTokenAccessDeniedError:
+                await message.answer(LINK_ACCESS_DENIED_TEXT)
+                return
+            except NavigationRouteInvalidError:
+                await message.answer(INVALID_ROUTE_TEXT)
+                return
 
-    screen = await _dispatch_route(_service, route)
-    await _answer_screen(message, message.from_user.id, screen)
+            screen = await _dispatch_route(service, route)
+            await _answer_screen(message, message.from_user.id, screen)
+    except (GuideShopIdentityUnavailableError, GuideShopRuntimeConfigurationError):
+        await message.answer(DISABLED_TEXT)
 
 
 @router.message(F.text == "🛍 GuideShop")
 async def open_guide_shop(message: Message) -> None:
-    if not _reads_enabled or _service is None:
+    if not _reads_enabled or _provider is None:
         await message.answer(DISABLED_TEXT)
         return
 
-    screen = await _service.home()
-    await _answer_screen(message, message.from_user.id, screen)
+    try:
+        async with _provider.service_for(message.from_user.id) as service:
+            screen = await service.home()
+            await _answer_screen(message, message.from_user.id, screen)
+    except (GuideShopIdentityUnavailableError, GuideShopRuntimeConfigurationError):
+        await message.answer(DISABLED_TEXT)
 
 
 @router.callback_query(F.data.startswith("gs_"))
 async def navigate_guide_shop(callback: CallbackQuery) -> None:
-    if not _reads_enabled or _service is None:
+    if not _reads_enabled or _provider is None:
         await callback.answer(DISABLED_TEXT)
         return
 
     try:
-        route = resolve_navigation_token(
-            callback.data,
-            callback.from_user.id,
-        )
-    except (
-        NavigationTokenExpiredError,
-        NavigationTokenConsumedError,
-        NavigationTokenRevokedError,
-        NavigationTokenUnknownError,
-    ):
-        await callback.answer(STALE_TOKEN_TEXT)
-        return
-    except NavigationTokenAccessDeniedError:
-        await callback.answer(ACCESS_DENIED_TEXT)
-        return
-    except NavigationRouteInvalidError:
-        await callback.answer(INVALID_ROUTE_TEXT)
-        return
+        async with _provider.service_for(callback.from_user.id) as service:
+            try:
+                route = resolve_navigation_token(
+                    callback.data,
+                    callback.from_user.id,
+                )
+            except (
+                NavigationTokenExpiredError,
+                NavigationTokenConsumedError,
+                NavigationTokenRevokedError,
+                NavigationTokenUnknownError,
+            ):
+                await callback.answer(STALE_TOKEN_TEXT)
+                return
+            except NavigationTokenAccessDeniedError:
+                await callback.answer(ACCESS_DENIED_TEXT)
+                return
+            except NavigationRouteInvalidError:
+                await callback.answer(INVALID_ROUTE_TEXT)
+                return
 
-    screen = await _dispatch_route(_service, route)
-    await _edit_screen(callback, callback.from_user.id, screen)
-    await callback.answer()
+            screen = await _dispatch_route(service, route)
+            await _edit_screen(callback, callback.from_user.id, screen)
+            await callback.answer()
+    except (GuideShopIdentityUnavailableError, GuideShopRuntimeConfigurationError):
+        await callback.answer(DISABLED_TEXT)
