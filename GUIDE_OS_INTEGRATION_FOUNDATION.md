@@ -921,6 +921,23 @@ Runbook должен описывать:
 
 Будущая задача GuideShop на Mac Neo: verifier middleware для того же profile, public-key allowlist, active-link resolution и negative security tests.
 
+### Stage 4D — Guide OS EdDSA access-token provider
+
+**Статус:** Completed and verified 2026-08-09.
+
+- Добавлены pinned PyJWT/cryptography dependencies; самописная JWT/Ed25519 реализация не используется.
+- Signing settings принимают только strict environment, `kid` и unencrypted PKCS#8 Ed25519 private key.
+- Private key исключён из repr/equality diagnostics, errors, logs и persistence.
+- Async provider реализует существующий Stage 4A token-provider protocol.
+- Identity принимается только как canonical lowercase UUID4.
+- Каждый вызов выпускает новый token с точными Stage 4C header/claims, TTL 60 секунд и 128-bit random `jti`.
+- UTC clock и randomness injectable; malformed dependency output fail-closed.
+- Ephemeral tests независимо проверяют public-key signature, tampering, expiry, issuer и audience.
+- Runtime activation, реальные keys/tokens, database и network side effects отсутствуют.
+- Проверка: auth/HTTP/runtime `188 passed`; full suite `466 passed`; `git diff --check` clean.
+
+Открытая зависимость: default-off real runtime composition и GuideShop-side verifier/API ещё не реализованы.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

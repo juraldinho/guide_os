@@ -4,7 +4,7 @@
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4C завершены. Identity, contracts, UI/navigation, production-safe HTTP client, request-scoped composition и production service-auth contract готовы; EdDSA token provider и GuideShop verifier ещё не реализованы.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4D завершены. Identity, contracts, UI/navigation, production-safe HTTP client, request-scoped composition, service-auth contract и EdDSA token provider готовы; real runtime composition и GuideShop verifier ещё не реализованы.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -180,7 +180,8 @@ GuideShop должен оставаться источником истины д
 - Stage 4A: реализован identity-bound authenticated async HTTP client для `/integration/v1/me/...` с typed validation, bounded retries и bounded response reading.
 - Stage 4B: реализована request-scoped композиция `telegram_user_id -> guide_os_id -> isolated client`, включая deterministic cleanup и fail-closed configuration validation.
 - Stage 4C: утверждён asymmetric Ed25519/EdDSA JWT profile с strict claims, 60-second TTL, rotation/revocation и environment separation.
-- Реальный access-token provider, GuideShop verifier/API availability, события и production activation ещё не реализованы.
+- Stage 4D: реализован strict Ed25519 signing settings и async identity-bound JWT provider без runtime activation.
+- Real runtime composition, GuideShop verifier/API availability, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией
 

@@ -191,3 +191,23 @@
 - private keys и реальные tokens запрещены в Git и логах.
 
 Этап документальный: исходный код не менялся, автоматические и ручные тесты не требовались.
+
+## 2026-08-09 — Stage 4D завершён
+
+Выполнено:
+
+- добавлены pinned `PyJWT==2.13.0` и `cryptography==48.0.1`;
+- добавлены immutable signing settings с централизованной direct/env validation;
+- принимается только unencrypted PKCS#8 Ed25519 private key и strict environment-specific `kid`;
+- private key исключён из repr/equality diagnostics и safe errors;
+- async provider реализует существующий `GuideShopAccessTokenProvider`;
+- каждый вызов выпускает новый EdDSA token для canonical UUID4 `guide_os_id`;
+- header и claims точно соответствуют Stage 4C, TTL равен 60 секундам;
+- `jti` содержит 128 bits injected cryptographic randomness;
+- clock/randomness injectable и строго валидируются;
+- tests независимо проверяют signature через ephemeral public key;
+- реальные keys/tokens, persistence, network и runtime activation отсутствуют.
+
+Проверка: auth/HTTP/runtime — `188 passed`; полный suite — `466 passed`; `git diff --check` clean.
+
+Открытая зависимость: provider ещё не подключён к default-off production runtime; GuideShop verifier и API отсутствуют.

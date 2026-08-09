@@ -4,37 +4,38 @@
 
 ## Единственная следующая задача
 
-Stage 4D — реализовать Guide OS EdDSA access-token provider по утверждённому Stage 4C contract.
+Stage 4E — реализовать default-off real GuideShop runtime composition в Guide OS.
 
 ## Цель
 
-Безопасно выпускать короткоживущий identity-bound Bearer JWT для существующего Stage 4A HTTP client, не активируя реальный runtime.
+Соединить trusted identity lookup, Stage 4D token provider, Stage 4A HTTP client и Stage 4B request-scoped service provider без включения production flags по умолчанию.
 
 ## Требуемый результат
 
-- immutable strict signing settings;
-- Ed25519 private-key loading только из injected secret/environment;
-- async provider, реализующий существующий `GuideShopAccessTokenProvider`;
-- strict header `alg=EdDSA`, `typ=guideshop-service+jwt`, allowlisted `kid`;
-- claims из Stage 4C с TTL 60 секунд и unique 128-bit `jti`;
-- injectable UTC clock и cryptographic randomness;
-- safe errors без key/token/identity leakage;
-- deterministic contract и negative security tests.
+- disabled flow не читает HTTP/JWT settings и сохраняет текущий UX;
+- explicit development fake flow работает без real credentials;
+- real flow создаёт validated HTTP/JWT settings только при reads-enabled и fake-disabled;
+- shared stateless token provider и новый identity-bound HTTP client на request;
+- identity lookup использует существующий read-only `get_guide_os_id`;
+- configuration failures fail-closed без secret leakage;
+- client lifecycle управляется Stage 4B provider;
+- production remains disabled until explicit flags and valid secrets are supplied.
 
 ## Ограничения
 
-- Не создавать и не коммитить реальные production keys.
-- Не добавлять token в логи, exceptions или persistent storage.
-- Не подключать provider в `bot.py` и не включать reads.
-- Не реализовывать GuideShop verifier в этом repository.
-- Не менять HTTP endpoints, UI, navigation, linking, events или notifications.
-- Не использовать symmetric shared secret или алгоритм, выбираемый из JWT header.
+- Не добавлять реальные keys/secrets в `.env` или repository.
+- Не включать feature flags по умолчанию.
+- Не выполнять HTTP при startup/composition.
+- Не реализовывать GuideShop verifier, events или notifications.
+- Не менять routes, DTO, UI texts или navigation semantics.
+- Не создавать пользователей при identity lookup.
+- Не логировать settings, token, key, identity или upstream payload.
 
 ## Definition of Done
 
-- Provider удовлетворяет существующему runtime-checkable protocol.
-- Каждый вызов создаёт новый signed token только для переданного trusted `guide_os_id`.
-- Header и claims точно соответствуют Stage 4C.
-- Invalid key/settings/identity fail before token return.
-- Tests независимо проверяют signature и все claims через public key.
-- Production runtime остаётся fail-closed и default-off.
+- Disabled and fake flows полностью backward compatible.
+- Real composition использует только validated existing components.
+- Каждый request получает client для trusted local `guide_os_id`.
+- Startup не выполняет token signing или network request.
+- Missing/malformed config fails safely before polling.
+- Focused/full tests проходят; без explicit real settings production остаётся выключенным.

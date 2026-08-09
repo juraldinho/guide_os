@@ -1,16 +1,87 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import os
+import re
 from typing import Mapping
 from urllib.parse import urlsplit
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 class GuideShopSettingsError(ValueError):
     pass
 
 
+class GuideShopJWTSigningSettingsError(GuideShopSettingsError):
+    pass
+
+
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}
+_APP_ENVIRONMENTS = {"development", "test", "staging", "production"}
+_JWT_KEY_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}\Z")
+_PKCS8_PEM_PATTERN = re.compile(
+    r"-----BEGIN PRIVATE KEY-----\n"
+    r"(?:[A-Za-z0-9+/]{1,64}\n)+"
+    r"-----END PRIVATE KEY-----(?:\n)?\Z"
+)
+
+
+@dataclass(frozen=True)
+class GuideShopJWTSigningSettings:
+    app_env: str
+    key_id: str
+    private_key_pem: str = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.app_env, str)
+            or self.app_env not in _APP_ENVIRONMENTS
+        ):
+            raise GuideShopJWTSigningSettingsError(
+                "Invalid GuideShop signing configuration"
+            )
+        if (
+            not isinstance(self.key_id, str)
+            or not self.key_id.isascii()
+            or _JWT_KEY_ID_PATTERN.fullmatch(self.key_id) is None
+        ):
+            raise GuideShopJWTSigningSettingsError(
+                "Invalid GuideShop signing configuration"
+            )
+        if (
+            not isinstance(self.private_key_pem, str)
+            or not self.private_key_pem
+            or not self.private_key_pem.isascii()
+            or _PKCS8_PEM_PATTERN.fullmatch(self.private_key_pem) is None
+        ):
+            raise GuideShopJWTSigningSettingsError(
+                "Invalid GuideShop signing configuration"
+            )
+        try:
+            private_key = serialization.load_pem_private_key(
+                self.private_key_pem.encode("ascii"), password=None
+            )
+        except Exception:
+            raise GuideShopJWTSigningSettingsError(
+                "Invalid GuideShop signing configuration"
+            ) from None
+        if not isinstance(private_key, Ed25519PrivateKey):
+            raise GuideShopJWTSigningSettingsError(
+                "Invalid GuideShop signing configuration"
+            )
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopJWTSigningSettings":
+        source = os.environ if values is None else values
+        return cls(
+            app_env=source.get("APP_ENV"),
+            key_id=source.get("GUIDESHOP_JWT_KEY_ID"),
+            private_key_pem=source.get("GUIDESHOP_JWT_PRIVATE_KEY"),
+        )
 
 
 def _read_flag(values: Mapping[str, str], name: str) -> bool:

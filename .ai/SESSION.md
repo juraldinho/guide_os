@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовка Guide OS EdDSA access-token provider без runtime activation.
+Подготовка default-off real GuideShop runtime composition.
 
 ## Завершённые этапы
 
@@ -19,6 +19,7 @@
 - Stage 4A — authenticated identity-bound read-only HTTP client foundation.
 - Stage 4B — request-scoped identity/client composition.
 - Stage 4C — asymmetric EdDSA service-auth contract.
+- Stage 4D — EdDSA access-token provider.
 
 ## Проверенное состояние
 
@@ -31,10 +32,13 @@
 - локальный fake smoke test успешен.
 - JWT profile: EdDSA, TTL 60 секунд, skew 10 секунд, strict audience/scope/identity validation;
 - staging и production key material полностью разделены.
+- signing settings принимают только Ed25519 PKCS#8 key;
+- provider выпускает strict 60-second identity-bound JWT;
+- full suite: `466 passed`.
 
 ## Следующее действие
 
-Stage 4D согласно `.ai/NEXT_TASK.md`: реализовать EdDSA access-token provider без bot/runtime activation.
+Stage 4E согласно `.ai/NEXT_TASK.md`: собрать default-off real runtime из identity lookup, token provider и HTTP client.
 
 ## Production gate
 
