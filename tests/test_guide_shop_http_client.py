@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 import pytest
+from dataclasses import FrozenInstanceError
 
 import services.guide_shop_client as client_module
 from services.guide_shop_client import (
@@ -110,18 +111,46 @@ def detail_envelope(item):
     }
 
 
+class FakeContent:
+    def __init__(self, body):
+        self._body = body
+        self._position = 0
+        self.read_calls = []
+        self.total_returned = 0
+
+    async def read(self, size):
+        self.read_calls.append(size)
+        chunk = self._body[self._position : self._position + size]
+        self._position += len(chunk)
+        self.total_returned += len(chunk)
+        return chunk
+
+
+_DECLARED_LENGTH = object()
+
+
 class FakeResponse:
-    def __init__(self, status=200, payload=None, *, body=None, headers=None):
+    def __init__(
+        self,
+        status=200,
+        payload=None,
+        *,
+        body=None,
+        headers=None,
+        content_length=_DECLARED_LENGTH,
+    ):
         self.status = status
         self.headers = headers or {}
         self._body = (
             json.dumps(payload).encode("utf-8") if body is None else body
         )
-        self.content_length = len(self._body)
+        self.content_length = (
+            len(self._body)
+            if content_length is _DECLARED_LENGTH
+            else content_length
+        )
+        self.content = FakeContent(self._body)
         self.release = Mock()
-
-    async def read(self):
-        return self._body
 
 
 class FakeSession:
@@ -232,6 +261,89 @@ def test_settings_are_immutable_bounded_and_store_no_secret():
     assert "private-token" not in repr(parsed)
     with pytest.raises(Exception):
         parsed.base_url = "https://changed.example"
+
+
+@pytest.mark.parametrize("app_env", ["", "unknown", "qa", None, 123])
+def test_direct_settings_reject_invalid_environment(app_env):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(
+            base_url="https://api.example.com",
+            app_env=app_env,
+        )
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production"])
+def test_direct_settings_cannot_bypass_https_enforcement(app_env):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(
+            base_url="http://api.example.com",
+            app_env=app_env,
+        )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "",
+        " https://api.example.com",
+        "https://user:pass@api.example.com",
+        "https://api.example.com/path",
+        "https://api.example.com?query=value",
+        "https://api.example.com#fragment",
+        "https://api.example.com:bad",
+    ],
+)
+def test_direct_settings_cannot_bypass_url_validation(base_url):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(base_url=base_url, app_env="test")
+
+
+@pytest.mark.parametrize("timeout", [True, False, 0, -1, 61, float("nan"), "5"])
+def test_direct_settings_cannot_bypass_timeout_bounds(timeout):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(
+            base_url="https://api.example.com",
+            app_env="test",
+            request_timeout_seconds=timeout,
+        )
+
+
+@pytest.mark.parametrize("retries", [True, False, 0, -1, 6, 1.5, "2"])
+def test_direct_settings_cannot_bypass_retry_bounds(retries):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(
+            base_url="https://api.example.com",
+            app_env="test",
+            max_retries=retries,
+        )
+
+
+@pytest.mark.parametrize(
+    "retry_after", [True, False, 0, -1, 61, float("inf"), "5"]
+)
+def test_direct_settings_cannot_bypass_retry_after_bounds(retry_after):
+    with pytest.raises(GuideShopSettingsError):
+        GuideShopHTTPSettings(
+            base_url="https://api.example.com",
+            app_env="test",
+            max_retry_after_seconds=retry_after,
+        )
+
+
+def test_direct_settings_normalize_consistently_and_remain_immutable():
+    parsed = GuideShopHTTPSettings(
+        base_url="https://api.example.com/",
+        app_env="TEST",
+        request_timeout_seconds=5,
+        max_retries=2,
+        max_retry_after_seconds=3,
+    )
+    assert parsed.base_url == "https://api.example.com"
+    assert parsed.app_env == "test"
+    assert parsed.request_timeout_seconds == 5.0
+    assert parsed.max_retry_after_seconds == 3.0
+    with pytest.raises(FrozenInstanceError):
+        parsed.app_env = "production"
 
 
 def test_client_construction_binds_identity_and_performs_no_http():
@@ -459,15 +571,67 @@ def test_timeout_and_connection_failures_retry_with_bound(failure):
     [
         FakeResponse(body=b"not-json"),
         FakeResponse(payload={"wrong": "shape"}),
-        FakeResponse(body=b"x" * 1_000_001),
     ],
 )
-def test_invalid_json_contract_and_oversized_responses_are_rejected(response):
+def test_invalid_json_and_contract_responses_are_rejected(response):
     session = FakeSession([response])
     client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
     with pytest.raises(GuideShopClientError, match="Invalid GuideShop response"):
         run(client.list_companies())
     assert len(session.requests) == 1
+
+
+def test_oversized_declared_content_length_is_rejected_before_body_read():
+    response = FakeResponse(
+        body=b"private-body",
+        content_length=1_000_001,
+    )
+    session = FakeSession([response, FakeResponse(payload=list_envelope(company_payload()))])
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+    with pytest.raises(GuideShopClientError, match="Invalid GuideShop response"):
+        run(client.list_companies())
+    assert response.content.read_calls == []
+    response.release.assert_called_once_with()
+    assert len(session.requests) == 1
+
+
+@pytest.mark.parametrize("declared_length", [None, "malformed", 1])
+def test_oversized_undeclared_or_dishonest_response_stops_at_detection_byte(
+    declared_length,
+):
+    private_body = b"private-object-id-guide-id-token" + b"x" * 1_000_100
+    response = FakeResponse(
+        body=private_body,
+        content_length=declared_length,
+    )
+    session = FakeSession([response, FakeResponse(payload=list_envelope(company_payload()))])
+    client = HTTPGuideShopClient(
+        settings(), "private-guide-id", TokenProvider("private-token"), session=session
+    )
+    with pytest.raises(GuideShopClientError) as error:
+        run(client.get_visit("private-object-id"))
+    assert response.content.total_returned == 1_000_001
+    assert max(response.content.read_calls) <= 65_536
+    response.release.assert_called_once_with()
+    assert len(session.requests) == 1
+    for private_value in (
+        "private-object-id",
+        "private-guide-id",
+        "private-token",
+    ):
+        assert private_value not in str(error.value)
+
+
+def test_exactly_at_limit_contract_valid_response_is_accepted():
+    encoded = json.dumps(list_envelope(company_payload())).encode("utf-8")
+    body = encoded + b" " * (1_000_000 - len(encoded))
+    response = FakeResponse(body=body, content_length=None)
+    session = FakeSession([response])
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+    result = run(client.list_companies())
+    assert result.data[0].company_id == "company-1"
+    assert response.content.total_returned == 1_000_000
+    response.release.assert_called_once_with()
 
 
 def test_injected_session_is_not_closed_unless_ownership_is_explicit():

@@ -239,6 +239,29 @@ class HTTPGuideShopClient:
             )
         raise GuideShopClientError("GuideShop request failed")
 
+    @staticmethod
+    async def _read_bounded_response(response) -> bytes:
+        content_length = response.content_length
+        if (
+            isinstance(content_length, int)
+            and not isinstance(content_length, bool)
+            and content_length > _MAX_RESPONSE_BYTES
+        ):
+            raise GuideShopClientError("Invalid GuideShop response")
+
+        body = bytearray()
+        while len(body) <= _MAX_RESPONSE_BYTES:
+            remaining_with_detection = _MAX_RESPONSE_BYTES + 1 - len(body)
+            chunk = await response.content.read(
+                min(65_536, remaining_with_detection)
+            )
+            if not chunk:
+                return bytes(body)
+            body.extend(chunk)
+            if len(body) > _MAX_RESPONSE_BYTES:
+                raise GuideShopClientError("Invalid GuideShop response")
+        raise GuideShopClientError("Invalid GuideShop response")
+
     async def _request(
         self,
         path: str,
@@ -260,9 +283,7 @@ class HTTPGuideShopClient:
                     "GET", url, params=params, headers=headers
                 )
                 if 200 <= response.status < 300:
-                    body = await response.read()
-                    if len(body) > _MAX_RESPONSE_BYTES:
-                        raise GuideShopClientError("Invalid GuideShop response")
+                    body = await self._read_bounded_response(response)
                     try:
                         payload = json.loads(body.decode("utf-8"))
                         return response_type.model_validate(payload)

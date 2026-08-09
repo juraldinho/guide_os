@@ -73,8 +73,8 @@ class GuideShopRuntimeSettings:
         return cls(use_fake=use_fake)
 
 
-def _read_bounded_float(
-    values: Mapping[str, str], name: str, default: float, maximum: float
+def _read_float(
+    values: Mapping[str, str], name: str, default: float
 ) -> float:
     raw_value = values.get(name)
     if raw_value is None:
@@ -85,13 +85,11 @@ def _read_bounded_float(
         value = float(raw_value)
     except ValueError as exc:
         raise GuideShopSettingsError(f"Invalid value for {name}") from exc
-    if not math.isfinite(value) or value <= 0 or value > maximum:
-        raise GuideShopSettingsError(f"Invalid value for {name}")
     return value
 
 
-def _read_bounded_int(
-    values: Mapping[str, str], name: str, default: int, maximum: int
+def _read_int(
+    values: Mapping[str, str], name: str, default: int
 ) -> int:
     raw_value = values.get(name)
     if raw_value is None:
@@ -102,7 +100,7 @@ def _read_bounded_int(
         value = int(raw_value)
     except ValueError as exc:
         raise GuideShopSettingsError(f"Invalid value for {name}") from exc
-    if str(value) != raw_value or value <= 0 or value > maximum:
+    if str(value) != raw_value:
         raise GuideShopSettingsError(f"Invalid value for {name}")
     return value
 
@@ -110,16 +108,19 @@ def _read_bounded_int(
 @dataclass(frozen=True)
 class GuideShopHTTPSettings:
     base_url: str
+    app_env: str
     request_timeout_seconds: float = 10.0
     max_retries: int = 2
     max_retry_after_seconds: float = 10.0
 
-    @classmethod
-    def from_env(
-        cls, values: Mapping[str, str] | None = None
-    ) -> "GuideShopHTTPSettings":
-        source = os.environ if values is None else values
-        base_url = source.get("GUIDESHOP_API_BASE_URL")
+    def __post_init__(self) -> None:
+        if not isinstance(self.app_env, str):
+            raise GuideShopSettingsError("Invalid APP_ENV for GuideShop HTTP")
+        normalized_env = self.app_env.casefold()
+        if normalized_env not in {"development", "test", "staging", "production"}:
+            raise GuideShopSettingsError("Invalid APP_ENV for GuideShop HTTP")
+
+        base_url = self.base_url
         if (
             not isinstance(base_url, str)
             or not base_url
@@ -149,30 +150,62 @@ class GuideShopHTTPSettings:
             )
         ):
             raise GuideShopSettingsError("Invalid GuideShop API base URL")
-
-        app_env = source.get("APP_ENV")
-        if not isinstance(app_env, str):
-            raise GuideShopSettingsError("APP_ENV is required for GuideShop HTTP")
-        normalized_env = app_env.casefold()
-        if normalized_env not in {"development", "test", "staging", "production"}:
-            raise GuideShopSettingsError("Invalid APP_ENV for GuideShop HTTP")
         if normalized_env in {"staging", "production"} and parsed.scheme != "https":
             raise GuideShopSettingsError("HTTPS is required for GuideShop HTTP")
         if parsed.scheme == "http" and normalized_env not in {"development", "test"}:
             raise GuideShopSettingsError("HTTP is not allowed for GuideShop HTTP")
 
+        timeout = self.request_timeout_seconds
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+            or timeout > 60
+        ):
+            raise GuideShopSettingsError("Invalid GuideShop request timeout")
+        if (
+            isinstance(self.max_retries, bool)
+            or not isinstance(self.max_retries, int)
+            or self.max_retries <= 0
+            or self.max_retries > 5
+        ):
+            raise GuideShopSettingsError("Invalid GuideShop retry count")
+        retry_after = self.max_retry_after_seconds
+        if (
+            isinstance(retry_after, bool)
+            or not isinstance(retry_after, (int, float))
+            or not math.isfinite(retry_after)
+            or retry_after <= 0
+            or retry_after > 60
+        ):
+            raise GuideShopSettingsError("Invalid GuideShop Retry-After limit")
+
+        object.__setattr__(self, "app_env", normalized_env)
+        object.__setattr__(self, "base_url", base_url.rstrip("/"))
+        object.__setattr__(self, "request_timeout_seconds", float(timeout))
+        object.__setattr__(self, "max_retry_after_seconds", float(retry_after))
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopHTTPSettings":
+        source = os.environ if values is None else values
+        base_url = source.get("GUIDESHOP_API_BASE_URL")
+        app_env = source.get("APP_ENV")
+
         return cls(
-            base_url=base_url.rstrip("/"),
-            request_timeout_seconds=_read_bounded_float(
-                source, "GUIDESHOP_API_TIMEOUT_SECONDS", 10.0, 60.0
+            base_url=base_url,
+            app_env=app_env,
+            request_timeout_seconds=_read_float(
+                source, "GUIDESHOP_API_TIMEOUT_SECONDS", 10.0
             ),
-            max_retries=_read_bounded_int(
-                source, "GUIDESHOP_API_MAX_RETRIES", 2, 5
+            max_retries=_read_int(
+                source, "GUIDESHOP_API_MAX_RETRIES", 2
             ),
-            max_retry_after_seconds=_read_bounded_float(
+            max_retry_after_seconds=_read_float(
                 source,
                 "GUIDESHOP_API_MAX_RETRY_AFTER_SECONDS",
                 10.0,
-                60.0,
             ),
         )
