@@ -4,11 +4,11 @@
 
 ## Единственная следующая задача
 
-Stage 4E — реализовать default-off real GuideShop runtime composition в Guide OS.
+Stage 4A — финальная подзадача: реализовать default-off real GuideShop runtime composition в Guide OS.
 
 ## Цель
 
-Соединить trusted identity lookup, Stage 4D token provider, Stage 4A HTTP client и Stage 4B request-scoped service provider без включения production flags по умолчанию.
+Соединить trusted identity lookup, EdDSA token provider, HTTP client и request-scoped service provider без включения production flags по умолчанию.
 
 ## Требуемый результат
 
@@ -18,7 +18,7 @@ Stage 4E — реализовать default-off real GuideShop runtime compositi
 - shared stateless token provider и новый identity-bound HTTP client на request;
 - identity lookup использует существующий read-only `get_guide_os_id`;
 - configuration failures fail-closed без secret leakage;
-- client lifecycle управляется Stage 4B provider;
+- client lifecycle управляется существующим request-scoped provider;
 - production remains disabled until explicit flags and valid secrets are supplied.
 
 ## Ограничения

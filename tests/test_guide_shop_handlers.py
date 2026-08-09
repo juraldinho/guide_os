@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 import bot as bot_module
 import handlers.guide_shop as handler_module
@@ -23,7 +25,6 @@ from handlers.guide_shop import (
     router,
 )
 from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
-from services.guide_shop_client import GuideShopClientError
 from services.guide_shop_contracts import PointsStatus
 from services.guide_shop_navigation import (
     GuideShopRoute,
@@ -38,6 +39,7 @@ from services.guide_shop_navigation import (
 )
 from services.guide_shop_settings import (
     GuideShopFeatureFlags,
+    GuideShopJWTSigningSettingsError,
     GuideShopRuntimeSettings,
     GuideShopSettingsError,
 )
@@ -87,6 +89,25 @@ def callback(raw_token="gs_token", user_id=101):
         ),
         answer=AsyncMock(),
     )
+
+
+def real_environment(private_key_pem):
+    return {
+        "GUIDESHOP_READS_ENABLED": "true",
+        "APP_ENV": "test",
+        "GUIDESHOP_API_BASE_URL": "https://guideshop.test",
+        "GUIDESHOP_JWT_KEY_ID": "guide-os.test-1",
+        "GUIDESHOP_JWT_PRIVATE_KEY": private_key_pem,
+    }
+
+
+@pytest.fixture
+def ephemeral_private_key_pem():
+    return Ed25519PrivateKey.generate().private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode("ascii")
 
 
 def test_fake_setting_defaults_off_and_existing_flags_are_unchanged():
@@ -330,15 +351,38 @@ def test_callback_filter_does_not_claim_non_navigation_data():
     assert matched
 
 
-def test_composition_default_off_avoids_fake_and_factory(monkeypatch):
+def test_composition_default_off_ignores_real_settings_and_clears_provider(monkeypatch):
     fake = Mock(side_effect=AssertionError("fake instantiated"))
-    factory = Mock(side_effect=AssertionError("factory called"))
+    http_settings = Mock(side_effect=AssertionError("HTTP settings parsed"))
+    signing_settings = Mock(side_effect=AssertionError("JWT settings parsed"))
+    token_provider = Mock(side_effect=AssertionError("token provider created"))
+    http_client = Mock(side_effect=AssertionError("HTTP client created"))
     monkeypatch.setattr(bot_module, "InMemoryGuideShopClient", fake)
-    monkeypatch.setattr(bot_module, "build_guide_shop_client", factory)
-    bot_module.configure_guide_shop_runtime({})
+    monkeypatch.setattr(bot_module.GuideShopHTTPSettings, "from_env", http_settings)
+    monkeypatch.setattr(
+        bot_module.GuideShopJWTSigningSettings, "from_env", signing_settings
+    )
+    monkeypatch.setattr(bot_module, "GuideShopJWTAccessTokenProvider", token_provider)
+    monkeypatch.setattr(bot_module, "HTTPGuideShopClient", http_client)
+
+    configure_guide_shop_ui(HomeService(), reads_enabled=True)
+    bot_module.configure_guide_shop_runtime(
+        {
+            "APP_ENV": "private-invalid",
+            "GUIDESHOP_USE_FAKE": "private-invalid",
+            "GUIDESHOP_API_BASE_URL": "private-invalid",
+            "GUIDESHOP_JWT_PRIVATE_KEY": "private-invalid",
+        }
+    )
     fake.assert_not_called()
-    factory.assert_not_called()
+    http_settings.assert_not_called()
+    signing_settings.assert_not_called()
+    token_provider.assert_not_called()
+    http_client.assert_not_called()
     assert "🛍 GuideShop" not in sum(menu_texts(get_main_menu()), [])
+    msg = message()
+    run(open_guide_shop(msg))
+    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
 
 
 def test_composition_explicit_development_fake_uses_empty_data(monkeypatch):
@@ -364,14 +408,143 @@ def test_composition_explicit_development_fake_uses_empty_data(monkeypatch):
     configured.assert_called_once_with(ui.return_value, reads_enabled=True)
 
 
-def test_composition_reads_without_fake_fails_safely(monkeypatch):
-    factory = Mock(side_effect=GuideShopClientError("not configured"))
-    monkeypatch.setattr(bot_module, "build_guide_shop_client", factory)
-    with pytest.raises(GuideShopClientError, match="not configured"):
+def test_fake_composition_does_not_parse_or_require_real_settings(monkeypatch):
+    monkeypatch.setattr(
+        bot_module.GuideShopHTTPSettings,
+        "from_env",
+        Mock(side_effect=AssertionError("HTTP settings parsed")),
+    )
+    monkeypatch.setattr(
+        bot_module.GuideShopJWTSigningSettings,
+        "from_env",
+        Mock(side_effect=AssertionError("JWT settings parsed")),
+    )
+    bot_module.configure_guide_shop_runtime(
+        {
+            "GUIDESHOP_READS_ENABLED": "true",
+            "GUIDESHOP_USE_FAKE": "true",
+            "APP_ENV": "test",
+        }
+    )
+
+
+def test_composition_reads_without_fake_rejects_missing_configuration_and_clears():
+    configure_guide_shop_ui(HomeService(), reads_enabled=True)
+    with pytest.raises(GuideShopSettingsError):
         bot_module.configure_guide_shop_runtime(
             {"GUIDESHOP_READS_ENABLED": "true"}
         )
-    factory.assert_called_once()
+    msg = message()
+    run(open_guide_shop(msg))
+    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+
+
+class ComposedClient:
+    def __init__(self, settings, identity, token_provider):
+        self.settings = settings
+        self.identity = identity
+        self.token_provider = token_provider
+        self.close_calls = 0
+
+    async def close(self): self.close_calls += 1
+    async def list_companies(self): raise AssertionError("unused")
+    async def list_visits(self, cursor=None): raise AssertionError("unused")
+    async def get_visit(self, visit_id): raise AssertionError("unused")
+    async def list_sales(self, cursor=None): raise AssertionError("unused")
+    async def get_sale(self, sale_id): raise AssertionError("unused")
+    async def list_points(self, status=None, cursor=None): raise AssertionError("unused")
+    async def get_points_transaction(self, points_transaction_id): raise AssertionError("unused")
+    async def list_history(self, cursor=None): raise AssertionError("unused")
+
+
+def test_valid_real_composition_is_lazy_isolated_and_uses_trusted_lookup(
+    monkeypatch, ephemeral_private_key_pem
+):
+    identity_lookup = Mock(
+        side_effect=lambda user_id: {101: "guide-a", 202: "guide-b"}[user_id]
+    )
+    token_provider = SimpleNamespace(get_access_token=AsyncMock())
+    token_provider_factory = Mock(return_value=token_provider)
+    http_client_factory = Mock(side_effect=ComposedClient)
+    configured = Mock()
+    monkeypatch.setattr(bot_module, "get_guide_os_id", identity_lookup)
+    monkeypatch.setattr(
+        bot_module, "GuideShopJWTAccessTokenProvider", token_provider_factory
+    )
+    monkeypatch.setattr(bot_module, "HTTPGuideShopClient", http_client_factory)
+    monkeypatch.setattr(bot_module, "configure_guide_shop_provider", configured)
+
+    bot_module.configure_guide_shop_runtime(
+        real_environment(ephemeral_private_key_pem)
+    )
+
+    token_provider_factory.assert_called_once()
+    http_client_factory.assert_not_called()
+    identity_lookup.assert_not_called()
+    assert configured.call_count == 2
+    assert configured.call_args_list[0].args == (None,)
+    assert configured.call_args_list[0].kwargs == {"reads_enabled": False}
+    provider = configured.call_args_list[1].args[0]
+    assert configured.call_args_list[1].kwargs == {"reads_enabled": True}
+
+    async def exercise():
+        clients = []
+        for user_id in (101, 202, 101):
+            async with provider.service_for(user_id) as service:
+                clients.append(service._client)
+        return clients
+
+    clients = run(exercise())
+    assert [client.identity for client in clients] == ["guide-a", "guide-b", "guide-a"]
+    assert len({id(client) for client in clients}) == 3
+    assert [client.close_calls for client in clients] == [1, 1, 1]
+    assert [called.args[0] for called in identity_lookup.call_args_list] == [101, 202, 101]
+    assert all(client.token_provider is token_provider for client in clients)
+    assert len({id(client.settings) for client in clients}) == 1
+
+
+def test_real_composition_startup_has_no_request_side_effects(
+    monkeypatch, ephemeral_private_key_pem
+):
+    identity_lookup = Mock(side_effect=AssertionError("identity lookup"))
+    token_provider = SimpleNamespace(
+        get_access_token=AsyncMock(side_effect=AssertionError("token signing"))
+    )
+    http_client = Mock(side_effect=AssertionError("HTTP client"))
+    navigation = Mock(side_effect=AssertionError("navigation token"))
+    network = Mock(side_effect=AssertionError("network"))
+    monkeypatch.setattr(bot_module, "get_guide_os_id", identity_lookup)
+    monkeypatch.setattr(
+        bot_module, "GuideShopJWTAccessTokenProvider", Mock(return_value=token_provider)
+    )
+    monkeypatch.setattr(bot_module, "HTTPGuideShopClient", http_client)
+    monkeypatch.setattr(
+        "services.guide_shop_navigation.create_navigation_token", navigation
+    )
+    monkeypatch.setattr(socket, "create_connection", network)
+
+    bot_module.configure_guide_shop_runtime(real_environment(ephemeral_private_key_pem))
+    identity_lookup.assert_not_called()
+    token_provider.get_access_token.assert_not_awaited()
+    http_client.assert_not_called()
+    navigation.assert_not_called()
+    network.assert_not_called()
+
+
+def test_real_configuration_error_is_safe_and_has_no_fallback(
+    caplog, ephemeral_private_key_pem
+):
+    private_value = "private-key-route-token-value"
+    values = real_environment(ephemeral_private_key_pem)
+    values["GUIDESHOP_JWT_PRIVATE_KEY"] = private_value
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(GuideShopJWTSigningSettingsError) as error:
+            bot_module.configure_guide_shop_runtime(values)
+    assert private_value not in str(error.value)
+    assert private_value not in caplog.text
+    msg = message()
+    run(open_guide_shop(msg))
+    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
 
 
 def test_guide_shop_router_is_registered_before_errors_router():

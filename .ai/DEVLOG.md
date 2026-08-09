@@ -142,7 +142,7 @@
 
 Остаточный риск: token consumes до отправки Telegram screen; при ошибке доставки требуется новая ссылка или повторный вход в GuideShop.
 
-## 2026-08-09 — Stage 4A завершён
+## 2026-08-09 — Stage 4A: HTTP client foundation
 
 Выполнено:
 
@@ -160,7 +160,7 @@
 
 Открытая зависимость: production composition требует реального GuideShop access-token provider и доступного Integration API.
 
-## 2026-08-09 — Stage 4B завершён
+## 2026-08-09 — Stage 4A: request-scoped identity composition
 
 Выполнено:
 
@@ -177,7 +177,7 @@
 
 Открытая зависимость: выбор service authentication и реальный access-token provider остаются обязательными до production composition.
 
-## 2026-08-09 — Stage 4C завершён
+## 2026-08-09 — Stage 4A: service authentication contract
 
 Документально утверждён production service-auth contract:
 
@@ -192,7 +192,7 @@
 
 Этап документальный: исходный код не менялся, автоматические и ручные тесты не требовались.
 
-## 2026-08-09 — Stage 4D завершён
+## 2026-08-09 — Stage 4A: EdDSA access-token provider
 
 Выполнено:
 
@@ -202,7 +202,7 @@
 - private key исключён из repr/equality diagnostics и safe errors;
 - async provider реализует существующий `GuideShopAccessTokenProvider`;
 - каждый вызов выпускает новый EdDSA token для canonical UUID4 `guide_os_id`;
-- header и claims точно соответствуют Stage 4C, TTL равен 60 секундам;
+- header и claims точно соответствуют утверждённому Stage 4A auth contract, TTL равен 60 секундам;
 - `jti` содержит 128 bits injected cryptographic randomness;
 - clock/randomness injectable и строго валидируются;
 - tests независимо проверяют signature через ephemeral public key;

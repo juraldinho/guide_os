@@ -16,10 +16,9 @@
 - Stage 3C1 — presentation/keyboards;
 - Stage 3C2 — feature-gated mock Telegram UI.
 - Stage 3D — user-bound `/start` deep links и development smoke helper.
-- Stage 4A — authenticated identity-bound read-only HTTP client foundation.
-- Stage 4B — request-scoped identity/client composition.
-- Stage 4C — asymmetric EdDSA service-auth contract.
-- Stage 4D — EdDSA access-token provider.
+- Stage 4A выполнено: HTTP client, request-scoped identity composition, EdDSA auth contract и access-token provider.
+- Stage 4A осталось: default-off real runtime composition.
+- Stage 4B ещё не начат и требует GuideShop staging API на Mac Neo.
 
 ## Проверенное состояние
 
@@ -27,7 +26,7 @@
 - client/service не переиспользуются между requests или guides;
 - invalid runtime configuration fail-closed;
 - cleanup гарантирован при success/error/cancellation;
-- Stage 4B regression: `124 passed`;
+- request-scoped runtime regression: `124 passed`;
 - full suite: `420 passed`;
 - локальный fake smoke test успешен.
 - JWT profile: EdDSA, TTL 60 секунд, skew 10 секунд, strict audience/scope/identity validation;
@@ -38,7 +37,7 @@
 
 ## Следующее действие
 
-Stage 4E согласно `.ai/NEXT_TASK.md`: собрать default-off real runtime из identity lookup, token provider и HTTP client.
+Финальная подзадача Stage 4A согласно `.ai/NEXT_TASK.md`: собрать default-off real runtime из identity lookup, token provider и HTTP client.
 
 ## Production gate
 

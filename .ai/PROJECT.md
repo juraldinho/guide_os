@@ -4,7 +4,7 @@
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4D завершены. Identity, contracts, UI/navigation, production-safe HTTP client, request-scoped composition, service-auth contract и EdDSA token provider готовы; real runtime composition и GuideShop verifier ещё не реализованы.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–3D завершены; Stage 4A находится на финальной подзадаче. Identity, contracts, UI/navigation, HTTP client, request-scoped composition, service-auth contract и EdDSA token provider готовы; default-off real runtime composition ещё не реализована.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -177,11 +177,10 @@ GuideShop должен оставаться источником истины д
 - HTML экранируется, Decimal values не пересчитываются, list actions различимы ordinal labels.
 - Stage 3C2: mock-backed Telegram entry и callback dispatch доступны через explicit development flags.
 - Stage 3D: реализованы строгие user-bound single-use `/start` deep links и development-only smoke helper.
-- Stage 4A: реализован identity-bound authenticated async HTTP client для `/integration/v1/me/...` с typed validation, bounded retries и bounded response reading.
-- Stage 4B: реализована request-scoped композиция `telegram_user_id -> guide_os_id -> isolated client`, включая deterministic cleanup и fail-closed configuration validation.
-- Stage 4C: утверждён asymmetric Ed25519/EdDSA JWT profile с strict claims, 60-second TTL, rotation/revocation и environment separation.
-- Stage 4D: реализован strict Ed25519 signing settings и async identity-bound JWT provider без runtime activation.
-- Real runtime composition, GuideShop verifier/API availability, события и production activation ещё не реализованы.
+- Stage 4A: реализованы identity-bound HTTP client, request-scoped composition, Ed25519/EdDSA auth contract и async token provider.
+- Stage 4A не закрыт до завершения default-off real runtime composition.
+- Stage 4B начнётся только после появления GuideShop staging API на Mac Neo.
+- GuideShop verifier/API availability, события и production activation ещё не реализованы.
 
 ## Readiness checklist перед production-интеграцией
 

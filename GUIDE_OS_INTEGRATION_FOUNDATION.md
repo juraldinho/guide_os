@@ -870,7 +870,7 @@ Runbook должен описывать:
 
 Остаточный риск: navigation token consumes до отправки Telegram screen; при ошибке доставки требуется выпустить новую ссылку или заново открыть GuideShop.
 
-### Stage 4A — authenticated read-only HTTP client foundation
+### Stage 4A — internal subtask: authenticated read-only HTTP client
 
 **Статус:** Completed and verified 2026-08-09.
 
@@ -887,7 +887,7 @@ Runbook должен описывать:
 
 Открытая зависимость: реальный GuideShop access-token provider, доступность Integration API и staging composition ещё не реализованы.
 
-### Stage 4B — request-scoped identity composition
+### Stage 4A — internal subtask: request-scoped identity composition
 
 **Статус:** Completed and verified 2026-08-09.
 
@@ -905,7 +905,7 @@ Runbook должен описывать:
 
 Открытая зависимость: service-auth contract и реальный access-token provider должны быть утверждены до staging/production composition.
 
-### Stage 4C — service authentication contract
+### Stage 4A — internal subtask: service authentication contract
 
 **Статус:** Completed and approved 2026-08-09.
 
@@ -917,11 +917,11 @@ Runbook должен описывать:
 - Определены overlap rotation, emergency revocation, feature-flag rollback и staging bootstrap gate.
 - Private keys и реальные token examples запрещены в repository и логах.
 
-Следующая реализационная задача Guide OS: Stage 4D — EdDSA access-token provider с injectable clock/randomness и без runtime activation.
+Следующая внутренняя реализационная задача Guide OS: EdDSA access-token provider с injectable clock/randomness и без runtime activation.
 
 Будущая задача GuideShop на Mac Neo: verifier middleware для того же profile, public-key allowlist, active-link resolution и negative security tests.
 
-### Stage 4D — Guide OS EdDSA access-token provider
+### Stage 4A — internal subtask: Guide OS EdDSA access-token provider
 
 **Статус:** Completed and verified 2026-08-09.
 
@@ -930,13 +930,19 @@ Runbook должен описывать:
 - Private key исключён из repr/equality diagnostics, errors, logs и persistence.
 - Async provider реализует существующий Stage 4A token-provider protocol.
 - Identity принимается только как canonical lowercase UUID4.
-- Каждый вызов выпускает новый token с точными Stage 4C header/claims, TTL 60 секунд и 128-bit random `jti`.
+- Каждый вызов выпускает новый token с точными утверждёнными auth header/claims, TTL 60 секунд и 128-bit random `jti`.
 - UTC clock и randomness injectable; malformed dependency output fail-closed.
 - Ephemeral tests независимо проверяют public-key signature, tampering, expiry, issuer и audience.
 - Runtime activation, реальные keys/tokens, database и network side effects отсутствуют.
 - Проверка: auth/HTTP/runtime `188 passed`; full suite `466 passed`; `git diff --check` clean.
 
 Открытая зависимость: default-off real runtime composition и GuideShop-side verifier/API ещё не реализованы.
+
+### Каноническая граница Stage 4
+
+- Stage 4A закрывается только после default-off real runtime composition в Guide OS.
+- Stage 4B означает только read-only подключение к реальному GuideShop staging API: Companies, Visits, Sales, balance и points history.
+- Stage 4B не начат и заблокирован до реализации GuideShop API/verifier на Mac Neo.
 
 ### Track A — можно начать немедленно
 

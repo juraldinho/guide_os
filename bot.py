@@ -24,6 +24,7 @@ from handlers.add_tour import router as add_tour_router
 from handlers.calendar import router as calendar_router
 from handlers.income import router as income_router
 from database.db import init_db
+from database.queries import get_guide_os_id
 from handlers import stats
 from handlers import errors
 from handlers.check_date import router as check_date_router
@@ -31,16 +32,21 @@ from handlers.tour_cards import router as tour_cards_router
 from handlers.tour_edits import router as tour_edits_router
 from handlers.profile import router as profile_router
 from handlers.guide_shop import (
+    configure_guide_shop_provider,
     configure_guide_shop_ui,
     router as guide_shop_router,
 )
 from keyboards.main_menu import configure_guide_shop_menu
 from services.guide_shop_client import (
+    HTTPGuideShopClient,
     InMemoryGuideShopClient,
-    build_guide_shop_client,
 )
+from services.guide_shop_auth import GuideShopJWTAccessTokenProvider
+from services.guide_shop_runtime import RequestScopedGuideShopUIServiceProvider
 from services.guide_shop_settings import (
     GuideShopFeatureFlags,
+    GuideShopHTTPSettings,
+    GuideShopJWTSigningSettings,
     GuideShopRuntimeSettings,
 )
 from services.guide_shop_ui import GuideShopUIService
@@ -51,14 +57,14 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 
 def configure_guide_shop_runtime(values=None) -> None:
+    configure_guide_shop_provider(None, reads_enabled=False)
     flags = GuideShopFeatureFlags.from_env(values)
-    runtime = GuideShopRuntimeSettings.from_env(values)
     configure_guide_shop_menu(flags.reads_enabled)
 
     if not flags.reads_enabled:
-        configure_guide_shop_ui(None, reads_enabled=False)
         return
 
+    runtime = GuideShopRuntimeSettings.from_env(values)
     if runtime.use_fake:
         client = InMemoryGuideShopClient(
             companies=(),
@@ -67,11 +73,25 @@ def configure_guide_shop_runtime(values=None) -> None:
             points=(),
             points_history=(),
         )
-    else:
-        client = build_guide_shop_client(flags)
+        configure_guide_shop_ui(
+            GuideShopUIService(client),
+            reads_enabled=True,
+        )
+        return
 
-    configure_guide_shop_ui(
-        GuideShopUIService(client),
+    http_settings = GuideShopHTTPSettings.from_env(values)
+    signing_settings = GuideShopJWTSigningSettings.from_env(values)
+    token_provider = GuideShopJWTAccessTokenProvider(signing_settings)
+    provider = RequestScopedGuideShopUIServiceProvider(
+        get_guide_os_id,
+        lambda guide_os_id: HTTPGuideShopClient(
+            http_settings,
+            guide_os_id,
+            token_provider,
+        ),
+    )
+    configure_guide_shop_provider(
+        provider,
         reads_enabled=True,
     )
 
