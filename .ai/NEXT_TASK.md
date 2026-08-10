@@ -4,34 +4,36 @@
 
 ## Единственная следующая задача
 
-Подготовительный quality gate — воспроизводимое окружение Guide OS.
+Подготовительный quality gate — continuous integration для Guide OS.
 
 ## Цель
 
-Документировать безопасную установку и конфигурацию текущего Guide OS без изменения runtime behavior и без добавления секретов.
+Проверять clean checkout Guide OS на каждом push/PR без Telegram, production secrets или GuideShop API.
 
 ## Требуемый результат
 
-- sanitized `.env.example` со всеми обязательными и optional переменными;
-- GuideShop flags default-off и без реальных token/key values;
-- зафиксированная версия Python 3.13.1 для текущего Guide OS runtime;
-- README-инструкция создания `venv`, установки requirements, тестов и запуска;
-- явное различие текущего Mac, Railway и Mac Neo paths/environments;
-- проверка, что clean configuration не раскрывает secrets и не включает GuideShop.
+- минимальный GitHub Actions workflow;
+- Python 3.13.1;
+- dependency install из `requirements.txt`;
+- полный `pytest -q` на clean checkout;
+- dependency consistency/import verification;
+- pip cache без repository secrets;
+- concurrency cancellation для устаревших runs;
+- no deployment, Telegram polling или GuideShop network calls.
 
 ## Ограничения
 
-- Не менять Python runtime logic.
-- Не добавлять реальные BOT_TOKEN, ADMIN_ID, JWT keys или API URLs.
-- Не включать GuideShop flags по умолчанию.
-- Не добавлять machine-specific absolute paths.
-- Не объявлять Mac Neo `venv` дефектом текущего Mac.
+- Не менять Python runtime logic и tests ради CI.
+- Не добавлять repository secrets или `.env`.
+- Не запускать `bot.py`.
+- Не выполнять deployment/push в Railway.
 - Не добавлять GuideShop API, events или notifications.
+- Не вводить lint/type gates, которых проект пока не использует.
 
 ## Definition of Done
 
-- Новый developer может создать окружение из repository instructions.
-- `.env.example` содержит только placeholders и safe defaults.
-- Python version одинаково зафиксирована для local/CI deployment guidance.
-- Existing imports/tests проходят без изменений runtime logic.
+- Workflow запускается на push и pull request.
+- Clean checkout устанавливает pinned dependencies и выполняет полный suite.
+- CI не требует BOT_TOKEN или других secrets.
+- Workflow не запускает Telegram/network/deployment behavior.
 - Stage 4B остаётся заблокированным до GuideShop staging API/verifier.

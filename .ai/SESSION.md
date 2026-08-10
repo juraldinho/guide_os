@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовительный quality gate Guide OS: воспроизводимое окружение и безопасная документация конфигурации.
+Подготовительный quality gate Guide OS: continuous integration для clean-checkout test verification.
 
 ## Завершённые этапы
 
@@ -36,10 +36,13 @@
 - final Stage 4A regression: `232 passed`;
 - final full suite: `470 passed`;
 - ручной fake smoke test уже подтверждён владельцем.
+- `.env.example` default-off и не содержит secrets;
+- Python runtime зафиксирован как `3.13.1`;
+- documentation/full suite: `1 passed` / `471 passed`.
 
 ## Следующее действие
 
-Подготовительный quality gate согласно `.ai/NEXT_TASK.md`: `.env.example`, Python runtime pin и инструкция clean setup без изменения integration behavior.
+Подготовительный quality gate согласно `.ai/NEXT_TASK.md`: минимальный GitHub Actions CI для Python 3.13.1 и полного test suite.
 
 ## Production gate
 

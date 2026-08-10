@@ -956,6 +956,16 @@ Runbook должен описывать:
 - Локальный fake smoke test ранее подтверждён владельцем; повторная ручная проверка не требуется.
 - Замечание аудита о broken `venv` относится к отдельному checkout Guide OS на Mac Neo, а не к текущему Mac; текущий `venv` работоспособен.
 
+### Guide OS reproducible-environment quality gate
+
+**Статус:** Completed and verified 2026-08-10.
+
+- Добавлены sanitized `.env.example`, `.python-version` (`3.13.1`) и fresh setup instructions.
+- Все GuideShop flags default-off; реальные BOT/JWT/API secrets отсутствуют.
+- Current Mac, Mac Neo и Railway рассматриваются как независимые environments с отдельными paths, venv и secrets.
+- Documentation test защищает variable completeness, safe defaults и отсутствие key/token/path leakage.
+- Проверка: focused `1 passed`; full suite `471 passed`; `git diff --check` clean.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.

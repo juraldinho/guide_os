@@ -226,3 +226,17 @@
 Проверка: GuideShop regression — `232 passed`; полный suite — `470 passed`; `git diff --check` clean. Локальный fake flow ранее вручную подтверждён владельцем; повторная проверка не требуется.
 
 Stage 4B не начат и ожидает GuideShop staging API/verifier на Mac Neo.
+
+## 2026-08-10 — Quality gate: воспроизводимое окружение
+
+Выполнено:
+
+- добавлен sanitized `.env.example` со всеми текущими core и GuideShop variables;
+- все GuideShop flags default-off, API/JWT secrets отсутствуют;
+- Python runtime зафиксирован как `3.13.1`;
+- README описывает fresh macOS setup, tests, local fake и security rules;
+- текущий Mac, Mac Neo и Railway явно разделены как независимые environments;
+- virtual environments запрещено копировать между машинами;
+- уточнено, что audit observation о broken `venv` относится к отдельному checkout на Mac Neo.
+
+Проверка: documentation test — `1 passed`; полный suite — `471 passed`; `git diff --check` clean.
