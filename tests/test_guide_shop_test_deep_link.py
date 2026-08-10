@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import subprocess
+import sys
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlparse
 
@@ -18,7 +19,7 @@ from scripts import create_guide_shop_test_deep_link as helper
 
 
 ROOT = Path(__file__).resolve().parent.parent
-PYTHON = ROOT / "venv" / "bin" / "python"
+PYTHON = sys.executable
 SCRIPT = ROOT / "scripts" / "create_guide_shop_test_deep_link.py"
 
 
@@ -96,7 +97,7 @@ def test_reuses_existing_services_and_initialization(monkeypatch, capsys):
     assert capsys.readouterr().out == "https://t.me/Guideosbot?start=opaque\n"
 
 
-def test_successful_venv_execution_creates_user_bound_single_use_visits_link():
+def test_successful_subprocess_execution_creates_user_bound_single_use_visits_link():
     user_id = 8_765_432_101_234_567
     result = run_helper(
         "--telegram-user-id",
