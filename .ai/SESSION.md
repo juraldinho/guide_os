@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Подготовительный quality gate Guide OS: continuous integration для clean-checkout test verification.
+Подготовка перехода к GuideShop-side разработке на Mac Neo. Доступная до GuideShop работа в Guide OS завершена.
 
 ## Завершённые этапы
 
@@ -18,6 +18,7 @@
 - Stage 3D — user-bound `/start` deep links и development smoke helper.
 - Stage 4A завершён: HTTP client, identity composition, EdDSA auth и default-off real runtime готовы.
 - Stage 4B ещё не начат и требует GuideShop staging API на Mac Neo.
+- Reproducible-environment и continuous-integration quality gates завершены.
 
 ## Проверенное состояние
 
@@ -39,10 +40,12 @@
 - `.env.example` default-off и не содержит secrets;
 - Python runtime зафиксирован как `3.13.1`;
 - documentation/full suite: `1 passed` / `471 passed`.
+- CI portability fix: focused `14 passed`, полный suite `472 passed`.
+- GitHub Actions run `31408186374` для commit `785a780` завершён успешно.
 
 ## Следующее действие
 
-Подготовительный quality gate согласно `.ai/NEXT_TASK.md`: минимальный GitHub Actions CI для Python 3.13.1 и полного test suite.
+Согласно `.ai/NEXT_TASK.md`, начать на Mac Neo GuideShop-side staging API и EdDSA verifier. После их готовности вернуться в Guide OS к Stage 4B staging connection.
 
 ## Production gate
 

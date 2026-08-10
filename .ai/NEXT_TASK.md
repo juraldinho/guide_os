@@ -4,36 +4,32 @@
 
 ## Единственная следующая задача
 
-Подготовительный quality gate — continuous integration для Guide OS.
+Начать GuideShop-side подготовку Stage 4B на Mac Neo: реализовать staging Integration API и EdDSA verifier по утверждённому контракту.
 
 ## Цель
 
-Проверять clean checkout Guide OS на каждом push/PR без Telegram, production secrets или GuideShop API.
+Создать на стороне GuideShop минимальную безопасную read-only поверхность, необходимую для реального staging-подключения уже подготовленного Guide OS клиента.
 
 ## Требуемый результат
 
-- минимальный GitHub Actions workflow;
-- Python 3.13.1;
-- dependency install из `requirements.txt`;
-- полный `pytest -q` на clean checkout;
-- dependency consistency/import verification;
-- pip cache без repository secrets;
-- concurrency cancellation для устаревших runs;
-- no deployment, Telegram polling или GuideShop network calls.
+- GuideShop проверяет EdDSA JWT, обязательные headers/claims, TTL, audience, scope и `guide_os_id`;
+- GuideShop разрешает identity только через активную безопасную связь профилей;
+- доступны согласованные `/integration/v1/me/...` read-only endpoints;
+- каждый endpoint возвращает только данные гида из проверенного token identity;
+- ответы соответствуют Stage 2A DTO/API contract Guide OS;
+- staging keys и configuration отделены от production;
+- есть контрактные, авторизационные и cross-guide negative tests.
 
 ## Ограничения
 
-- Не менять Python runtime logic и tests ради CI.
-- Не добавлять repository secrets или `.env`.
-- Не запускать `bot.py`.
-- Не выполнять deployment/push в Railway.
-- Не добавлять GuideShop API, events или notifications.
-- Не вводить lint/type gates, которых проект пока не использует.
+- Работа выполняется в отдельном GuideShop checkout на Mac Neo.
+- Не использовать прямой доступ Guide OS к базе GuideShop.
+- Не передавать identity через URL, query или пользовательский payload.
+- Не включать production activation, events или notifications.
+- Не менять Guide OS до появления проверяемого staging API, кроме отдельно согласованных исправлений контракта.
 
 ## Definition of Done
 
-- Workflow запускается на push и pull request.
-- Clean checkout устанавливает pinned dependencies и выполняет полный suite.
-- CI не требует BOT_TOKEN или других secrets.
-- Workflow не запускает Telegram/network/deployment behavior.
-- Stage 4B остаётся заблокированным до GuideShop staging API/verifier.
+- GuideShop staging verifier и read-only API доступны для интеграционных тестов.
+- Утверждённые positive и cross-guide negative tests проходят.
+- После этого разблокирован Stage 4B: реальное staging-подключение Guide OS.

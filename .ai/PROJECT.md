@@ -182,6 +182,7 @@ GuideShop должен оставаться источником истины д
 - Stage 4B начнётся только после появления GuideShop staging API на Mac Neo.
 - GuideShop verifier/API availability, события и production activation ещё не реализованы.
 - Reproducible-environment quality gate завершён: `.env.example`, Python `3.13.1`, README и documentation test; full suite `471 passed`.
+- Continuous-integration quality gate завершён: clean GitHub Actions runner устанавливает pinned dependencies и выполняет полный suite без secrets, Telegram polling, GuideShop network calls или deployment; CI run `31408186374` успешен, `472 passed`.
 
 ## Readiness checklist перед production-интеграцией
 

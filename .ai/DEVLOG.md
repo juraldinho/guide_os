@@ -240,3 +240,18 @@ Stage 4B не начат и ожидает GuideShop staging API/verifier на M
 - уточнено, что audit observation о broken `venv` относится к отдельному checkout на Mac Neo.
 
 Проверка: documentation test — `1 passed`; полный suite — `471 passed`; `git diff --check` clean.
+
+## 2026-08-10 — Quality gate: continuous integration
+
+Выполнено:
+
+- добавлен минимальный GitHub Actions workflow для push, pull request и ручного запуска;
+- clean Ubuntu runner использует Python `3.13.1`, pip cache и pinned `requirements.txt`;
+- CI проверяет dependency consistency, whitespace и полный test suite;
+- workflow имеет только read-only repository permissions и не выполняет Telegram polling, GuideShop network calls, artifact upload или deployment;
+- все CI environment values являются явными безопасными строками, GuideShop flags остаются default-off;
+- subprocess-тест development deep-link helper переведён с локального `venv/bin/python` на текущий `sys.executable`, поэтому одинаково работает локально и на clean runner.
+
+Проверка: локально — `472 passed`, `git diff --check` clean; GitHub Actions run `31408186374` — success.
+
+Подготовительные Guide OS quality gates завершены. Следующая интеграционная работа — Stage 4B после реализации GuideShop staging API/verifier на Mac Neo.
