@@ -211,3 +211,18 @@
 Проверка: auth/HTTP/runtime — `188 passed`; полный suite — `466 passed`; `git diff --check` clean.
 
 Открытая зависимость: provider ещё не подключён к default-off production runtime; GuideShop verifier и API отсутствуют.
+
+## 2026-08-10 — Stage 4A завершён
+
+Выполнено:
+
+- disabled flow не читает real HTTP/JWT settings и не создаёт providers;
+- development/test fake flow остаётся credential-free и backward compatible;
+- real flow соединяет trusted `get_guide_os_id`, shared EdDSA provider, lazy identity-bound HTTP clients и request-scoped UI provider;
+- startup не выполняет identity lookup, token signing, HTTP, navigation-token creation или database writes;
+- каждый request создаёт отдельный client и использует только trusted local identity;
+- configuration failure очищает provider state и fail-closed до polling.
+
+Проверка: GuideShop regression — `232 passed`; полный suite — `470 passed`; `git diff --check` clean. Локальный fake flow ранее вручную подтверждён владельцем; повторная проверка не требуется.
+
+Stage 4B не начат и ожидает GuideShop staging API/verifier на Mac Neo.

@@ -1,10 +1,10 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-09
+> Обновлено: 2026-08-10
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–3D завершены; Stage 4A находится на финальной подзадаче. Identity, contracts, UI/navigation, HTTP client, request-scoped composition, service-auth contract и EdDSA token provider готовы; default-off real runtime composition ещё не реализована.
+Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4A завершены. Identity, contracts, UI/navigation, HTTP client, request-scoped composition, service-auth contract, EdDSA token provider и default-off real runtime composition готовы. Stage 4B ожидает GuideShop staging API/verifier на Mac Neo.
 
 GuideShop должен оставаться источником истины для компаний, Visits, Sales и points. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения данных и события GuideShop для уведомлений.
 
@@ -177,8 +177,8 @@ GuideShop должен оставаться источником истины д
 - HTML экранируется, Decimal values не пересчитываются, list actions различимы ordinal labels.
 - Stage 3C2: mock-backed Telegram entry и callback dispatch доступны через explicit development flags.
 - Stage 3D: реализованы строгие user-bound single-use `/start` deep links и development-only smoke helper.
-- Stage 4A: реализованы identity-bound HTTP client, request-scoped composition, Ed25519/EdDSA auth contract и async token provider.
-- Stage 4A не закрыт до завершения default-off real runtime composition.
+- Stage 4A: реализованы identity-bound HTTP client, request-scoped composition, Ed25519/EdDSA auth contract, async token provider и default-off real runtime composition.
+- Stage 4A закрыт: `470 passed`, локальный fake smoke test ранее подтверждён владельцем.
 - Stage 4B начнётся только после появления GuideShop staging API на Mac Neo.
 - GuideShop verifier/API availability, события и production activation ещё не реализованы.
 

@@ -1,10 +1,10 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-09
+> Обновлено: 2026-08-10
 
 ## Текущий фокус
 
-Подготовка default-off real GuideShop runtime composition.
+Подготовительный quality gate Guide OS: воспроизводимое окружение и безопасная документация конфигурации.
 
 ## Завершённые этапы
 
@@ -16,8 +16,7 @@
 - Stage 3C1 — presentation/keyboards;
 - Stage 3C2 — feature-gated mock Telegram UI.
 - Stage 3D — user-bound `/start` deep links и development smoke helper.
-- Stage 4A выполнено: HTTP client, request-scoped identity composition, EdDSA auth contract и access-token provider.
-- Stage 4A осталось: default-off real runtime composition.
+- Stage 4A завершён: HTTP client, identity composition, EdDSA auth и default-off real runtime готовы.
 - Stage 4B ещё не начат и требует GuideShop staging API на Mac Neo.
 
 ## Проверенное состояние
@@ -34,10 +33,13 @@
 - signing settings принимают только Ed25519 PKCS#8 key;
 - provider выпускает strict 60-second identity-bound JWT;
 - full suite: `466 passed`.
+- final Stage 4A regression: `232 passed`;
+- final full suite: `470 passed`;
+- ручной fake smoke test уже подтверждён владельцем.
 
 ## Следующее действие
 
-Финальная подзадача Stage 4A согласно `.ai/NEXT_TASK.md`: собрать default-off real runtime из identity lookup, token provider и HTTP client.
+Подготовительный quality gate согласно `.ai/NEXT_TASK.md`: `.env.example`, Python runtime pin и инструкция clean setup без изменения integration behavior.
 
 ## Production gate
 

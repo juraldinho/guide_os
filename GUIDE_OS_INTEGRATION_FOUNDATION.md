@@ -944,6 +944,18 @@ Runbook должен описывать:
 - Stage 4B означает только read-only подключение к реальному GuideShop staging API: Companies, Visits, Sales, balance и points history.
 - Stage 4B не начат и заблокирован до реализации GuideShop API/verifier на Mac Neo.
 
+### Stage 4A — final status
+
+**Статус:** Completed and verified 2026-08-10.
+
+- Default-off real runtime composition соединяет trusted identity lookup, EdDSA token provider, lazy HTTP client factory и request-scoped UI provider.
+- Disabled и explicit development/test fake flows не требуют real API/JWT credentials.
+- Startup не выполняет HTTP, token signing, identity lookup или navigation-token creation.
+- Каждый real request получает отдельный identity-bound HTTP client.
+- Проверка: GuideShop regression `232 passed`; full suite `470 passed`; `git diff --check` clean.
+- Локальный fake smoke test ранее подтверждён владельцем; повторная ручная проверка не требуется.
+- Замечание аудита о broken `venv` относится к отдельному checkout Guide OS на Mac Neo, а не к текущему Mac; текущий `venv` работоспособен.
+
 ### Track A — можно начать немедленно
 
 1. Утвердить этот документ и заполнить owners.
