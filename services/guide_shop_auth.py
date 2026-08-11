@@ -2,13 +2,13 @@ import base64
 import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
 
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from services.guide_shop_settings import GuideShopJWTSigningSettings
+from utils.guide_os_identity import GuideOsIdentityError, validate_guide_os_id
 
 
 ALGORITHM = "EdDSA"
@@ -66,15 +66,10 @@ class GuideShopJWTAccessTokenProvider:
 
     @staticmethod
     def _validate_identity(guide_os_id: object) -> str:
-        if not isinstance(guide_os_id, str) or not guide_os_id:
-            raise GuideShopTokenSigningError("GuideShop token signing failed")
         try:
-            parsed = UUID(guide_os_id)
-        except (ValueError, AttributeError, TypeError):
-            raise GuideShopTokenSigningError("GuideShop token signing failed") from None
-        if parsed.version != 4 or str(parsed) != guide_os_id:
-            raise GuideShopTokenSigningError("GuideShop token signing failed")
-        return guide_os_id
+            return validate_guide_os_id(guide_os_id)
+        except GuideOsIdentityError as exc:
+            raise GuideShopTokenSigningError("GuideShop token signing failed") from exc
 
     async def get_access_token(self, guide_os_id: str) -> str:
         identity = self._validate_identity(guide_os_id)

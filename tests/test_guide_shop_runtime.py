@@ -31,6 +31,14 @@ from services.guide_shop_runtime import (
 from services.guide_shop_ui import GuideShopScreen, GuideShopUIService
 
 
+GUIDE_A_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1"
+GUIDE_B_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"
+TRUSTED_GUIDE_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee3"
+PRIVATE_IDENTITY = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee4"
+SECRET_IDENTITY = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee5"
+PRIVATE_GUIDE_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee6"
+
+
 def run(awaitable):
     return asyncio.run(awaitable)
 
@@ -111,7 +119,7 @@ def callback(raw_token="gs_token", user_id=101, *, edit_error=None):
 
 
 def test_provider_protocol_and_one_lookup_client_and_service_per_scope():
-    provider, lookup, clients = provider_for({101: "guide-a"})
+    provider, lookup, clients = provider_for({101: GUIDE_A_ID})
     assert isinstance(provider, GuideShopUIServiceProvider)
 
     async def exercise():
@@ -121,14 +129,14 @@ def test_provider_protocol_and_one_lookup_client_and_service_per_scope():
 
     run(exercise())
     lookup.assert_called_once_with(101)
-    assert [client.identity for client in clients] == ["guide-a"]
+    assert [client.identity for client in clients] == [GUIDE_A_ID]
     clients[0].close.assert_awaited_once_with()
 
 
 def test_complete_closeable_client_satisfies_runtime_protocol():
-    client = CloseableClient("guide-a")
+    client = CloseableClient(GUIDE_A_ID)
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="guide-a"), Mock(return_value=client)
+        Mock(return_value=GUIDE_A_ID), Mock(return_value=client)
     )
 
     async def exercise():
@@ -141,7 +149,7 @@ def test_complete_closeable_client_satisfies_runtime_protocol():
 
 def test_none_client_is_rejected_before_service_is_yielded():
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="guide-a"), Mock(return_value=None)
+        Mock(return_value=GUIDE_A_ID), Mock(return_value=None)
     )
     yielded = False
 
@@ -158,7 +166,7 @@ def test_none_client_is_rejected_before_service_is_yielded():
 def test_close_only_partial_client_is_rejected_and_closed_once():
     partial = SimpleNamespace(close=AsyncMock())
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="guide-a"), Mock(return_value=partial)
+        Mock(return_value=GUIDE_A_ID), Mock(return_value=partial)
     )
 
     async def exercise():
@@ -171,10 +179,10 @@ def test_close_only_partial_client_is_rejected_and_closed_once():
 
 
 def test_complete_client_with_non_async_close_is_rejected_safely():
-    client = CloseableClient("private-identity")
+    client = CloseableClient(PRIVATE_IDENTITY)
     client.close = Mock(return_value=None)
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="private-identity"), Mock(return_value=client)
+        Mock(return_value=PRIVATE_IDENTITY), Mock(return_value=client)
     )
 
     async def exercise():
@@ -184,13 +192,13 @@ def test_complete_client_with_non_async_close_is_rejected_safely():
     with pytest.raises(GuideShopRuntimeConfigurationError) as error:
         run(exercise())
     client.close.assert_not_called()
-    assert "private-identity" not in str(error.value)
+    assert PRIVATE_IDENTITY not in str(error.value)
 
 
 def test_invalid_client_cleanup_failure_is_focused_and_safe():
     partial = SimpleNamespace(close=AsyncMock(side_effect=RuntimeError("private")))
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="secret-identity"), Mock(return_value=partial)
+        Mock(return_value=SECRET_IDENTITY), Mock(return_value=partial)
     )
 
     async def exercise():
@@ -200,13 +208,13 @@ def test_invalid_client_cleanup_failure_is_focused_and_safe():
     with pytest.raises(GuideShopClientLifecycleError) as error:
         run(exercise())
     assert "private" not in str(error.value)
-    assert "secret-identity" not in str(error.value)
+    assert SECRET_IDENTITY not in str(error.value)
     partial.close.assert_awaited_once_with()
 
 
 @pytest.mark.parametrize("user_id", [True, False, 0, -1, "101", 1.5])
 def test_invalid_telegram_user_id_performs_no_lookup_or_client_creation(user_id):
-    provider, lookup, clients = provider_for({101: "guide-a"})
+    provider, lookup, clients = provider_for({101: GUIDE_A_ID})
 
     async def exercise():
         async with provider.service_for(user_id):
@@ -218,7 +226,20 @@ def test_invalid_telegram_user_id_performs_no_lookup_or_client_creation(user_id)
     assert clients == []
 
 
-@pytest.mark.parametrize("identity", [None, "", "   ", " guide-a", "guide-a\n", 123, True])
+@pytest.mark.parametrize(
+    "identity",
+    [
+        None,
+        "",
+        "   ",
+        "guide-a",
+        f" {GUIDE_A_ID}",
+        f"{GUIDE_A_ID}\n",
+        GUIDE_A_ID.upper(),
+        123,
+        True,
+    ],
+)
 def test_missing_or_malformed_identity_creates_no_client(identity):
     provider, lookup, clients = provider_for({101: identity})
 
@@ -233,7 +254,7 @@ def test_missing_or_malformed_identity_creates_no_client(identity):
 
 
 def test_client_factory_failure_is_safe_and_has_no_close_attempt():
-    lookup = Mock(return_value="private-guide")
+    lookup = Mock(return_value=PRIVATE_GUIDE_ID)
     factory = Mock(side_effect=RuntimeError("private credential detail"))
     provider = RequestScopedGuideShopUIServiceProvider(lookup, factory)
 
@@ -244,11 +265,11 @@ def test_client_factory_failure_is_safe_and_has_no_close_attempt():
     with pytest.raises(GuideShopClientLifecycleError) as error:
         run(exercise())
     assert "private" not in str(error.value)
-    factory.assert_called_once_with("private-guide")
+    factory.assert_called_once_with(PRIVATE_GUIDE_ID)
 
 
 def test_two_users_and_repeated_user_requests_receive_distinct_scopes():
-    provider, lookup, clients = provider_for({101: "guide-a", 202: "guide-b"})
+    provider, lookup, clients = provider_for({101: GUIDE_A_ID, 202: GUIDE_B_ID})
 
     async def exercise():
         services = []
@@ -259,7 +280,7 @@ def test_two_users_and_repeated_user_requests_receive_distinct_scopes():
 
     services = run(exercise())
     assert [called.args for called in lookup.call_args_list] == [(101,), (202,), (101,)]
-    assert [client.identity for client in clients] == ["guide-a", "guide-b", "guide-a"]
+    assert [client.identity for client in clients] == [GUIDE_A_ID, GUIDE_B_ID, GUIDE_A_ID]
     assert len({id(client) for client in clients}) == 3
     assert len({id(service) for service in services}) == 3
     for client in clients:
@@ -267,7 +288,7 @@ def test_two_users_and_repeated_user_requests_receive_distinct_scopes():
 
 
 def test_concurrent_scopes_do_not_share_or_overwrite_identity():
-    provider, _, clients = provider_for({101: "guide-a", 202: "guide-b"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID, 202: GUIDE_B_ID})
     both_open = asyncio.Event()
     opened = 0
 
@@ -284,13 +305,13 @@ def test_concurrent_scopes_do_not_share_or_overwrite_identity():
         return await asyncio.gather(use_scope(101), use_scope(202))
 
     results = run(exercise())
-    assert {result[0] for result in results} == {"guide-a", "guide-b"}
+    assert {result[0] for result in results} == {GUIDE_A_ID, GUIDE_B_ID}
     assert results[0][1] != results[1][1]
     assert len(clients) == 2
 
 
 def test_client_closes_once_after_body_exception_and_preserves_original():
-    provider, _, clients = provider_for({101: "guide-a"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID})
 
     async def exercise():
         async with provider.service_for(101):
@@ -303,7 +324,7 @@ def test_client_closes_once_after_body_exception_and_preserves_original():
 
 
 def test_cleanup_failure_without_active_error_is_focused_and_safe():
-    provider, _, clients = provider_for({101: "guide-a"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID})
 
     async def exercise():
         async with provider.service_for(101):
@@ -316,7 +337,7 @@ def test_cleanup_failure_without_active_error_is_focused_and_safe():
 
 
 def test_context_cancellation_closes_once_and_preserves_cancellation():
-    provider, _, clients = provider_for({101: "guide-a"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID})
     entered = asyncio.Event()
 
     async def worker():
@@ -381,7 +402,7 @@ def test_failed_provider_reconfiguration_clears_previous_provider():
 
 def test_invalid_client_does_not_consume_callback_or_deep_link_tokens():
     provider = RequestScopedGuideShopUIServiceProvider(
-        Mock(return_value="trusted-guide"), Mock(return_value=None)
+        Mock(return_value=TRUSTED_GUIDE_ID), Mock(return_value=None)
     )
     configure_guide_shop_provider(provider, reads_enabled=True)
 
@@ -413,7 +434,7 @@ def test_handler_missing_identity_maps_safe_and_does_not_render():
 
 
 def test_handler_success_and_telegram_answer_failure_close_client_once():
-    provider, _, clients = provider_for({101: "guide-a"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID})
     configure_guide_shop_provider(provider, reads_enabled=True)
 
     successful = message(101)
@@ -427,7 +448,7 @@ def test_handler_success_and_telegram_answer_failure_close_client_once():
 
 
 def test_telegram_edit_failure_closes_client_once():
-    provider, _, clients = provider_for({101: "guide-a"})
+    provider, _, clients = provider_for({101: GUIDE_A_ID})
     configure_guide_shop_provider(provider, reads_enabled=True)
     token = create_navigation_token(101, GuideShopRoute(kind="home"))
     cb = callback(token.raw_token, 101, edit_error=RuntimeError("telegram failure"))
@@ -438,7 +459,7 @@ def test_telegram_edit_failure_closes_client_once():
 
 def test_ui_dispatch_failure_closes_client_once():
     provider, _, clients = provider_for(
-        {101: "guide-a"}, failure=TypeError("programming")
+        {101: GUIDE_A_ID}, failure=TypeError("programming")
     )
     configure_guide_shop_provider(provider, reads_enabled=True)
     token = create_navigation_token(101, GuideShopRoute(kind="companies"))
@@ -449,7 +470,7 @@ def test_ui_dispatch_failure_closes_client_once():
 
 
 def test_navigation_failure_after_scope_creation_closes_without_replacement(monkeypatch):
-    provider, _, clients = provider_for({101: "trusted-guide"})
+    provider, _, clients = provider_for({101: TRUSTED_GUIDE_ID})
     configure_guide_shop_provider(provider, reads_enabled=True)
     resolver = Mock(side_effect=NavigationTokenUnknownError("private route"))
     monkeypatch.setattr(handler_module, "resolve_navigation_token", resolver)
@@ -468,17 +489,17 @@ def test_navigation_failure_after_scope_creation_closes_without_replacement(monk
     ],
 )
 def test_route_object_and_cursor_cannot_change_factory_identity(route):
-    provider, _, clients = provider_for({101: "trusted-guide"})
+    provider, _, clients = provider_for({101: TRUSTED_GUIDE_ID})
     configure_guide_shop_provider(provider, reads_enabled=True)
     token = create_navigation_token(101, route)
     cb = callback(token.raw_token, 101)
     with pytest.raises(AssertionError, match="unused"):
         run(navigate_guide_shop(cb))
-    assert clients[0].identity == "trusted-guide"
+    assert clients[0].identity == TRUSTED_GUIDE_ID
 
 
 def test_deep_link_payload_cannot_change_factory_identity():
-    provider, _, clients = provider_for({101: "trusted-guide"})
+    provider, _, clients = provider_for({101: TRUSTED_GUIDE_ID})
     configure_guide_shop_provider(provider, reads_enabled=True)
     token = create_navigation_token(
         101,
@@ -487,5 +508,5 @@ def test_deep_link_payload_cannot_change_factory_identity():
     msg = message(101)
     with pytest.raises(AssertionError, match="unused"):
         run(open_guide_shop_deep_link(msg, SimpleNamespace(args=token.raw_token)))
-    assert clients[0].identity == "trusted-guide"
+    assert clients[0].identity == TRUSTED_GUIDE_ID
     clients[0].close.assert_awaited_once_with()

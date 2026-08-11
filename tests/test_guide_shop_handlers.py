@@ -460,8 +460,10 @@ class ComposedClient:
 def test_valid_real_composition_is_lazy_isolated_and_uses_trusted_lookup(
     monkeypatch, ephemeral_private_key_pem
 ):
+    guide_a = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1"
+    guide_b = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"
     identity_lookup = Mock(
-        side_effect=lambda user_id: {101: "guide-a", 202: "guide-b"}[user_id]
+        side_effect=lambda user_id: {101: guide_a, 202: guide_b}[user_id]
     )
     token_provider = SimpleNamespace(get_access_token=AsyncMock())
     token_provider_factory = Mock(return_value=token_provider)
@@ -495,7 +497,7 @@ def test_valid_real_composition_is_lazy_isolated_and_uses_trusted_lookup(
         return clients
 
     clients = run(exercise())
-    assert [client.identity for client in clients] == ["guide-a", "guide-b", "guide-a"]
+    assert [client.identity for client in clients] == [guide_a, guide_b, guide_a]
     assert len({id(client) for client in clients}) == 3
     assert [client.close_calls for client in clients] == [1, 1, 1]
     assert [called.args[0] for called in identity_lookup.call_args_list] == [101, 202, 101]

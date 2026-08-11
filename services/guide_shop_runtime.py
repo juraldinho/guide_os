@@ -5,6 +5,7 @@ from typing import AsyncContextManager, Protocol, runtime_checkable
 
 from services.guide_shop_client import GuideShopClient
 from services.guide_shop_ui import GuideShopUIService
+from utils.guide_os_identity import GuideOsIdentityError, validate_guide_os_id
 
 
 class GuideShopRuntimeError(Exception):
@@ -69,16 +70,12 @@ class RequestScopedGuideShopUIServiceProvider:
 
     @staticmethod
     def _validate_identity(guide_os_id: object) -> str:
-        if (
-            not isinstance(guide_os_id, str)
-            or not guide_os_id
-            or guide_os_id != guide_os_id.strip()
-            or any(ord(character) < 32 or ord(character) == 127 for character in guide_os_id)
-        ):
+        try:
+            return validate_guide_os_id(guide_os_id)
+        except GuideOsIdentityError as exc:
             raise GuideShopIdentityUnavailableError(
                 "GuideShop identity is unavailable"
-            )
-        return guide_os_id
+            ) from exc
 
     @staticmethod
     async def _reject_invalid_client(close: object) -> None:

@@ -1,7 +1,7 @@
 import sqlite3
-import uuid
 
-from database.db import get_connection, run_write_with_retry
+from database.db import ensure_db_ready, get_connection, run_write_with_retry
+from utils.guide_os_identity import new_guide_os_id, validate_guide_os_id
 
 from utils.constants import (
     PAYMENT_UNPAID,
@@ -536,7 +536,8 @@ def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> l
     return rows
 
 def register_user(user_id: int) -> None:
-    guide_os_id = str(uuid.uuid4())
+    ensure_db_ready()
+    guide_os_id = new_guide_os_id()
 
     def operation(conn):
         cursor = conn.cursor()
@@ -576,6 +577,8 @@ def create_guide_shop_link_request(
     created_at: str,
     expires_at: str,
 ) -> None:
+    identity = validate_guide_os_id(guide_os_id)
+
     def operation(conn):
         cursor = conn.cursor()
         cursor.execute(
@@ -584,7 +587,7 @@ def create_guide_shop_link_request(
             SET status = 'revoked', revoked_at = ?
             WHERE guide_os_id = ? AND audience = ? AND status = 'issued'
             """,
-            (created_at, guide_os_id, audience),
+            (created_at, identity, audience),
         )
         cursor.execute(
             """
@@ -593,7 +596,7 @@ def create_guide_shop_link_request(
             )
             VALUES (?, ?, ?, 'issued', ?, ?)
             """,
-            (guide_os_id, token_hash, audience, created_at, expires_at),
+            (identity, token_hash, audience, created_at, expires_at),
         )
 
     run_write_with_retry(operation)
@@ -879,7 +882,8 @@ def get_user_notification_settings(user_id: int) -> dict:
 
 
 def set_notifications_enabled(user_id: int, enabled: bool) -> None:
-    guide_os_id = str(uuid.uuid4())
+    ensure_db_ready()
+    guide_os_id = new_guide_os_id()
 
     def operation(conn):
         cursor = conn.cursor()
@@ -898,7 +902,8 @@ def set_notifications_enabled(user_id: int, enabled: bool) -> None:
 
 
 def set_notification_time(user_id: int, time_text: str) -> None:
-    guide_os_id = str(uuid.uuid4())
+    ensure_db_ready()
+    guide_os_id = new_guide_os_id()
 
     def operation(conn):
         cursor = conn.cursor()
