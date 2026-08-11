@@ -47,6 +47,13 @@
 
 Согласно `.ai/NEXT_TASK.md`, начать на Mac Neo GuideShop-side staging API и EdDSA verifier. После их готовности вернуться в Guide OS к Stage 4B staging connection.
 
+## Зафиксированное будущее требование
+
+- Личные неофициальные места и self-reported external sales принадлежат аккаунту гида в Guide OS.
+- Записи разных гидов не объединяются в глобальный каталог GuideShop.
+- GuideShop остаётся владельцем официального points balance и позже может принимать минимальные идемпотентные claims по `external_sale_id`.
+- Это отдельный post-MVP write workstream после базовой read-only интеграции; налоговая, redemption и anti-fraud модель ещё требует решения.
+
 ## Production gate
 
 GuideShop API, shared staging, E2E, recovery и live production-safety evidence обязательны до production activation.

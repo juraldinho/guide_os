@@ -30,12 +30,13 @@ Guide получает Telegram-уведомления о создании Visit
 | Guide identity | Guide OS | Выдаёт стабильный `guide_os_id`; Telegram user ID остаётся каналом аутентификации |
 | Company | GuideShop | Guide OS получает только данные, необходимые для отображения |
 | Visit | GuideShop | Изменения выполняются только в GuideShop |
-| Sale | GuideShop | Денежные значения передаются без вычислений в Guide OS |
+| Official Sale | GuideShop | Денежные значения передаются без вычислений в Guide OS |
+| Self-reported external sale | Guide OS | Личная запись гида о неофициальном месте, покупке и фактически полученном доходе; не является Sale официальной компании GuideShop |
 | Points transaction | GuideShop | GuideShop рассчитывает сумму и управляет статусом |
 | Guide linking | Совместный процесс | Guide OS подтверждает личность; GuideShop хранит внешнюю связь и аудит |
 | Notifications | Guide OS | Создаются из событий GuideShop, доставка идемпотентна |
 
-Фраза «GuideShop остаётся системой записи» относится к Company, Visit, Sale и points, но не к профилю Guide.
+Фраза «GuideShop остаётся системой записи» относится к Company, Visit, официальным Sale и points, но не к профилю Guide, личным местам или self-reported external sales.
 
 ## 3. Что уже подтверждено в GuideShop
 
@@ -994,6 +995,19 @@ Runbook должен описывать:
 4. Включить события и уведомления по одному типу.
 5. Наблюдать метрики и reconciliation.
 6. Расширять rollout только при отсутствии data isolation и delivery incidents.
+
+### Отдельный post-MVP workstream — личные места и внешние продажи
+
+Этот workstream не входит в Phase 3 read-only MVP и не должен расширять Stage 4B. Он учитывается после готовности базовой GuideShop-side интеграции.
+
+1. Гид создаёт личное место один раз в Guide OS и затем выбирает его из собственного приватного списка.
+2. Guide OS хранит owner `guide_os_id`, личное название, общую локацию, ориентир, категорию, заметку, сумму покупки, фактически полученный доход и способ получения.
+3. Одинаковые или похожие записи разных гидов не объединяются и не создают глобальные компании GuideShop.
+4. GuideShop не получает название личного места без отдельной доказанной необходимости.
+5. Если утверждена программа баллов, Guide OS отправляет минимальный идемпотентный points claim по уникальному `external_sale_id`; повторная отправка не создаёт второе начисление.
+6. GuideShop остаётся единственным владельцем official points ledger и статусов `pending`, `credited`, `rejected`, `reversed`.
+7. Автоматическая связь личного места с официальной компанией запрещена без надёжного подтверждения.
+8. До write implementation отдельно утверждаются auth scope, API contract, privacy, retention, anti-fraud limits, redemption и налоговая модель.
 
 ## 18. Definition of Done Phase 3 MVP
 

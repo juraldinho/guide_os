@@ -33,3 +33,7 @@
 - GuideShop staging verifier и read-only API доступны для интеграционных тестов.
 - Утверждённые positive и cross-guide negative tests проходят.
 - После этого разблокирован Stage 4B: реальное staging-подключение Guide OS.
+
+## Зафиксировано для последующей работы
+
+После базовой read-only интеграции отдельно проектируются личные места и self-reported external sales. Они хранятся в Guide OS и не создают глобальные компании GuideShop. Возможная отправка points claim в GuideShop является отдельным будущим write contract и не входит в текущую задачу.
