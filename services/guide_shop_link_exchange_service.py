@@ -7,6 +7,7 @@ import secrets
 from database.queries import (
     create_guide_shop_link_exchange_atomic,
     get_guide_shop_link_exchange_evidence_scoped,
+    get_guide_shop_link_exchange_for_service,
     get_guide_shop_link_exchange_scoped,
     transition_guide_shop_link_exchange,
 )
@@ -250,3 +251,26 @@ class GuideShopLinkExchangeService:
             )
         except Exception:
             raise LinkExchangeError("Link exchange operation failed") from None
+
+    def _membership_for_service(self, link_exchange_id, service_subject):
+        if service_subject != GUIDE_SHOP_LINK_SERVICE_SUBJECT:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        if not isinstance(link_exchange_id, str) or _OPAQUE_ID.fullmatch(link_exchange_id) is None:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        try:
+            row = get_guide_shop_link_exchange_for_service(
+                link_exchange_id, service_subject
+            )
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if row is None:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        return row["guide_membership_ref"]
+
+    def get_status_for_service(self, link_exchange_id, service_subject):
+        membership = self._membership_for_service(link_exchange_id, service_subject)
+        return self.get_status(link_exchange_id, membership, service_subject)
+
+    def get_evidence_for_service(self, link_exchange_id, service_subject):
+        membership = self._membership_for_service(link_exchange_id, service_subject)
+        return self.get_evidence(link_exchange_id, membership, service_subject)

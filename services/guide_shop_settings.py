@@ -40,6 +40,51 @@ class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
     pass
 
 
+@dataclass(frozen=True)
+class GuideShopLinkProviderSettings:
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8081
+    app_env: str | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.enabled, bool)
+            or not isinstance(self.host, str)
+            or self.host not in {"127.0.0.1", "::1"}
+            or isinstance(self.port, bool)
+            or not isinstance(self.port, int)
+            or not 1 <= self.port <= 65535
+            or (
+                self.enabled
+                and self.app_env not in {"development", "test"}
+            )
+            or (
+                not self.enabled
+                and self.app_env is not None
+                and self.app_env not in _APP_ENVIRONMENTS
+            )
+        ):
+            raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopLinkProviderSettings":
+        source = os.environ if values is None else values
+        enabled = _read_flag(source, "GUIDESHOP_LINK_PROVIDER_ENABLED")
+        if not enabled:
+            return cls()
+        host = source.get("GUIDESHOP_LINK_PROVIDER_HOST", "127.0.0.1")
+        port = _read_int(source, "GUIDESHOP_LINK_PROVIDER_PORT", 8081)
+        return cls(
+            enabled=True,
+            host=host,
+            port=port,
+            app_env=source.get("APP_ENV"),
+        )
+
+
 @dataclass(frozen=True, init=False)
 class GuideShopInboundJWTSettings:
     app_env: str

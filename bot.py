@@ -50,6 +50,7 @@ from services.guide_shop_settings import (
     GuideShopRuntimeSettings,
 )
 from services.guide_shop_ui import GuideShopUIService
+from services.guide_shop_link_provider import start_guide_shop_link_provider
 
 from utils.logger import setup_logging
 
@@ -132,32 +133,36 @@ async def main() -> None:
     await setup_bot_commands(bot)
     
     init_db()
-    logger.info("Bot started")
-    logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
-    
-    asyncio.create_task(send_daily_admin_report(bot))
-    asyncio.create_task(send_tour_reminders(bot))
-    
-    dp = Dispatcher()
+    link_provider_runner = None
+    try:
+        link_provider_runner = await start_guide_shop_link_provider()
+        logger.info("Bot started")
+        logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
 
+        asyncio.create_task(send_daily_admin_report(bot))
+        asyncio.create_task(send_tour_reminders(bot))
 
-    dp.include_router(guide_shop_router)
-    dp.include_router(start_router)
-    dp.include_router(add_tour_router)
-    dp.include_router(calendar_router)
-    dp.include_router(income_router)
-    dp.include_router(check_date_router)
-    dp.include_router(tour_cards_router)
-    dp.include_router(tour_edits_router)
-    dp.include_router(profile_router)
-    dp.include_router(stats.router)
-    dp.include_router(errors.router)
-    dp.include_router(admin_report_router)
-    dp.include_router(help_router)
-    dp.include_router(notifications_router)
-    dp.include_router(broadcast_router)
+        dp = Dispatcher()
+        dp.include_router(guide_shop_router)
+        dp.include_router(start_router)
+        dp.include_router(add_tour_router)
+        dp.include_router(calendar_router)
+        dp.include_router(income_router)
+        dp.include_router(check_date_router)
+        dp.include_router(tour_cards_router)
+        dp.include_router(tour_edits_router)
+        dp.include_router(profile_router)
+        dp.include_router(stats.router)
+        dp.include_router(errors.router)
+        dp.include_router(admin_report_router)
+        dp.include_router(help_router)
+        dp.include_router(notifications_router)
+        dp.include_router(broadcast_router)
 
-    await dp.start_polling(bot, skip_updates=True)
+        await dp.start_polling(bot, skip_updates=True)
+    finally:
+        if link_provider_runner is not None:
+            await link_provider_runner.cleanup()
 
 
 if __name__ == "__main__":

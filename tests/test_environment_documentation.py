@@ -16,12 +16,16 @@ REQUIRED_VARIABLES = {
     "GUIDESHOP_EVENTS_ENABLED",
     "GUIDESHOP_NOTIFICATIONS_ENABLED",
     "GUIDESHOP_USE_FAKE",
+    "GUIDESHOP_LINK_PROVIDER_ENABLED",
+    "GUIDESHOP_LINK_PROVIDER_HOST",
+    "GUIDESHOP_LINK_PROVIDER_PORT",
     "GUIDESHOP_API_BASE_URL",
     "GUIDESHOP_API_TIMEOUT_SECONDS",
     "GUIDESHOP_API_MAX_RETRIES",
     "GUIDESHOP_API_MAX_RETRY_AFTER_SECONDS",
     "GUIDESHOP_JWT_KEY_ID",
     "GUIDESHOP_JWT_PRIVATE_KEY",
+    "GUIDESHOP_LINK_JWT_PUBLIC_KEYS",
 }
 
 FEATURE_FLAGS = {
@@ -30,6 +34,7 @@ FEATURE_FLAGS = {
     "GUIDESHOP_EVENTS_ENABLED",
     "GUIDESHOP_NOTIFICATIONS_ENABLED",
     "GUIDESHOP_USE_FAKE",
+    "GUIDESHOP_LINK_PROVIDER_ENABLED",
 }
 
 
@@ -64,9 +69,14 @@ def test_reproducible_environment_documentation_is_complete_and_safe():
     assert values["GUIDESHOP_API_BASE_URL"] == ""
     assert values["GUIDESHOP_JWT_KEY_ID"] == ""
     assert values["GUIDESHOP_JWT_PRIVATE_KEY"] == ""
+    assert values["GUIDESHOP_LINK_PROVIDER_HOST"] == "127.0.0.1"
+    assert values["GUIDESHOP_LINK_PROVIDER_PORT"] == "8081"
+    assert values["GUIDESHOP_LINK_JWT_PUBLIC_KEYS"] == "{}"
 
     combined = environment_text + readme
     assert "BEGIN PRIVATE KEY" not in combined
+    assert "BEGIN PUBLIC KEY" not in combined
+    assert re.search(r"\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", combined) is None
     assert re.search(r"\b\d{8,10}:[A-Za-z0-9_-]{30,}\b", combined) is None
     assert re.search(r"/Users/[^\s]+", combined) is None
     assert re.search(r"GUIDESHOP_API_BASE_URL\s*=\s*https?://", combined) is None

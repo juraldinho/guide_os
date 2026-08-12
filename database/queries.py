@@ -742,6 +742,22 @@ def get_guide_shop_link_exchange_scoped(
     return dict(row) if row else None
 
 
+def get_guide_shop_link_exchange_for_service(
+    link_exchange_id: str, service_subject: str
+) -> dict | None:
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT * FROM guide_shop_link_exchanges
+        WHERE link_exchange_id = ? AND service_subject = ?
+        LIMIT 1
+        """,
+        (link_exchange_id, service_subject),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def transition_guide_shop_link_exchange(
     *,
     link_exchange_id: str,
