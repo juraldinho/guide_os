@@ -347,6 +347,83 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_link_exchanges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_exchange_id TEXT NOT NULL UNIQUE,
+        link_request_id INTEGER NOT NULL UNIQUE,
+        guide_os_id TEXT NOT NULL,
+        service_subject TEXT NOT NULL,
+        guide_membership_ref TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN (
+            'awaiting_guide_confirmation', 'active', 'revoked',
+            'expired', 'conflict'
+        )),
+        token_expires_at TEXT NOT NULL,
+        exchange_expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(link_request_id) REFERENCES guide_shop_link_requests(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_guide_shop_link_exchanges_scope
+    ON guide_shop_link_exchanges(
+        service_subject, guide_membership_ref, link_exchange_id
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_link_exchange_evidence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_exchange_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('active', 'revoked', 'conflict')),
+        evidence_ref TEXT NOT NULL UNIQUE,
+        occurred_at TEXT NOT NULL,
+        UNIQUE(link_exchange_id, status),
+        FOREIGN KEY(link_exchange_id)
+            REFERENCES guide_shop_link_exchanges(link_exchange_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_guide_shop_link_exchanges_binding_immutable
+    BEFORE UPDATE ON guide_shop_link_exchanges
+    FOR EACH ROW
+    WHEN
+        NEW.id IS NOT OLD.id
+        OR NEW.link_exchange_id IS NOT OLD.link_exchange_id
+        OR NEW.link_request_id IS NOT OLD.link_request_id
+        OR NEW.guide_os_id IS NOT OLD.guide_os_id
+        OR NEW.service_subject IS NOT OLD.service_subject
+        OR NEW.guide_membership_ref IS NOT OLD.guide_membership_ref
+        OR NEW.token_expires_at IS NOT OLD.token_expires_at
+        OR NEW.exchange_expires_at IS NOT OLD.exchange_expires_at
+        OR NEW.created_at IS NOT OLD.created_at
+    BEGIN
+        SELECT RAISE(ABORT, 'link exchange binding is immutable');
+    END
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_guide_shop_link_exchange_evidence_immutable
+    BEFORE UPDATE ON guide_shop_link_exchange_evidence
+    FOR EACH ROW
+    BEGIN
+        SELECT RAISE(ABORT, 'link exchange evidence is immutable');
+    END
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_guide_shop_link_exchange_evidence_no_delete
+    BEFORE DELETE ON guide_shop_link_exchange_evidence
+    FOR EACH ROW
+    BEGIN
+        SELECT RAISE(ABORT, 'link exchange evidence is immutable');
+    END
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS guide_shop_navigation_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         token_hash TEXT NOT NULL UNIQUE,

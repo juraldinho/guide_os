@@ -648,6 +648,177 @@ def revoke_guide_shop_link_requests(
     return run_write_with_retry(operation)
 
 
+def create_guide_shop_link_exchange_atomic(
+    *,
+    token_hash: str,
+    audience: str,
+    link_exchange_id: str,
+    service_subject: str,
+    guide_membership_ref: str,
+    transitioned_at: str,
+    exchange_expires_at: str,
+) -> tuple[str, dict | None]:
+    """Consume one issued request and create its exchange in one transaction."""
+    def operation(conn):
+        request = conn.execute(
+            """
+            SELECT * FROM guide_shop_link_requests
+            WHERE token_hash = ?
+            LIMIT 1
+            """,
+            (token_hash,),
+        ).fetchone()
+        if request is None:
+            return "unknown", None
+        if request["audience"] != audience:
+            return "wrong_audience", None
+        if request["status"] != "issued":
+            return request["status"], None
+        if request["expires_at"] <= transitioned_at:
+            return "expired", None
+        try:
+            validate_guide_os_id(request["guide_os_id"])
+        except Exception:
+            return "invalid_identity", None
+
+        consumed = conn.execute(
+            """
+            UPDATE guide_shop_link_requests
+            SET status = 'consumed', consumed_at = ?
+            WHERE id = ?
+              AND status = 'issued'
+              AND audience = ?
+              AND expires_at > ?
+            """,
+            (transitioned_at, request["id"], audience, transitioned_at),
+        )
+        if consumed.rowcount != 1:
+            return "unavailable", None
+
+        conn.execute(
+            """
+            INSERT INTO guide_shop_link_exchanges (
+                link_exchange_id, link_request_id, guide_os_id,
+                service_subject, guide_membership_ref, status,
+                token_expires_at, exchange_expires_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, 'awaiting_guide_confirmation', ?, ?, ?, ?)
+            """,
+            (
+                link_exchange_id,
+                request["id"],
+                request["guide_os_id"],
+                service_subject,
+                guide_membership_ref,
+                request["expires_at"],
+                exchange_expires_at,
+                transitioned_at,
+                transitioned_at,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM guide_shop_link_exchanges WHERE link_exchange_id = ?",
+            (link_exchange_id,),
+        ).fetchone()
+        return "created", dict(row)
+
+    return run_write_with_retry(operation)
+
+
+def get_guide_shop_link_exchange_scoped(
+    link_exchange_id: str, service_subject: str, guide_membership_ref: str
+) -> dict | None:
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT * FROM guide_shop_link_exchanges
+        WHERE link_exchange_id = ?
+          AND service_subject = ?
+          AND guide_membership_ref = ?
+        LIMIT 1
+        """,
+        (link_exchange_id, service_subject, guide_membership_ref),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def transition_guide_shop_link_exchange(
+    *,
+    link_exchange_id: str,
+    service_subject: str,
+    guide_membership_ref: str,
+    expected_status: str,
+    new_status: str,
+    transitioned_at: str,
+    evidence_ref: str | None,
+) -> tuple[str, dict | None]:
+    def operation(conn):
+        row = conn.execute(
+            """
+            SELECT * FROM guide_shop_link_exchanges
+            WHERE link_exchange_id = ?
+              AND service_subject = ?
+              AND guide_membership_ref = ?
+            LIMIT 1
+            """,
+            (link_exchange_id, service_subject, guide_membership_ref),
+        ).fetchone()
+        if row is None:
+            return "unknown", None
+        if row["status"] != expected_status:
+            return "invalid_transition", dict(row)
+
+        updated = conn.execute(
+            """
+            UPDATE guide_shop_link_exchanges
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND status = ?
+            """,
+            (new_status, transitioned_at, row["id"], expected_status),
+        )
+        if updated.rowcount != 1:
+            return "invalid_transition", None
+        if evidence_ref is not None:
+            conn.execute(
+                """
+                INSERT INTO guide_shop_link_exchange_evidence (
+                    link_exchange_id, status, evidence_ref, occurred_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (link_exchange_id, new_status, evidence_ref, transitioned_at),
+            )
+        current = conn.execute(
+            "SELECT * FROM guide_shop_link_exchanges WHERE id = ?",
+            (row["id"],),
+        ).fetchone()
+        return "transitioned", dict(current)
+
+    return run_write_with_retry(operation)
+
+
+def get_guide_shop_link_exchange_evidence_scoped(
+    link_exchange_id: str, service_subject: str, guide_membership_ref: str
+) -> dict | None:
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT e.link_exchange_id, x.guide_os_id, e.status,
+               e.evidence_ref, e.occurred_at
+        FROM guide_shop_link_exchanges AS x
+        JOIN guide_shop_link_exchange_evidence AS e
+          ON e.link_exchange_id = x.link_exchange_id
+         AND e.status = x.status
+        WHERE x.link_exchange_id = ?
+          AND x.service_subject = ?
+          AND x.guide_membership_ref = ?
+        LIMIT 1
+        """,
+        (link_exchange_id, service_subject, guide_membership_ref),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def create_guide_shop_navigation_token(
     token_hash: str,
     telegram_user_id: int,
