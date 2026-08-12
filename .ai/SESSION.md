@@ -1,10 +1,10 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-10
+> Обновлено: 2026-08-12
 
 ## Текущий фокус
 
-Подготовка перехода к GuideShop-side разработке на Mac Neo. Доступная до GuideShop работа в Guide OS завершена.
+Guide OS Stage 5D provider завершён и ожидает передачи PASS в GuideShop для Stage 6 isolated HTTP E2E.
 
 ## Завершённые этапы
 
@@ -19,6 +19,7 @@
 - Stage 4A завершён: HTTP client, identity composition, EdDSA auth и default-off real runtime готовы.
 - Stage 4B ещё не начат и требует GuideShop staging API на Mac Neo.
 - Reproducible-environment и continuous-integration quality gates завершены.
+- Stage 5D — link exchange persistence/evidence, inbound JWT/JTI и HTTP provider — завершён.
 
 ## Проверенное состояние
 
@@ -42,10 +43,13 @@
 - documentation/full suite: `1 passed` / `471 passed`.
 - CI portability fix: focused `14 passed`, полный suite `472 passed`.
 - GitHub Actions run `31408186374` для commit `785a780` завершён успешно.
+- Stage 5D provider: focused `30 passed`, полный suite `584 passed`.
+- Commit `aa60f18`; CI run `31622573211` и Integration Contracts run `31622573278` — success.
+- Provider flag default-off; реальные keys, external connection и deployment отсутствуют.
 
 ## Следующее действие
 
-Согласно `.ai/NEXT_TASK.md`, начать на Mac Neo GuideShop-side staging API и EdDSA verifier. После их готовности вернуться в Guide OS к Stage 4B staging connection.
+Согласно `.ai/NEXT_TASK.md`, передать Stage 5D PASS в GuideShop и подготовить совместный Stage 6 isolated HTTP E2E. Самостоятельно read API или production connection в Guide OS не начинать.
 
 ## Зафиксированное будущее требование
 

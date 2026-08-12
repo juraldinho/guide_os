@@ -957,6 +957,24 @@ Runbook должен описывать:
 - Локальный fake smoke test ранее подтверждён владельцем; повторная ручная проверка не требуется.
 - Замечание аудита о broken `venv` относится к отдельному checkout Guide OS на Mac Neo, а не к текущему Mac; текущий `venv` работоспособен.
 
+### Guide OS Stage 5D provider — final status
+
+**Статус:** PASS, verified 2026-08-12.
+
+- Contract `v1.1.0` закреплён на commit `c071fd45d4ec684f5ac32e8e9e71bc26d4014283`.
+- Реализованы `POST /integration/v1/link-exchanges`, status GET и lifecycle-evidence GET.
+- Raw linking token является hash-only и single-use; exchange creation атомарна.
+- Inbound GuideShop EdDSA JWT строго проверяет header/claims/TTL/skew/scope и approved `kid`.
+- JTI replay protection хранит только SHA-256 digest и выдерживает concurrent replay race.
+- Authoritative evidence поддерживает `active`, `revoked`, `conflict`; expiration и timestamps используют UTC.
+- Opaque exchange lookup не раскрывает membership reference и возвращает enumeration-resistant errors.
+- Provider имеет отдельный default-off flag и доступен только для isolated development/test loopback execution.
+- Проверка: focused provider `30 passed`; полный suite `584 passed`; CI `31622573211` и contract workflow `31622573278` — success.
+- Commit: `aa60f18`.
+- Production deployment, реальные credentials и Stage 6 соединение не выполнялись.
+
+Следующий gate: GuideShop принимает этот PASS и выполняет Stage 6 isolated HTTP E2E с временными ключами и flags, возвращёнными в `off` после проверки.
+
 ### Guide OS reproducible-environment quality gate
 
 **Статус:** Completed and verified 2026-08-10.

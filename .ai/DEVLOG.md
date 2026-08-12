@@ -269,3 +269,22 @@ Stage 4B не начат и ожидает GuideShop staging API/verifier на M
 - решение не входит в текущий read-only MVP и не изменяет следующую задачу Stage 4B.
 
 Изменялась только Markdown-документация; исходный код и текущий контракт не изменялись. Тесты и ручная проверка не требовались.
+
+## 2026-08-12 — Guide OS Stage 5D provider завершён
+
+Выполнено:
+
+- добавлены additive idempotent link-exchange и immutable lifecycle-evidence persistence;
+- raw linking token потребляется атомарно и сохраняется только как SHA-256 hash;
+- реализованы authoritative `active`, `revoked`, `conflict` evidence и UTC timestamps;
+- добавлена строгая inbound GuideShop EdDSA JWT verification по contract `v1.1.0`;
+- JTI replay protection атомарно отклоняет повторные и конкурентные JWT, сохраняя только SHA-256 digest;
+- реализованы `POST /integration/v1/link-exchanges`, status GET и evidence GET;
+- GET routes используют opaque exchange ID и authenticated fixed service principal без раскрытия membership reference;
+- provider имеет отдельный default-off flag, loopback-only development/test composition и exactly-once cleanup;
+- `.env.example` содержит только безопасные выключенные значения и пустой public-key allowlist;
+- реальные credentials, staging/production activation, deployment и Stage 6 соединение отсутствуют.
+
+Проверка: focused provider — `30 passed`; полный suite — `584 passed`; `git diff --check` clean. Commit `aa60f18`. GitHub CI run `31622573211` и Integration Contracts run `31622573278` завершены успешно.
+
+Следующее действие: передать независимый `Guide OS Stage 5D provider — PASS` в GuideShop и выполнить Stage 6 isolated HTTP E2E только как совместную задачу двух систем.

@@ -1,10 +1,10 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-10
+> Обновлено: 2026-08-12
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Stage 0–4A завершены. Identity, contracts, UI/navigation, HTTP client, request-scoped composition, service-auth contract, EdDSA token provider и default-off real runtime composition готовы. Stage 4B ожидает GuideShop staging API/verifier на Mac Neo.
+Guide OS работает как отдельный Telegram-инструмент гида. Общий integration baseline 0–4 и Guide OS Stage 5D provider завершены. Identity, contract `v1.1.0`, link lifecycle/evidence, inbound EdDSA verification, JTI replay protection и три default-off link-exchange routes готовы. Реальное соединение и production activation отсутствуют. Следующая совместная задача — Stage 6 isolated HTTP E2E с GuideShop.
 
 GuideShop должен оставаться источником истины для официальных компаний, подтверждённых Visits/Sales и points. Guide OS является источником истины для будущих личных мест гида и самостоятельно внесённых внешних продаж. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения официальных данных и события GuideShop для уведомлений.
 
@@ -184,6 +184,10 @@ GuideShop должен оставаться источником истины д
 - GuideShop verifier/API availability, события и production activation ещё не реализованы.
 - Reproducible-environment quality gate завершён: `.env.example`, Python `3.13.1`, README и documentation test; full suite `471 passed`.
 - Continuous-integration quality gate завершён: clean GitHub Actions runner устанавливает pinned dependencies и выполняет полный suite без secrets, Telegram polling, GuideShop network calls или deployment; CI run `31408186374` успешен, `472 passed`.
+- Contract `v1.1.0` закреплён на commit `c071fd45d4ec684f5ac32e8e9e71bc26d4014283` и проверяется отдельным hosted workflow.
+- Guide OS Stage 5D provider завершён: реализованы link exchange persistence, authoritative lifecycle evidence, inbound GuideShop EdDSA verifier, atomic JTI replay protection и три `/integration/v1/link-exchanges...` routes.
+- Provider имеет отдельный default-off flag, разрешён только для isolated development/test loopback execution и не содержит реальных ключей или deployment activation.
+- Проверка Stage 5D: focused provider `30 passed`; полный suite `584 passed`; GitHub CI run `31622573211` и Integration Contracts run `31622573278` — success.
 
 ## Readiness checklist перед production-интеграцией
 

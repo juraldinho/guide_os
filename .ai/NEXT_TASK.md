@@ -1,38 +1,38 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-10
+> Обновлено: 2026-08-12
 
 ## Единственная следующая задача
 
-Начать GuideShop-side подготовку Stage 4B на Mac Neo: реализовать staging Integration API и EdDSA verifier по утверждённому контракту.
+Передать Guide OS Stage 5D provider PASS в GuideShop и подготовить Stage 6 isolated HTTP E2E.
 
 ## Цель
 
-Создать на стороне GuideShop минимальную безопасную read-only поверхность, необходимую для реального staging-подключения уже подготовленного Guide OS клиента.
+Проверить совместимость уже готовых GuideShop Stage 5E consumer и Guide OS Stage 5D provider через изолированную реальную локальную HTTP-границу без production deployment.
 
 ## Требуемый результат
 
-- GuideShop проверяет EdDSA JWT, обязательные headers/claims, TTL, audience, scope и `guide_os_id`;
-- GuideShop разрешает identity только через активную безопасную связь профилей;
-- доступны согласованные `/integration/v1/me/...` read-only endpoints;
-- каждый endpoint возвращает только данные гида из проверенного token identity;
-- ответы соответствуют Stage 2A DTO/API contract Guide OS;
-- staging keys и configuration отделены от production;
-- есть контрактные, авторизационные и cross-guide negative tests.
+- GuideShop принимает независимый Stage 5D PASS и повторно сверяет contract `v1.1.0`;
+- используются только временные isolated keys, test DB и loopback URL;
+- выполняется create → awaiting confirmation → evidence → active → revoke/conflict lifecycle;
+- проходят wrong-key/scope/audience, JTI replay, raw-token replay и isolation negative cases;
+- GuideShop registry и Guide OS exchange/evidence согласуются по IDs, status и UTC timestamps;
+- после проверки временные ключи удаляются, оба feature flag возвращаются в `off`.
 
 ## Ограничения
 
-- Работа выполняется в отдельном GuideShop checkout на Mac Neo.
-- Не использовать прямой доступ Guide OS к базе GuideShop.
-- Не передавать identity через URL, query или пользовательский payload.
-- Не включать production activation, events или notifications.
-- Не менять Guide OS до появления проверяемого staging API, кроме отдельно согласованных исправлений контракта.
+- Stage 6 начинается только после принятия Stage 5D PASS в чате GuideShop.
+- Не использовать production/staging credentials или публичный endpoint.
+- Не выполнять Railway deployment, production activation, events или notifications.
+- Не использовать прямой межсистемный доступ к SQLite.
+- Не начинать read API до успешного Stage 6 gate.
 
 ## Definition of Done
 
-- GuideShop staging verifier и read-only API доступны для интеграционных тестов.
-- Утверждённые positive и cross-guide negative tests проходят.
-- После этого разблокирован Stage 4B: реальное staging-подключение Guide OS.
+- Positive lifecycle и auth/replay/isolation negative matrix проходят через real local HTTP.
+- DB/audit/evidence reconciliation не имеет необъяснимых расхождений.
+- Temporary secrets удалены, flags выключены, production не затронут.
+- После этого разблокирован следующий GuideShop-first этап — read API.
 
 ## Зафиксировано для последующей работы
 
