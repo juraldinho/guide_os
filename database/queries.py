@@ -819,6 +819,26 @@ def get_guide_shop_link_exchange_evidence_scoped(
     return dict(row) if row else None
 
 
+def claim_guide_shop_link_jti(
+    jti_hash: str, claimed_at: str, retain_until: str
+) -> bool:
+    def operation(conn):
+        try:
+            conn.execute(
+                """
+                INSERT INTO guide_shop_link_jti_replay (
+                    jti_hash, claimed_at, retain_until
+                ) VALUES (?, ?, ?)
+                """,
+                (jti_hash, claimed_at, retain_until),
+            )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    return run_write_with_retry(operation)
+
+
 def create_guide_shop_navigation_token(
     token_hash: str,
     telegram_user_id: int,

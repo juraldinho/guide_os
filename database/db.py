@@ -424,6 +424,15 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_link_jti_replay (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jti_hash TEXT NOT NULL UNIQUE,
+        claimed_at TEXT NOT NULL,
+        retain_until TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS guide_shop_navigation_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         token_hash TEXT NOT NULL UNIQUE,

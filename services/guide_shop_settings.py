@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import json
 import math
 import os
 import re
@@ -7,6 +8,7 @@ from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 
 class GuideShopSettingsError(ValueError):
@@ -26,6 +28,90 @@ _PKCS8_PEM_PATTERN = re.compile(
     r"(?:[A-Za-z0-9+/]{1,64}\n)+"
     r"-----END PRIVATE KEY-----(?:\n)?\Z"
 )
+_LINK_KID_PATTERN = re.compile(r"[a-z0-9-]{8,64}\Z")
+_PUBLIC_KEY_PEM_PATTERN = re.compile(
+    r"-----BEGIN PUBLIC KEY-----\n"
+    r"(?:[A-Za-z0-9+/=]{1,64}\n)+"
+    r"-----END PUBLIC KEY-----(?:\n)?\Z"
+)
+
+
+class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
+    pass
+
+
+@dataclass(frozen=True, init=False)
+class GuideShopInboundJWTSettings:
+    app_env: str
+    public_keys: tuple[tuple[str, str], ...] = field(repr=False, compare=False)
+
+    def __init__(self, app_env: str, public_keys: Mapping[str, str]) -> None:
+        if (
+            not isinstance(app_env, str)
+            or app_env not in _APP_ENVIRONMENTS
+            or not isinstance(public_keys, Mapping)
+        ):
+            raise GuideShopInboundJWTSettingsError(
+                "Invalid GuideShop verification configuration"
+            )
+        items = []
+        seen = set()
+        for kid, pem in public_keys.items():
+            if (
+                not isinstance(kid, str)
+                or _LINK_KID_PATTERN.fullmatch(kid) is None
+                or kid in seen
+                or not isinstance(pem, str)
+                or _PUBLIC_KEY_PEM_PATTERN.fullmatch(pem) is None
+            ):
+                raise GuideShopInboundJWTSettingsError(
+                    "Invalid GuideShop verification configuration"
+                )
+            try:
+                key = serialization.load_pem_public_key(pem.encode("ascii"))
+            except Exception:
+                raise GuideShopInboundJWTSettingsError(
+                    "Invalid GuideShop verification configuration"
+                ) from None
+            if not isinstance(key, Ed25519PublicKey):
+                raise GuideShopInboundJWTSettingsError(
+                    "Invalid GuideShop verification configuration"
+                )
+            seen.add(kid)
+            items.append((kid, pem))
+        if not items:
+            raise GuideShopInboundJWTSettingsError(
+                "Invalid GuideShop verification configuration"
+            )
+        object.__setattr__(self, "app_env", app_env)
+        object.__setattr__(self, "public_keys", tuple(items))
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopInboundJWTSettings":
+        source = os.environ if values is None else values
+        raw_keys = source.get("GUIDESHOP_LINK_JWT_PUBLIC_KEYS")
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError
+                result[key] = value
+            return result
+        try:
+            parsed = (
+                json.loads(raw_keys, object_pairs_hook=unique_object)
+                if isinstance(raw_keys, str)
+                else None
+            )
+        except (TypeError, ValueError):
+            parsed = None
+        if not isinstance(parsed, dict):
+            raise GuideShopInboundJWTSettingsError(
+                "Invalid GuideShop verification configuration"
+            )
+        return cls(source.get("APP_ENV"), parsed)
 
 
 @dataclass(frozen=True)
