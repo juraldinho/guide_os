@@ -288,3 +288,38 @@ Stage 4B не начат и ожидает GuideShop staging API/verifier на M
 Проверка: focused provider — `30 passed`; полный suite — `584 passed`; `git diff --check` clean. Commit `aa60f18`. GitHub CI run `31622573211` и Integration Contracts run `31622573278` завершены успешно.
 
 Следующее действие: передать независимый `Guide OS Stage 5D provider — PASS` в GuideShop и выполнить Stage 6 isolated HTTP E2E только как совместную задачу двух систем.
+
+## 2026-08-13 — Stage 9B Gate 1 и Gate 2A завершены
+
+Выполнено:
+
+- в Railway project `radiant-expression` создано отдельное environment `staging`;
+- создан пустой staging-only service `guide-os-staging-api` без source, image, start command и deployments;
+- создан отдельный volume `guide-os-staging-api-volume`, подключённый к `/data` и изолированный от production volume;
+- через `--skip-deploys` установлены только 10 утверждённых несекретных staging variables;
+- `DATABASE_PATH` направлен в `/data/guide_os_staging.db`;
+- все GuideShop flags, включая provider flag, оставлены в `false`;
+- JWT keys, API URL, source, domain и deployment не настраивались;
+- ручная проверка Railway staging выполнена владельцем и подтверждена как успешная;
+- production service, variables, volume и deployment history остались без изменений;
+- Guide OS repository остался на commit `7f2d91049828f62e14cfbd509e0a5af7cedb83e1` с clean status; GuideShop не изменялся.
+
+GuideShop Gate 3 readiness: готов `1/4` — public handoff Guide OS (`kid` `guide-os-staging-read-20260813-1f839319`, fingerprint `39a004…b366`). Не готовы HTTPS base URL, установка GuideShop public key и сохранение Guide OS private signing key в staging.
+
+Следующая задача: минимально адаптировать provider runtime для безопасного Railway staging execution, сохранив production fail-closed. Ключи, source, deployment, domain и activation остаются отдельными последующими gates.
+
+## 2026-08-13 — Railway staging provider runtime подготовлен
+
+Выполнено Cursor и независимо проверено этим чатом:
+
+- добавлен отдельный default-off flag `GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED`;
+- staging activation требует `APP_ENV=staging`, оба enabled flags, bind host `0.0.0.0`, валидный Railway `PORT` и непустой public-key allowlist при composition;
+- staging path не использует fallback на локальный port `8081`;
+- production activation при любых комбинациях flags остаётся fail-closed;
+- development/test loopback behavior сохранён;
+- endpoints, JWT/JTI policy, raw-token lifecycle, persistence и cleanup не изменялись;
+- Railway, GuideShop, keys, source, deployment и domain не затрагивались.
+
+Независимая проверка выполнена во временном isolated Python 3.13.14 environment в `/tmp`, поскольку существующий repository `venv` содержит broken symlink. Focused suite по provider, inbound auth, exchange lifecycle и environment documentation: `104 passed`. Полный suite: `588 passed`. `git diff --check` clean.
+
+Изменения ещё не закоммичены. Следующая задача — один commit/push и успешная проверка GitHub CI до любых staging key/source/deployment действий.

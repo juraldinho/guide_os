@@ -452,6 +452,12 @@ def test_provider_settings_are_default_off_and_local_only():
         "GUIDESHOP_LINK_PROVIDER_PORT": "8082",
         "APP_ENV": "test",
     }) == GuideShopLinkProviderSettings(True, "127.0.0.1", 8082, "test")
+    assert GuideShopLinkProviderSettings.from_env({
+        "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+        "GUIDESHOP_LINK_PROVIDER_HOST": "::1",
+        "GUIDESHOP_LINK_PROVIDER_PORT": "8081",
+        "APP_ENV": "development",
+    }) == GuideShopLinkProviderSettings(True, "::1", 8081, "development")
     for values in (
         {"GUIDESHOP_LINK_PROVIDER_ENABLED": "true", "APP_ENV": "production"},
         {"GUIDESHOP_LINK_PROVIDER_ENABLED": "true", "APP_ENV": "staging"},
@@ -460,9 +466,133 @@ def test_provider_settings_are_default_off_and_local_only():
             "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
             "APP_ENV": "test",
         },
+        {
+            "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+            "APP_ENV": "unknown",
+        },
     ):
         with pytest.raises(Exception):
             GuideShopLinkProviderSettings.from_env(values)
+
+
+def _staging_provider_env(**overrides):
+    values = {
+        "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+        "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED": "true",
+        "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
+        "PORT": "8080",
+        "APP_ENV": "staging",
+    }
+    values.update(overrides)
+    return values
+
+
+def test_staging_provider_settings_require_explicit_authorization_and_railway_port():
+    assert GuideShopLinkProviderSettings.from_env(
+        _staging_provider_env()
+    ) == GuideShopLinkProviderSettings(True, "0.0.0.0", 8080, "staging")
+    # Local provider port must not substitute for Railway PORT.
+    local_port_only = _staging_provider_env(GUIDESHOP_LINK_PROVIDER_PORT="8081")
+    del local_port_only["PORT"]
+    with pytest.raises(Exception):
+        GuideShopLinkProviderSettings.from_env(local_port_only)
+    for values in (
+        _staging_provider_env(GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED="false"),
+        {
+            key: value
+            for key, value in _staging_provider_env().items()
+            if key != "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED"
+        },
+        _staging_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="127.0.0.1"),
+        _staging_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="::1"),
+        _staging_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="10.0.0.1"),
+        {
+            key: value
+            for key, value in _staging_provider_env().items()
+            if key != "GUIDESHOP_LINK_PROVIDER_HOST"
+        },
+        {
+            key: value
+            for key, value in _staging_provider_env().items()
+            if key != "PORT"
+        },
+        _staging_provider_env(PORT=""),
+        _staging_provider_env(PORT="0"),
+        _staging_provider_env(PORT="-1"),
+        _staging_provider_env(PORT="8080.5"),
+        _staging_provider_env(PORT="65536"),
+        _staging_provider_env(PORT="not-a-port"),
+        _staging_provider_env(APP_ENV="production"),
+        _staging_provider_env(APP_ENV="development"),
+    ):
+        with pytest.raises(Exception):
+            GuideShopLinkProviderSettings.from_env(values)
+
+
+def test_production_provider_activation_always_fails_closed():
+    for values in (
+        {
+            "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+            "APP_ENV": "production",
+        },
+        {
+            "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+            "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED": "true",
+            "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
+            "PORT": "8080",
+            "APP_ENV": "production",
+        },
+        {
+            "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+            "GUIDESHOP_LINK_PROVIDER_HOST": "127.0.0.1",
+            "GUIDESHOP_LINK_PROVIDER_PORT": "8081",
+            "APP_ENV": "production",
+        },
+    ):
+        with pytest.raises(Exception):
+            GuideShopLinkProviderSettings.from_env(values)
+
+
+def test_staging_composition_succeeds_only_with_complete_explicit_config(
+    monkeypatch, signing_key
+):
+    pem = signing_key.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+    runner = Mock()
+    runner.setup = AsyncMock()
+    runner.cleanup = AsyncMock()
+    site = Mock()
+    site.start = AsyncMock()
+    monkeypatch.setattr(provider_module.web, "AppRunner", Mock(return_value=runner))
+    monkeypatch.setattr(provider_module.web, "TCPSite", Mock(return_value=site))
+    started = run(
+        start_guide_shop_link_provider(
+            {
+                **_staging_provider_env(),
+                "GUIDESHOP_LINK_JWT_PUBLIC_KEYS": json.dumps({KID: pem}),
+            }
+        )
+    )
+    assert started is runner
+    site.start.assert_awaited_once_with()
+    runner.cleanup.assert_not_called()
+
+
+def test_staging_empty_public_key_allowlist_fails_before_runner(monkeypatch):
+    runner = Mock(side_effect=AssertionError("runner created"))
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner)
+    with pytest.raises(Exception):
+        run(
+            start_guide_shop_link_provider(
+                {
+                    **_staging_provider_env(),
+                    "GUIDESHOP_LINK_JWT_PUBLIC_KEYS": "{}",
+                }
+            )
+        )
+    runner.assert_not_called()
 
 
 def test_disabled_start_has_no_settings_verifier_or_runner(monkeypatch):
@@ -471,6 +601,16 @@ def test_disabled_start_has_no_settings_verifier_or_runner(monkeypatch):
     monkeypatch.setattr(provider_module.GuideShopInboundJWTSettings, "from_env", inbound)
     monkeypatch.setattr(provider_module.web, "AppRunner", runner)
     assert run(start_guide_shop_link_provider({})) is None
+    assert run(
+        start_guide_shop_link_provider(
+            {
+                "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
+                "PORT": "bad",
+                "GUIDESHOP_LINK_JWT_PUBLIC_KEYS": "{",
+                "APP_ENV": "staging",
+            }
+        )
+    ) is None
     inbound.assert_not_called()
     runner.assert_not_called()
 

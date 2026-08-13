@@ -34,6 +34,9 @@ _PUBLIC_KEY_PEM_PATTERN = re.compile(
     r"(?:[A-Za-z0-9+/=]{1,64}\n)+"
     r"-----END PUBLIC KEY-----(?:\n)?\Z"
 )
+_PROVIDER_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
+_PROVIDER_RAILWAY_STAGING_HOSTS = frozenset({"0.0.0.0"})
+_PROVIDER_LOCAL_APP_ENVS = frozenset({"development", "test"})
 
 
 class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
@@ -51,21 +54,30 @@ class GuideShopLinkProviderSettings:
         if (
             not isinstance(self.enabled, bool)
             or not isinstance(self.host, str)
-            or self.host not in {"127.0.0.1", "::1"}
             or isinstance(self.port, bool)
             or not isinstance(self.port, int)
             or not 1 <= self.port <= 65535
-            or (
-                self.enabled
-                and self.app_env not in {"development", "test"}
-            )
-            or (
-                not self.enabled
-                and self.app_env is not None
-                and self.app_env not in _APP_ENVIRONMENTS
-            )
         ):
             raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+        if not self.enabled:
+            if (
+                self.host not in _PROVIDER_LOOPBACK_HOSTS
+                or (
+                    self.app_env is not None
+                    and self.app_env not in _APP_ENVIRONMENTS
+                )
+            ):
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            return
+        if self.app_env in _PROVIDER_LOCAL_APP_ENVS:
+            if self.host not in _PROVIDER_LOOPBACK_HOSTS:
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            return
+        if self.app_env == "staging":
+            if self.host not in _PROVIDER_RAILWAY_STAGING_HOSTS:
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            return
+        raise GuideShopSettingsError("Invalid GuideShop provider configuration")
 
     @classmethod
     def from_env(
@@ -75,14 +87,30 @@ class GuideShopLinkProviderSettings:
         enabled = _read_flag(source, "GUIDESHOP_LINK_PROVIDER_ENABLED")
         if not enabled:
             return cls()
-        host = source.get("GUIDESHOP_LINK_PROVIDER_HOST", "127.0.0.1")
-        port = _read_int(source, "GUIDESHOP_LINK_PROVIDER_PORT", 8081)
-        return cls(
-            enabled=True,
-            host=host,
-            port=port,
-            app_env=source.get("APP_ENV"),
-        )
+        app_env = source.get("APP_ENV")
+        if app_env in _PROVIDER_LOCAL_APP_ENVS:
+            host = source.get("GUIDESHOP_LINK_PROVIDER_HOST", "127.0.0.1")
+            port = _read_int(source, "GUIDESHOP_LINK_PROVIDER_PORT", 8081)
+            return cls(
+                enabled=True,
+                host=host,
+                port=port,
+                app_env=app_env,
+            )
+        if app_env == "staging":
+            if not _read_flag(source, "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED"):
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            if "GUIDESHOP_LINK_PROVIDER_HOST" not in source:
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            host = source.get("GUIDESHOP_LINK_PROVIDER_HOST")
+            port = _read_required_int(source, "PORT")
+            return cls(
+                enabled=True,
+                host=host,
+                port=port,
+                app_env=app_env,
+            )
+        raise GuideShopSettingsError("Invalid GuideShop provider configuration")
 
 
 @dataclass(frozen=True, init=False)
@@ -305,6 +333,12 @@ def _read_int(
     if str(value) != raw_value:
         raise GuideShopSettingsError(f"Invalid value for {name}")
     return value
+
+
+def _read_required_int(values: Mapping[str, str], name: str) -> int:
+    if name not in values:
+        raise GuideShopSettingsError(f"Invalid value for {name}")
+    return _read_int(values, name, 0)
 
 
 @dataclass(frozen=True)

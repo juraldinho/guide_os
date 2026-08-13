@@ -1,39 +1,40 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-12
+> Обновлено: 2026-08-13
 
 ## Единственная следующая задача
 
-Передать Guide OS Stage 5D provider PASS в GuideShop и подготовить Stage 6 isolated HTTP E2E.
+Закоммитить и отправить проверенные изменения Railway staging provider runtime, затем подтвердить успешный GitHub CI.
 
 ## Цель
 
-Проверить совместимость уже готовых GuideShop Stage 5E consumer и Guide OS Stage 5D provider через изолированную реальную локальную HTTP-границу без production deployment.
+Создать единый проверяемый commit, синхронизировать `main` с `origin/main` и получить clean-runner evidence до установки staging keys или подключения Railway source.
 
 ## Требуемый результат
 
-- GuideShop принимает независимый Stage 5D PASS и повторно сверяет contract `v1.1.0`;
-- используются только временные isolated keys, test DB и loopback URL;
-- выполняется create → awaiting confirmation → evidence → active → revoke/conflict lifecycle;
-- проходят wrong-key/scope/audience, JTI replay, raw-token replay и isolation negative cases;
-- GuideShop registry и Guide OS exchange/evidence согласуются по IDs, status и UTC timestamps;
-- после проверки временные ключи удаляются, оба feature flag возвращаются в `off`.
+- один commit включает четыре source/test/config изменения и актуальную `.ai`-документацию;
+- commit отправлен в `origin/main`;
+- GitHub CI и Integration Contracts workflow, если он запускается для commit, завершаются успешно;
+- локальная рабочая директория после push чистая;
+- реальные keys, Railway source, deployment, domain и provider activation отсутствуют.
 
 ## Ограничения
 
-- Stage 6 начинается только после принятия Stage 5D PASS в чате GuideShop.
-- Не использовать production/staging credentials или публичный endpoint.
-- Не выполнять Railway deployment, production activation, events или notifications.
-- Не использовать прямой межсистемный доступ к SQLite.
-- Не начинать read API до успешного Stage 6 gate.
+- Не изменять проверенный source/test diff перед commit, кроме необходимой Markdown-документации.
+- Не устанавливать и не читать staging key material.
+- Не подключать Railway source и не создавать deployment/domain.
+- Не менять Railway variables и не включать flags.
+- Не менять production или GuideShop.
+- Не включать в commit `.env`, databases, caches, logs, temporary environments или key material.
 
 ## Definition of Done
 
-- Positive lifecycle и auth/replay/isolation negative matrix проходят через real local HTTP.
-- DB/audit/evidence reconciliation не имеет необъяснимых расхождений.
-- Temporary secrets удалены, flags выключены, production не затронут.
-- После этого разблокирован следующий GuideShop-first этап — read API.
+- Commit создан и отправлен в `origin/main`.
+- GitHub clean-runner checks успешны.
+- `main` синхронизирована с `origin/main`.
+- Рабочая директория clean.
+- Railway, production, GuideShop и keys не затронуты.
 
 ## Зафиксировано для последующей работы
 
-После базовой read-only интеграции отдельно проектируются личные места и self-reported external sales. Они хранятся в Guide OS и не создают глобальные компании GuideShop. Возможная отправка points claim в GuideShop является отдельным будущим write contract и не входит в текущую задачу.
+После этого отдельными gates выполняются: установка staging keys, source/deployment, HTTPS domain, provider activation и E2E. GuideShop Gate 3 продолжается только после явного подтверждения readiness `4/4`.
