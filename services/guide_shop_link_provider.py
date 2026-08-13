@@ -187,6 +187,10 @@ def create_guide_shop_link_provider_app(
         except (InvalidLinkExchangeTransitionError, LinkExchangeError):
             return _error(rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10)
 
+    async def health(_request):
+        return web.json_response({"schema_version": "1.0.0", "status": "ok"})
+
+    app.router.add_get("/health", health, allow_head=False)
     app.router.add_post("/integration/v1/link-exchanges", create_exchange)
     app.router.add_get(
         "/integration/v1/link-exchanges/{link_exchange_id}", status, allow_head=False

@@ -4,7 +4,7 @@
 
 ## Текущий фокус
 
-Guide OS Stage 9B Gate 1/2A и code-only staging provider runtime gate завершены. Изменения независимо проверены, но ещё не закоммичены и не прошли clean-runner CI для нового commit.
+Guide OS Stage 9B Gate 1/2A/2B, staging runtime config и API-only entrypoint завершены локально. Readiness GuideShop Gate 3 составляет `3/4`; отсутствует только HTTPS base URL.
 
 ## Завершённые этапы
 
@@ -54,10 +54,15 @@ Guide OS Stage 9B Gate 1/2A и code-only staging provider runtime gate заве�
 - GuideShop Gate 3 readiness: `1/4`; готов только Guide OS public handoff.
 - Staging runtime code: focused `104 passed`, полный suite `588 passed`, `git diff --check` clean.
 - Существующий repository `venv` сломан; независимая проверка выполнена во временном `/tmp` environment на Homebrew Python 3.13.14 без изменения репозитория.
+- Staging keys установлены без deploy: GuideShop public verification key, Guide OS private signing key и matching public handoff подтверждены.
+- Текущий staging API не готов к deployment: provider запускается только вместе с Telegram bot runtime и требует `BOT_TOKEN`.
+- Production latest deployment baseline изменился между gates внешним действием; перед deployment требуется provenance check.
+- API-only entrypoint: focused `117 passed`, полный suite `601 passed`, socket-free health test, `git diff --check` clean.
+- API-only изменения ещё не закоммичены и не имеют нового clean-runner CI evidence.
 
 ## Следующее действие
 
-Согласно `.ai/NEXT_TASK.md`, создать один commit, push и подтвердить GitHub CI. До этого keys, Railway source, deployment и domain не трогать.
+Согласно `.ai/NEXT_TASK.md`, закоммитить API-only изменения, выполнить push и подтвердить CI. Railway source/deployment/domain и flags пока не трогать.
 
 ## Зафиксированное будущее требование
 

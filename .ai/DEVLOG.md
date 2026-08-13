@@ -323,3 +323,39 @@ GuideShop Gate 3 readiness: готов `1/4` — public handoff Guide OS (`kid` 
 Независимая проверка выполнена во временном isolated Python 3.13.14 environment в `/tmp`, поскольку существующий repository `venv` содержит broken symlink. Focused suite по provider, inbound auth, exchange lifecycle и environment documentation: `104 passed`. Полный suite: `588 passed`. `git diff --check` clean.
 
 Изменения ещё не закоммичены. Следующая задача — один commit/push и успешная проверка GitHub CI до любых staging key/source/deployment действий.
+
+## 2026-08-13 — Stage 9B Gate 2B завершён
+
+Выполнено:
+
+- в isolated Railway staging service через `--skip-deploys` установлены три утверждённые key variables;
+- inbound allowlist содержит GuideShop public key с `kid` `guideshop-staging-link-20260813-b8375404`;
+- Guide OS private signing key сохранён с `kid` `guide-os-staging-read-20260813-1f839319`;
+- derived Guide OS public fingerprint совпал с handoff `39a004…b366` по SHA-256 DER SPKI;
+- все GuideShop/provider flags остались выключены;
+- source, start command, deployments и public domain отсутствуют;
+- production и репозитории не изменялись в рамках gate;
+- key material не выводился и временные key directories пока сохранены.
+
+GuideShop Gate 3 readiness: `3/4`. Готовы inbound GuideShop public key, outbound Guide OS private signing key и Guide OS public handoff. Не готов только HTTPS base URL.
+
+Перед последним infrastructure gate обнаружен архитектурный блокер: текущий provider запускается только из `bot.py`, который требует `BOT_TOKEN` и запускает Telegram polling. Для отдельного `guide-os-staging-api` требуется минимальный API-only entrypoint без Telegram runtime.
+
+Отдельное наблюдение: production latest deployment baseline между Gate 2A и Gate 2B изменился с `ac1b8a97-85c9-478e-a80f-6827a5214c7f` на `26d2c035-e5a0-457f-a4af-17dd8204e549`. По evidence Gate 2B новое значение было неизменно before/after и не вызвано этим gate, но его происхождение должно быть проверено до staging deployment.
+
+## 2026-08-14 — API-only staging entrypoint подготовлен
+
+Выполнено Cursor и независимо проверено этим чатом:
+
+- добавлен отдельный `guide_shop_link_api.py`, который не импортирует Telegram runtime или `BOT_TOKEN` configuration;
+- entrypoint инициализирует SQLite и запускает только существующий Stage 5D provider;
+- добавлен фиксированный безопасный `GET /health` на том же aiohttp app;
+- health test использует socket-free direct handler resolution и не создаёт `ClientSession`;
+- signal handlers удаляются только если entrypoint успешно установил их;
+- runner cleanup сохраняет exactly-once behavior;
+- существующие Stage 5D endpoints и JWT/JTI/raw-token/persistence contracts не изменены;
+- Railway, GuideShop, keys, flags, deployment, domain и production не затрагивались.
+
+Независимая проверка: focused suite `117 passed`; полный suite `601 passed`; `git diff --check` clean. Изменения ещё не закоммичены.
+
+Следующая задача: commit/push API-only entrypoint и подтверждение clean-runner CI. После этого требуется отдельно проверить происхождение нового production latest deployment baseline до любых Railway source/deploy действий.

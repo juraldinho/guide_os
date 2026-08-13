@@ -154,6 +154,7 @@ def test_exact_routes_and_methods_only(components):
     app = create_guide_shop_link_provider_app(*components)
     routes = {(route.method, route.resource.canonical) for route in app.router.routes()}
     assert routes == {
+        ("GET", "/health"),
         ("POST", "/integration/v1/link-exchanges"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}/evidence"),
