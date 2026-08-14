@@ -78,13 +78,16 @@ def _load_valid_request(raw_token: str, audience: str) -> dict:
     return request
 
 
-def create_link_request(user_id: int) -> LinkRequest:
+def create_link_request(user_id: int, *, clock=None) -> LinkRequest:
     guide_os_id = get_guide_os_id(user_id)
     if not guide_os_id:
         raise UnknownUserError("User has no Guide OS identity")
 
     raw_token = secrets.token_urlsafe(32)
-    now = _utc_now()
+    now = clock() if clock is not None else _utc_now()
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise GuideShopLinkError("Link request operation failed")
+    now = now.astimezone(timezone.utc)
     expires_at = now + LINK_REQUEST_TTL
     create_guide_shop_link_request(
         guide_os_id=guide_os_id,

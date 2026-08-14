@@ -43,6 +43,101 @@ class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
     pass
 
 
+class GuideShopStagingLifecycleSettingsError(GuideShopSettingsError):
+    pass
+
+
+@dataclass(frozen=True, init=False)
+class GuideShopStagingLifecycleSettings:
+    enabled: bool
+    app_env: str | None
+    public_keys: tuple[tuple[str, str], ...] = field(repr=False, compare=False)
+
+    def __init__(
+        self,
+        enabled: bool = False,
+        app_env: str | None = None,
+        public_keys: Mapping[str, str] | None = None,
+    ) -> None:
+        if not isinstance(enabled, bool):
+            raise GuideShopStagingLifecycleSettingsError(
+                "Invalid staging lifecycle configuration"
+            )
+        if not enabled:
+            object.__setattr__(self, "enabled", False)
+            object.__setattr__(self, "app_env", app_env)
+            object.__setattr__(self, "public_keys", ())
+            return
+        if app_env != "staging" or not isinstance(public_keys, Mapping):
+            raise GuideShopStagingLifecycleSettingsError(
+                "Invalid staging lifecycle configuration"
+            )
+        items = []
+        seen = set()
+        for kid, pem in public_keys.items():
+            if (
+                not isinstance(kid, str)
+                or _LINK_KID_PATTERN.fullmatch(kid) is None
+                or kid in seen
+                or not isinstance(pem, str)
+                or _PUBLIC_KEY_PEM_PATTERN.fullmatch(pem) is None
+            ):
+                raise GuideShopStagingLifecycleSettingsError(
+                    "Invalid staging lifecycle configuration"
+                )
+            try:
+                key = serialization.load_pem_public_key(pem.encode("ascii"))
+            except Exception:
+                raise GuideShopStagingLifecycleSettingsError(
+                    "Invalid staging lifecycle configuration"
+                ) from None
+            if not isinstance(key, Ed25519PublicKey):
+                raise GuideShopStagingLifecycleSettingsError(
+                    "Invalid staging lifecycle configuration"
+                )
+            seen.add(kid)
+            items.append((kid, pem))
+        if not items:
+            raise GuideShopStagingLifecycleSettingsError(
+                "Invalid staging lifecycle configuration"
+            )
+        object.__setattr__(self, "enabled", True)
+        object.__setattr__(self, "app_env", app_env)
+        object.__setattr__(self, "public_keys", tuple(items))
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopStagingLifecycleSettings":
+        source = os.environ if values is None else values
+        enabled = _read_flag(source, "GUIDESHOP_STAGING_LIFECYCLE_ENABLED")
+        if not enabled:
+            return cls()
+        raw_keys = source.get("GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS")
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError
+                result[key] = value
+            return result
+
+        try:
+            parsed = (
+                json.loads(raw_keys, object_pairs_hook=unique_object)
+                if isinstance(raw_keys, str)
+                else None
+            )
+        except (TypeError, ValueError):
+            parsed = None
+        return cls(
+            enabled=True,
+            app_env=source.get("APP_ENV"),
+            public_keys=parsed,
+        )
+
+
 @dataclass(frozen=True)
 class GuideShopLinkProviderSettings:
     enabled: bool = False

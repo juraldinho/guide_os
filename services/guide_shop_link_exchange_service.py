@@ -3,13 +3,17 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import re
 import secrets
+import sqlite3
 
 from database.queries import (
     create_guide_shop_link_exchange_atomic,
+    get_guide_shop_link_exchange_evidence_for_guide,
     get_guide_shop_link_exchange_evidence_scoped,
+    get_guide_shop_link_exchange_for_guide,
     get_guide_shop_link_exchange_for_service,
     get_guide_shop_link_exchange_scoped,
     transition_guide_shop_link_exchange,
+    transition_guide_shop_link_exchange_for_guide,
 )
 from utils.guide_os_identity import validate_guide_os_id
 
@@ -201,6 +205,7 @@ class GuideShopLinkExchangeService:
             ("awaiting_guide_confirmation", "active"),
             ("awaiting_guide_confirmation", "conflict"),
             ("awaiting_guide_confirmation", "expired"),
+            ("awaiting_guide_confirmation", "revoked"),
             ("active", "revoked"),
         }
         if (current, new_status) not in allowed:
@@ -274,3 +279,128 @@ class GuideShopLinkExchangeService:
     def get_evidence_for_service(self, link_exchange_id, service_subject):
         membership = self._membership_for_service(link_exchange_id, service_subject)
         return self.get_evidence(link_exchange_id, membership, service_subject)
+
+    def _load_for_guide(self, link_exchange_id, guide_os_id):
+        try:
+            identity = validate_guide_os_id(guide_os_id)
+        except Exception:
+            raise LinkExchangeNotFoundError("Link exchange not found") from None
+        if not isinstance(link_exchange_id, str) or _OPAQUE_ID.fullmatch(link_exchange_id) is None:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        try:
+            row = get_guide_shop_link_exchange_for_guide(link_exchange_id, identity)
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if row is None:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        return row, identity
+
+    def _expire_awaiting_for_guide(self, row, identity, now):
+        if row["status"] != "awaiting_guide_confirmation":
+            return row
+        try:
+            expired = now >= datetime.fromisoformat(row["exchange_expires_at"])
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if not expired:
+            return row
+        try:
+            result, current = transition_guide_shop_link_exchange_for_guide(
+                link_exchange_id=row["link_exchange_id"],
+                guide_os_id=identity,
+                expected_status="awaiting_guide_confirmation",
+                new_status="expired",
+                transitioned_at=now.isoformat(),
+                evidence_ref=None,
+            )
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if result == "transitioned":
+            return current
+        reloaded = get_guide_shop_link_exchange_for_guide(
+            row["link_exchange_id"], identity
+        )
+        if reloaded is None:
+            raise LinkExchangeNotFoundError("Link exchange not found")
+        return reloaded
+
+    def confirm_for_guide(self, link_exchange_id, guide_os_id) -> LinkExchange:
+        row, identity = self._load_for_guide(link_exchange_id, guide_os_id)
+        now = self._now()
+        row = self._expire_awaiting_for_guide(row, identity, now)
+        return self._guide_transition(
+            row=row,
+            identity=identity,
+            new_status="active",
+            allowed_from={"awaiting_guide_confirmation"},
+            now=now,
+        )
+
+    def revoke_for_guide(self, link_exchange_id, guide_os_id) -> LinkExchange:
+        row, identity = self._load_for_guide(link_exchange_id, guide_os_id)
+        now = self._now()
+        row = self._expire_awaiting_for_guide(row, identity, now)
+        return self._guide_transition(
+            row=row,
+            identity=identity,
+            new_status="revoked",
+            allowed_from={"awaiting_guide_confirmation", "active"},
+            now=now,
+        )
+
+    def _guide_transition(self, *, row, identity, new_status, allowed_from, now):
+        current = row["status"]
+        if current == new_status:
+            return self._exchange(row)
+        if current not in allowed_from:
+            raise InvalidLinkExchangeTransitionError("Invalid link exchange transition")
+        evidence_ref = (
+            self._opaque("evd_")
+            if new_status in {"active", "revoked", "conflict"}
+            else None
+        )
+        try:
+            result, updated = transition_guide_shop_link_exchange_for_guide(
+                link_exchange_id=row["link_exchange_id"],
+                guide_os_id=identity,
+                expected_status=current,
+                new_status=new_status,
+                transitioned_at=now.isoformat(),
+                evidence_ref=evidence_ref,
+            )
+        except sqlite3.IntegrityError:
+            raise InvalidLinkExchangeTransitionError(
+                "Invalid link exchange transition"
+            ) from None
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if result == "identical" and updated is not None:
+            return self._exchange(updated)
+        if result != "transitioned" or updated is None:
+            raise InvalidLinkExchangeTransitionError("Invalid link exchange transition")
+        return self._exchange(updated)
+
+    def get_evidence_for_guide(self, link_exchange_id, guide_os_id) -> LinkLifecycleEvidence:
+        row, identity = self._load_for_guide(link_exchange_id, guide_os_id)
+        now = self._now()
+        row = self._expire_awaiting_for_guide(row, identity, now)
+        if row["status"] not in {"active", "revoked", "conflict"}:
+            raise EvidenceNotReadyError("Lifecycle evidence is not ready")
+        try:
+            evidence = get_guide_shop_link_exchange_evidence_for_guide(
+                row["link_exchange_id"], identity
+            )
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if evidence is None:
+            raise EvidenceNotReadyError("Lifecycle evidence is not ready")
+        try:
+            return LinkLifecycleEvidence(
+                link_exchange_id=evidence["link_exchange_id"],
+                guide_os_id=validate_guide_os_id(evidence["guide_os_id"]),
+                status=evidence["status"],
+                evidence_ref=evidence["evidence_ref"],
+                occurred_at=datetime.fromisoformat(evidence["occurred_at"]),
+            )
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None

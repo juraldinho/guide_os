@@ -158,6 +158,9 @@ def test_exact_routes_and_methods_only(components):
         ("POST", "/integration/v1/link-exchanges"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}/evidence"),
+        ("POST", "/integration/v1/staging/link-tokens"),
+        ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/confirm"),
+        ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/revoke"),
     }
 
 

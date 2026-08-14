@@ -12,17 +12,29 @@ from services.guide_shop_inbound_auth import (
 from services.guide_shop_link_exchange_service import (
     EvidenceNotReadyError,
     GUIDE_SHOP_LINK_AUDIENCE,
-    GUIDE_SHOP_LINK_SERVICE_SUBJECT,
     GuideShopLinkExchangeService,
     InvalidLinkExchangeTransitionError,
     LinkExchangeError,
     LinkExchangeNotFoundError,
     LinkExchangeTokenError,
 )
+from services.guide_shop_link_service import (
+    GuideShopLinkError,
+    create_link_request,
+)
 from services.guide_shop_settings import (
     GuideShopInboundJWTSettings,
     GuideShopLinkProviderSettings,
+    GuideShopStagingLifecycleSettings,
 )
+from services.guide_shop_staging_lifecycle_auth import (
+    GuideShopStagingLifecycleAuthenticationError,
+    GuideShopStagingLifecycleJWTVerifier,
+    SCOPE_CONFIRM,
+    SCOPE_ISSUE,
+    SCOPE_REVOKE,
+)
+from database.queries import ensure_staging_guide_user
 
 
 MAX_REQUEST_BODY_BYTES = 4096
@@ -67,6 +79,7 @@ def create_guide_shop_link_provider_app(
     verifier: GuideShopInboundJWTVerifier,
     service: GuideShopLinkExchangeService,
     *,
+    lifecycle_verifier: GuideShopStagingLifecycleJWTVerifier | None = None,
     random_bytes=secrets.token_bytes,
 ):
     app = web.Application(client_max_size=MAX_REQUEST_BODY_BYTES)
@@ -190,6 +203,89 @@ def create_guide_shop_link_provider_app(
     async def health(_request):
         return web.json_response({"schema_version": "1.0.0", "status": "ok"})
 
+    async def prepare_lifecycle(request, scope):
+        try:
+            rid = request_id(request)
+        except Exception:
+            rid = "req_invalid_request"
+            return rid, None, _error(rid, 400, "invalid_request", "Invalid request")
+        if lifecycle_verifier is None:
+            return rid, None, _error(rid, 404, "not_found", "Entity not found")
+        values = request.headers.getall("Authorization", [])
+        if len(values) != 1 or not values[0].startswith("Bearer "):
+            return rid, None, _error(rid, 401, "unauthenticated", "Authentication failed")
+        token = values[0][7:]
+        if not token or token != token.strip() or any(c.isspace() for c in token):
+            return rid, None, _error(rid, 401, "unauthenticated", "Authentication failed")
+        try:
+            principal = lifecycle_verifier.verify(token, scope)
+        except GuideShopStagingLifecycleAuthenticationError:
+            return rid, None, _error(rid, 401, "unauthenticated", "Authentication failed")
+        return rid, principal, None
+
+    async def issue_token(request):
+        rid, principal, failure = await prepare_lifecycle(request, SCOPE_ISSUE)
+        if failure is not None:
+            return failure
+        try:
+            user_id = ensure_staging_guide_user(principal.guide_os_id)
+            issued = create_link_request(user_id, clock=service._clock)
+            return web.json_response(
+                {
+                    "schema_version": "1.0.0",
+                    "request_id": rid,
+                    "guide_os_id": principal.guide_os_id,
+                    "audience": GUIDE_SHOP_LINK_AUDIENCE,
+                    "raw_link_token": issued.token,
+                    "token_expires_at": _utc(issued.expires_at),
+                },
+                status=201,
+            )
+        except GuideShopLinkError:
+            return _error(rid, 422, "invalid_transition", "Link token is unavailable")
+        except Exception:
+            return _error(
+                rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10
+            )
+
+    async def confirm_exchange(request):
+        rid, principal, failure = await prepare_lifecycle(request, SCOPE_CONFIRM)
+        if failure is not None:
+            return failure
+        try:
+            exchange = service.confirm_for_guide(
+                request.match_info["link_exchange_id"],
+                principal.guide_os_id,
+            )
+            return web.json_response(_exchange_payload(exchange, rid))
+        except LinkExchangeNotFoundError:
+            return _error(rid, 404, "not_found", "Entity not found")
+        except InvalidLinkExchangeTransitionError:
+            return _error(rid, 422, "invalid_transition", "Link exchange is unavailable")
+        except LinkExchangeError:
+            return _error(
+                rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10
+            )
+
+    async def revoke_exchange(request):
+        rid, principal, failure = await prepare_lifecycle(request, SCOPE_REVOKE)
+        if failure is not None:
+            return failure
+        try:
+            exchange = service.revoke_for_guide(
+                request.match_info["link_exchange_id"],
+                principal.guide_os_id,
+            )
+            return web.json_response(_exchange_payload(exchange, rid))
+        except LinkExchangeNotFoundError:
+            return _error(rid, 404, "not_found", "Entity not found")
+        except InvalidLinkExchangeTransitionError:
+            return _error(rid, 422, "invalid_transition", "Link exchange is unavailable")
+        except LinkExchangeError:
+            return _error(
+                rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10
+            )
+
     app.router.add_get("/health", health, allow_head=False)
     app.router.add_post("/integration/v1/link-exchanges", create_exchange)
     app.router.add_get(
@@ -199,6 +295,15 @@ def create_guide_shop_link_provider_app(
         "/integration/v1/link-exchanges/{link_exchange_id}/evidence",
         evidence,
         allow_head=False,
+    )
+    app.router.add_post("/integration/v1/staging/link-tokens", issue_token)
+    app.router.add_post(
+        "/integration/v1/staging/link-exchanges/{link_exchange_id}/confirm",
+        confirm_exchange,
+    )
+    app.router.add_post(
+        "/integration/v1/staging/link-exchanges/{link_exchange_id}/revoke",
+        revoke_exchange,
     )
     return app
 
@@ -210,7 +315,17 @@ async def start_guide_shop_link_provider(values=None, *, clock=None):
     settings = GuideShopInboundJWTSettings.from_env(values)
     verifier = GuideShopInboundJWTVerifier(settings, clock=clock)
     service = GuideShopLinkExchangeService(clock=clock)
-    runner = web.AppRunner(create_guide_shop_link_provider_app(verifier, service))
+    lifecycle_settings = GuideShopStagingLifecycleSettings.from_env(values)
+    lifecycle_verifier = None
+    if lifecycle_settings.enabled:
+        lifecycle_verifier = GuideShopStagingLifecycleJWTVerifier(
+            lifecycle_settings, clock=clock
+        )
+    runner = web.AppRunner(
+        create_guide_shop_link_provider_app(
+            verifier, service, lifecycle_verifier=lifecycle_verifier
+        )
+    )
     try:
         await runner.setup()
         site = web.TCPSite(runner, runtime.host, runtime.port)

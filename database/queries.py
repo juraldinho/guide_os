@@ -555,6 +555,52 @@ def register_user(user_id: int) -> None:
     run_write_with_retry(operation)
 
 
+def get_user_id_by_guide_os_id(guide_os_id: str) -> int | None:
+    identity = validate_guide_os_id(guide_os_id)
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT user_id FROM users WHERE guide_os_id = ? LIMIT 1",
+        (identity,),
+    ).fetchone()
+    conn.close()
+    return int(row["user_id"]) if row else None
+
+
+def ensure_staging_guide_user(guide_os_id: str) -> int:
+    """Create a Telegram-less staging user bound to an authenticated guide_os_id."""
+    import uuid
+
+    identity = validate_guide_os_id(guide_os_id)
+    existing = get_user_id_by_guide_os_id(identity)
+    if existing is not None:
+        return existing
+    staging_user_id = -((uuid.UUID(identity).int % (10**15)) + 1)
+
+    def operation(conn):
+        row = conn.execute(
+            "SELECT user_id FROM users WHERE guide_os_id = ? LIMIT 1",
+            (identity,),
+        ).fetchone()
+        if row is not None:
+            return int(row["user_id"])
+        try:
+            conn.execute(
+                "INSERT INTO users (user_id, guide_os_id) VALUES (?, ?)",
+                (staging_user_id, identity),
+            )
+        except sqlite3.IntegrityError:
+            row = conn.execute(
+                "SELECT user_id FROM users WHERE guide_os_id = ? LIMIT 1",
+                (identity,),
+            ).fetchone()
+            if row is not None:
+                return int(row["user_id"])
+            raise
+        return staging_user_id
+
+    return run_write_with_retry(operation)
+
+
 def get_guide_os_id(user_id: int) -> str | None:
     conn = get_connection()
     cursor = conn.cursor()
@@ -851,6 +897,121 @@ def claim_guide_shop_link_jti(
         except sqlite3.IntegrityError:
             return False
         return True
+
+    return run_write_with_retry(operation)
+
+
+def claim_guide_shop_lifecycle_jti(
+    jti_hash: str, claimed_at: str, retain_until: str
+) -> bool:
+    def operation(conn):
+        try:
+            conn.execute(
+                """
+                INSERT INTO guide_shop_lifecycle_jti_replay (
+                    jti_hash, claimed_at, retain_until
+                ) VALUES (?, ?, ?)
+                """,
+                (jti_hash, claimed_at, retain_until),
+            )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    return run_write_with_retry(operation)
+
+
+def get_guide_shop_link_exchange_for_guide(
+    link_exchange_id: str, guide_os_id: str
+) -> dict | None:
+    identity = validate_guide_os_id(guide_os_id)
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT * FROM guide_shop_link_exchanges
+        WHERE link_exchange_id = ? AND guide_os_id = ?
+        LIMIT 1
+        """,
+        (link_exchange_id, identity),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_shop_link_exchange_evidence_for_guide(
+    link_exchange_id: str, guide_os_id: str
+) -> dict | None:
+    identity = validate_guide_os_id(guide_os_id)
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT e.link_exchange_id, x.guide_os_id, e.status,
+               e.evidence_ref, e.occurred_at
+        FROM guide_shop_link_exchanges AS x
+        JOIN guide_shop_link_exchange_evidence AS e
+          ON e.link_exchange_id = x.link_exchange_id
+         AND e.status = x.status
+        WHERE x.link_exchange_id = ?
+          AND x.guide_os_id = ?
+        LIMIT 1
+        """,
+        (link_exchange_id, identity),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def transition_guide_shop_link_exchange_for_guide(
+    *,
+    link_exchange_id: str,
+    guide_os_id: str,
+    expected_status: str,
+    new_status: str,
+    transitioned_at: str,
+    evidence_ref: str | None,
+) -> tuple[str, dict | None]:
+    identity = validate_guide_os_id(guide_os_id)
+
+    def operation(conn):
+        row = conn.execute(
+            """
+            SELECT * FROM guide_shop_link_exchanges
+            WHERE link_exchange_id = ? AND guide_os_id = ?
+            LIMIT 1
+            """,
+            (link_exchange_id, identity),
+        ).fetchone()
+        if row is None:
+            return "unknown", None
+        if row["status"] == new_status:
+            return "identical", dict(row)
+        if row["status"] != expected_status:
+            return "invalid_transition", dict(row)
+
+        updated = conn.execute(
+            """
+            UPDATE guide_shop_link_exchanges
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND status = ? AND guide_os_id = ?
+            """,
+            (new_status, transitioned_at, row["id"], expected_status, identity),
+        )
+        if updated.rowcount != 1:
+            return "invalid_transition", None
+        if evidence_ref is not None:
+            conn.execute(
+                """
+                INSERT INTO guide_shop_link_exchange_evidence (
+                    link_exchange_id, status, evidence_ref, occurred_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (link_exchange_id, new_status, evidence_ref, transitioned_at),
+            )
+        current = conn.execute(
+            "SELECT * FROM guide_shop_link_exchanges WHERE id = ?",
+            (row["id"],),
+        ).fetchone()
+        return "transitioned", dict(current)
 
     return run_write_with_retry(operation)
 
