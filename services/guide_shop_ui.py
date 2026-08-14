@@ -12,8 +12,9 @@ from services.guide_shop_client import (
 )
 from services.guide_shop_contracts import (
     CompanyDTO,
+    PointsAccrualDTO,
+    PointsPayoutDTO,
     PointsStatus,
-    PointsTransactionDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -96,33 +97,28 @@ def _visit_text(visit: VisitDTO) -> str:
 
 def _sale_text(sale: SaleDTO) -> str:
     return (
-        f"💵 Сумма: {_safe(sale.amount_usd)} {_safe(sale.currency)}\n"
+        f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}\n"
         f"Категория: {_safe(sale.category_name)}\n"
+        f"Оплата: {_safe(sale.payment_method)}\n"
         f"Статус: {_safe(sale.status)}\n"
         f"Создано: {_timestamp(sale.created_at)}"
     )
 
 
-def _points_text(transaction: PointsTransactionDTO) -> str:
+def _points_text(transaction: PointsAccrualDTO) -> str:
     lines = [
-        f"Баллы: {_safe(transaction.amount)}",
+        f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}",
         f"Статус: {_safe(transaction.status)}",
         f"Рассчитано: {_timestamp(transaction.calculated_at)}",
     ]
-    if transaction.reason is not None:
-        lines.append(f"Причина: {_safe(transaction.reason)}")
     return "\n".join(lines)
 
 
-def _history_text(transaction: PointsTransactionDTO) -> str:
-    lines = [
-        f"Баллы: {_safe(transaction.amount)}",
-        f"Статус: {_safe(transaction.status)}",
-    ]
-    if transaction.reason is not None:
-        lines.append(f"Причина: {_safe(transaction.reason)}")
-    lines.append(f"Обновлено: {_timestamp(transaction.updated_at)}")
-    return "\n".join(lines)
+def _history_text(transaction: PointsPayoutDTO) -> str:
+    return (
+        f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}\n"
+        f"Выплачено: {_timestamp(transaction.paid_at)}"
+    )
 
 
 class GuideShopUIService:
@@ -249,14 +245,13 @@ class GuideShopUIService:
             return guide_shop_error_screen(error)
 
         lines = [
-            f"💵 Сумма: {_safe(sale.amount_usd)} {_safe(sale.currency)}",
+            f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}",
             f"Категория: {_safe(sale.category_name)}",
+            f"Оплата: {_safe(sale.payment_method)}",
             f"Статус: {_safe(sale.status)}",
             f"Создано: {_timestamp(sale.created_at)}",
             f"Обновлено: {_timestamp(sale.updated_at)}",
         ]
-        if sale.voided_at is not None:
-            lines.append(f"Аннулировано: {_timestamp(sale.voided_at)}")
         return _screen(
             "\n".join(lines),
             [GuideShopAction("⬅️ Назад к продажам", GuideShopRoute(kind="sales"))],
@@ -277,7 +272,7 @@ class GuideShopUIService:
                 f"Открыть операцию {position}",
                 GuideShopRoute(
                     kind="points_detail",
-                    object_id=transaction.points_transaction_id,
+                    object_id=transaction.points_accrual_id,
                 ),
             )
             for position, transaction in enumerate(response.data, start=1)
@@ -312,11 +307,9 @@ class GuideShopUIService:
             return guide_shop_error_screen(error)
 
         lines = [
-            f"Баллы: {_safe(transaction.amount)}",
+            f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}",
             f"Статус: {_safe(transaction.status)}",
         ]
-        if transaction.reason is not None:
-            lines.append(f"Причина: {_safe(transaction.reason)}")
         lines.append(f"Рассчитано: {_timestamp(transaction.calculated_at)}")
         if transaction.credited_at is not None:
             lines.append(f"Зачислено: {_timestamp(transaction.credited_at)}")
@@ -337,7 +330,7 @@ class GuideShopUIService:
                 f"Открыть операцию {position}",
                 GuideShopRoute(
                     kind="points_detail",
-                    object_id=transaction.points_transaction_id,
+                    object_id=transaction.payout_id,
                 ),
             )
             for position, transaction in enumerate(response.data, start=1)

@@ -19,8 +19,9 @@ from services.guide_shop_contracts import (
     APIDetailResponseDTO,
     APIListResponseDTO,
     CompanyDTO,
+    PointsAccrualDTO,
+    PointsPayoutDTO,
     PointsStatus,
-    PointsTransactionDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -48,10 +49,11 @@ def visit(visit_id: str) -> VisitDTO:
         {
             "visit_id": visit_id,
             "company_id": "company-1",
-            "guide_os_id": "guide-1",
+            "guide_membership_id": "gmem-0001",
             "visit_at": UTC,
             "status": "active",
             "tourist_count": 2,
+            "customer_payment_status": "unpaid",
             "created_at": UTC,
             "updated_at": UTC,
         }
@@ -62,11 +64,13 @@ def sale(sale_id: str) -> SaleDTO:
     return SaleDTO.model_validate(
         {
             "sale_id": sale_id,
-            "visit_id": "visit-1",
-            "amount_usd": "10.00",
+            "visit_id": "visit-01",
+            "company_id": "company-1",
+            "amount": "10.00",
             "currency": "USD",
             "status": "active",
-            "category_id": "category-1",
+            "payment_method": "cash",
+            "category_id": "category1",
             "category_name": "Textiles",
             "created_at": UTC,
             "updated_at": UTC,
@@ -74,18 +78,36 @@ def sale(sale_id: str) -> SaleDTO:
     )
 
 
-def points(points_id: str, status: str = "pending") -> PointsTransactionDTO:
+def points(points_id: str, status: str = "pending") -> PointsAccrualDTO:
     payload = {
-        "points_transaction_id": points_id,
-        "sale_id": "sale-1",
+        "points_accrual_id": points_id,
+        "company_id": "company-1",
+        "visit_id": "visit-01",
         "amount": "2.00",
+        "unit": "PTS",
         "status": status,
         "calculated_at": UTC,
         "updated_at": UTC,
     }
     if status == "credited":
         payload["credited_at"] = UTC
-    return PointsTransactionDTO.model_validate(payload)
+        payload["payout_id"] = f"pay-{points_id}"
+    return PointsAccrualDTO.model_validate(payload)
+
+
+def payout(payout_id: str, accrual_id: str = "points-1") -> PointsPayoutDTO:
+    return PointsPayoutDTO.model_validate(
+        {
+            "payout_id": payout_id,
+            "points_accrual_id": accrual_id,
+            "company_id": "company-1",
+            "visit_id": "visit-01",
+            "amount": "2.00",
+            "unit": "PTS",
+            "paid_at": UTC,
+            "created_at": UTC,
+        }
+    )
 
 
 def test_feature_flags_default_false_and_are_immutable():
@@ -167,10 +189,10 @@ def test_factory_is_disabled_by_default_and_fails_when_reads_enabled():
 def fake_client(page_size: int = 2) -> InMemoryGuideShopClient:
     return InMemoryGuideShopClient(
         companies=[company("company-1")],
-        visits=[visit("visit-1"), visit("visit-2"), visit("visit-3")],
-        sales=[sale("sale-1"), sale("sale-2")],
+        visits=[visit("visit-01"), visit("visit-02"), visit("visit-03")],
+        sales=[sale("sale-001"), sale("sale-002")],
         points=[points("points-1"), points("points-2", "credited")],
-        points_history=[points("history-2", "credited"), points("history-1")],
+        points_history=[payout("history-2", "points-2"), payout("history-1", "points-1")],
         page_size=page_size,
     )
 
@@ -191,13 +213,13 @@ def test_fake_returns_typed_lists_details_filter_and_history_in_input_order():
 
     assert isinstance(companies, APIListResponseDTO)
     assert isinstance(companies.data[0], CompanyDTO)
-    assert [item.visit_id for item in visits.data] == ["visit-1", "visit-2"]
+    assert [item.visit_id for item in visits.data] == ["visit-01", "visit-02"]
     assert isinstance(sales.data[0], SaleDTO)
-    assert [item.points_transaction_id for item in point_list.data] == ["points-2"]
-    assert [item.points_transaction_id for item in history.data] == ["history-2", "history-1"]
-    assert isinstance(run(client.get_visit("visit-1")), APIDetailResponseDTO)
-    assert run(client.get_sale("sale-1")).data.sale_id == "sale-1"
-    assert run(client.get_points_transaction("points-1")).data.points_transaction_id == "points-1"
+    assert [item.points_accrual_id for item in point_list.data] == ["points-2"]
+    assert [item.payout_id for item in history.data] == ["history-2", "history-1"]
+    assert isinstance(run(client.get_visit("visit-01")), APIDetailResponseDTO)
+    assert run(client.get_sale("sale-001")).data.sale_id == "sale-001"
+    assert run(client.get_points_transaction("points-1")).data.points_accrual_id == "points-1"
 
 
 def test_unknown_detail_ids_raise_safe_not_found_error():
@@ -215,9 +237,9 @@ def test_fake_pagination_uses_opaque_scoped_cursors_and_preserves_order():
     client = fake_client(page_size=2)
     first = run(client.list_visits())
     cursor = first.page.next_cursor
-    assert cursor and cursor not in {"2", "visit-1", "visit-2", "visit-3"}
+    assert cursor and cursor not in {"2", "visit-01", "visit-02", "visit-03"}
     second = run(client.list_visits(cursor))
-    assert [item.visit_id for item in second.data] == ["visit-3"]
+    assert [item.visit_id for item in second.data] == ["visit-03"]
     assert second.page.next_cursor is None
 
     with pytest.raises(GuideShopClientError, match="cursor"):
@@ -234,7 +256,7 @@ def test_returned_lists_and_models_cannot_mutate_internal_state():
     response.data[0].visit_id = "changed"
 
     fresh = run(client.list_visits())
-    assert [item.visit_id for item in fresh.data] == ["visit-1", "visit-2"]
+    assert [item.visit_id for item in fresh.data] == ["visit-01", "visit-02"]
 
 
 def test_fake_operations_perform_no_network_or_sqlite(monkeypatch):
@@ -247,7 +269,7 @@ def test_fake_operations_perform_no_network_or_sqlite(monkeypatch):
         monkeypatch.setattr(socket, "socket", unexpected)
         monkeypatch.setattr(sqlite3, "connect", unexpected)
         assert (await client.list_companies()).data[0].company_id == "company-1"
-        assert (await client.get_visit("visit-1")).data.visit_id == "visit-1"
+        assert (await client.get_visit("visit-01")).data.visit_id == "visit-01"
 
     run(exercise())
 

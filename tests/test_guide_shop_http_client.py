@@ -22,8 +22,9 @@ from services.guide_shop_contracts import (
     APIDetailResponseDTO,
     APIListResponseDTO,
     CompanyDTO,
+    PointsAccrualDTO,
+    PointsPayoutDTO,
     PointsStatus,
-    PointsTransactionDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -58,12 +59,13 @@ def company_payload():
 
 def visit_payload():
     return {
-        "visit_id": "visit-1",
+        "visit_id": "visit-01",
         "company_id": "company-1",
-        "guide_os_id": "guide-identity",
+        "guide_membership_id": "gmem-0001",
         "visit_at": UTC,
         "status": "active",
         "tourist_count": 2,
+        "customer_payment_status": "unpaid",
         "created_at": UTC,
         "updated_at": UTC,
     }
@@ -71,12 +73,14 @@ def visit_payload():
 
 def sale_payload():
     return {
-        "sale_id": "sale-1",
-        "visit_id": "visit-1",
-        "amount_usd": "10.00",
+        "sale_id": "sale-001",
+        "visit_id": "visit-01",
+        "company_id": "company-1",
+        "amount": "10.00",
         "currency": "USD",
         "status": "active",
-        "category_id": "category-1",
+        "payment_method": "cash",
+        "category_id": "category1",
         "category_name": "Textiles",
         "created_at": UTC,
         "updated_at": UTC,
@@ -85,27 +89,42 @@ def sale_payload():
 
 def points_payload():
     return {
-        "points_transaction_id": "points-1",
-        "sale_id": "sale-1",
+        "points_accrual_id": "points-01",
+        "company_id": "company-1",
+        "visit_id": "visit-01",
         "amount": "2.00",
+        "unit": "PTS",
         "status": "pending",
         "calculated_at": UTC,
         "updated_at": UTC,
     }
 
 
+def payout_payload():
+    return {
+        "payout_id": "payout-01",
+        "points_accrual_id": "points-01",
+        "company_id": "company-1",
+        "visit_id": "visit-01",
+        "amount": "2.00",
+        "unit": "PTS",
+        "paid_at": UTC,
+        "created_at": UTC,
+    }
+
+
 def list_envelope(item):
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.0.0",
         "request_id": "request-1",
         "data": [item],
-        "page": {"next_cursor": None},
+        "page": {"next_cursor": None, "has_more": False},
     }
 
 
 def detail_envelope(item):
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.0.0",
         "request_id": "request-1",
         "data": item,
     }
@@ -403,6 +422,7 @@ def test_authentication_header_and_identity_are_isolated_from_url_and_query():
         "Accept": "application/json",
     }
     assert kwargs["params"] is None
+    assert kwargs["allow_redirects"] is False
     assert "private-guide-id" not in url
     assert "private-service-token" not in url
 
@@ -416,7 +436,7 @@ def test_all_eight_methods_use_exact_paths_get_and_typed_envelopes():
         FakeResponse(payload=detail_envelope(sale_payload())),
         FakeResponse(payload=list_envelope(points_payload())),
         FakeResponse(payload=detail_envelope(points_payload())),
-        FakeResponse(payload=list_envelope(points_payload())),
+        FakeResponse(payload=list_envelope(payout_payload())),
     ]
     session = FakeSession(outcomes)
     client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
@@ -445,7 +465,8 @@ def test_all_eight_methods_use_exact_paths_get_and_typed_envelopes():
     assert isinstance(results[2], APIDetailResponseDTO)
     assert isinstance(results[2].data, VisitDTO)
     assert isinstance(results[4].data, SaleDTO)
-    assert isinstance(results[6].data, PointsTransactionDTO)
+    assert isinstance(results[6].data, PointsAccrualDTO)
+    assert isinstance(results[7].data[0], PointsPayoutDTO)
 
 
 def test_cursor_and_points_status_queries_are_optional_and_strict():
@@ -459,10 +480,7 @@ def test_cursor_and_points_status_queries_are_optional_and_strict():
     run(client.list_visits("opaque-cursor"))
     run(client.list_points(PointsStatus.PENDING, "points-cursor"))
     assert session.requests[0][2]["params"] == {"cursor": "opaque-cursor"}
-    assert session.requests[1][2]["params"] == {
-        "status": "pending",
-        "cursor": "points-cursor",
-    }
+    assert session.requests[1][2]["params"] == {"cursor": "points-cursor"}
 
     before = len(session.requests)
     with pytest.raises(GuideShopClientError):
@@ -502,7 +520,7 @@ def test_non_retry_status_mapping_is_safe(status, error_type):
         assert private_value not in str(error.value)
 
 
-@pytest.mark.parametrize("status", [429, 502, 503, 504])
+@pytest.mark.parametrize("status", [429, 503])
 def test_approved_transient_statuses_retry_then_succeed(status):
     sleep = AsyncMock()
     session = FakeSession(
@@ -648,6 +666,55 @@ def test_injected_session_is_not_closed_unless_ownership_is_explicit():
     run(client.close())
     run(client.close())
     owned.close.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize("status", [502, 504])
+def test_non_contract_gateway_statuses_do_not_retry(status):
+    sleep = AsyncMock()
+    session = FakeSession(
+        [
+            FakeResponse(status=status),
+            FakeResponse(payload=list_envelope(company_payload())),
+        ]
+    )
+    client = HTTPGuideShopClient(
+        settings(), "guide", TokenProvider(), session=session, sleep=sleep
+    )
+    with pytest.raises(GuideShopTemporarilyUnavailableError):
+        run(client.list_companies())
+    assert len(session.requests) == 1
+    sleep.assert_not_awaited()
+
+
+class SequenceTokenProvider:
+    def __init__(self):
+        self.tokens = []
+
+    async def get_access_token(self, guide_os_id):
+        token = f"service-token-{len(self.tokens) + 1}"
+        self.tokens.append(token)
+        return token
+
+
+def test_retry_mints_fresh_access_token_and_does_not_retain_it():
+    provider = SequenceTokenProvider()
+    session = FakeSession(
+        [
+            FakeResponse(status=503),
+            FakeResponse(payload=list_envelope(company_payload())),
+        ]
+    )
+    client = HTTPGuideShopClient(
+        settings(), "guide", provider, session=session, sleep=AsyncMock()
+    )
+    run(client.list_companies())
+    assert provider.tokens == ["service-token-1", "service-token-2"]
+    first_auth = session.requests[0][2]["headers"]["Authorization"]
+    second_auth = session.requests[1][2]["headers"]["Authorization"]
+    assert first_auth != second_auth
+    assert "service-token-1" not in repr(client)
+    assert "service-token-2" not in repr(client)
+    assert not hasattr(client, "_last_token")
 
 
 def test_owned_lazy_session_closes_once_and_context_manager_cleans_up(monkeypatch):

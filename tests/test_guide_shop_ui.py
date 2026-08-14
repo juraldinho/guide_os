@@ -15,8 +15,9 @@ from services.guide_shop_client import (
 )
 from services.guide_shop_contracts import (
     CompanyDTO,
+    PointsAccrualDTO,
+    PointsPayoutDTO,
     PointsStatus,
-    PointsTransactionDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -46,51 +47,69 @@ def company(company_id="company-1", name="Silk Road", status="active"):
     )
 
 
-def visit(visit_id="visit-1", company_id="company-1"):
+def visit(visit_id="visit-01", company_id="company-1"):
     return VisitDTO.model_validate(
         {
             "visit_id": visit_id,
             "company_id": company_id,
-            "guide_os_id": "guide-1",
+            "guide_membership_id": "gmem-0001",
             "visit_at": UTC,
             "status": "active",
             "tourist_count": 3,
+            "customer_payment_status": "unpaid",
             "created_at": UTC,
             "updated_at": UTC,
         }
     )
 
 
-def sale(sale_id="sale-1", category="Textiles", status="active"):
+def sale(sale_id="sale-001", category="Textiles"):
     payload = {
         "sale_id": sale_id,
-        "visit_id": "visit-1",
-        "amount_usd": "125.40",
+        "visit_id": "visit-01",
+        "company_id": "company-1",
+        "amount": "125.40",
         "currency": "USD",
-        "status": status,
-        "category_id": "category-1",
+        "status": "active",
+        "payment_method": "card",
+        "category_id": "category1",
         "category_name": category,
         "created_at": UTC,
         "updated_at": UTC,
     }
-    if status == "voided":
-        payload["voided_at"] = UTC
     return SaleDTO.model_validate(payload)
 
 
-def points(points_id="points-1", status="pending", reason="Sale reward"):
+def points(points_id="points-01", status="pending"):
     payload = {
-        "points_transaction_id": points_id,
-        "sale_id": "sale-1",
+        "points_accrual_id": points_id,
+        "company_id": "company-1",
+        "visit_id": "visit-01",
         "amount": "16.00",
+        "unit": "PTS",
         "status": status,
-        "reason": reason,
         "calculated_at": UTC,
         "updated_at": UTC,
     }
     if status == "credited":
         payload["credited_at"] = UTC
-    return PointsTransactionDTO.model_validate(payload)
+        payload["payout_id"] = "payout-01"
+    return PointsAccrualDTO.model_validate(payload)
+
+
+def payout(payout_id="payout-01", accrual_id="points-01"):
+    return PointsPayoutDTO.model_validate(
+        {
+            "payout_id": payout_id,
+            "points_accrual_id": accrual_id,
+            "company_id": "company-1",
+            "visit_id": "visit-01",
+            "amount": "16.00",
+            "unit": "PTS",
+            "paid_at": UTC,
+            "created_at": UTC,
+        }
+    )
 
 
 class NoCallClient:
@@ -138,17 +157,18 @@ def test_presentation_models_are_immutable_and_strict():
 
 
 def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
-    companies = [company("c-1", "<b>First</b>", "<active>"), company("c-2", "Second")]
-    visits = [visit("v-2", "<company-2>"), visit("v-1", "company-1")]
-    sales = [sale("s-2", "<Textiles>"), sale("s-1", "Ceramics")]
-    transactions = [points("p-2", reason="<reward>"), points("p-1", reason="Other")]
+    companies = [company("company1", "<b>First</b>", "active"), company("company2", "Second")]
+    visits = [visit("visit-v2", "company-2"), visit("visit-v1", "company-1")]
+    sales = [sale("sale-s02", "<Textiles>"), sale("sale-s01", "Ceramics")]
+    transactions = [points("points-02"), points("points-01")]
+    payouts = [payout("payout-02", "points-02"), payout("payout-01", "points-01")]
     snapshots = [item.model_dump() for item in companies + visits + sales + transactions]
     client = InMemoryGuideShopClient(
         companies=companies,
         visits=visits,
         sales=sales,
         points=transactions,
-        points_history=transactions,
+        points_history=payouts,
     )
     service = GuideShopUIService(client)
 
@@ -159,23 +179,22 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
     history_screen = run(service.history())
 
     assert "&lt;b&gt;First&lt;/b&gt;" in company_screen.text
-    assert "&lt;active&gt;" in company_screen.text
+    assert "active" in company_screen.text
     assert company_screen.text.index("First") < company_screen.text.index("Second")
-    assert "&lt;company-2&gt;" in visit_screen.text
+    assert "company-2" in visit_screen.text
     assert [a.label for a in visit_screen.actions[:-1]] == [
         "Открыть визит 1",
         "Открыть визит 2",
     ]
-    assert [a.route.object_id for a in visit_screen.actions[:-1]] == ["v-2", "v-1"]
+    assert [a.route.object_id for a in visit_screen.actions[:-1]] == ["visit-v2", "visit-v1"]
     assert "125.40 USD" in sale_screen.text
     assert "&lt;Textiles&gt;" in sale_screen.text
     assert [a.label for a in sale_screen.actions[:-1]] == [
         "Открыть продажу 1",
         "Открыть продажу 2",
     ]
-    assert [a.route.object_id for a in sale_screen.actions[:-1]] == ["s-2", "s-1"]
+    assert [a.route.object_id for a in sale_screen.actions[:-1]] == ["sale-s02", "sale-s01"]
     assert "16.00" in points_screen.text
-    assert "&lt;reward&gt;" in points_screen.text
     assert [a.label for a in points_screen.actions[:-1]] == [
         "Открыть операцию 1",
         "Открыть операцию 2",
@@ -184,16 +203,16 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
         "Открыть операцию 1",
         "Открыть операцию 2",
     ]
-    assert [a.route.object_id for a in history_screen.actions[:-1]] == ["p-2", "p-1"]
+    assert [a.route.object_id for a in history_screen.actions[:-1]] == ["payout-02", "payout-01"]
     assert [item.model_dump() for item in companies + visits + sales + transactions] == snapshots
 
 
 def test_pagination_routes_are_opaque_and_points_preserve_filter():
     client = InMemoryGuideShopClient(
-        visits=[visit("v-1"), visit("v-2")],
-        sales=[sale("s-1"), sale("s-2")],
-        points=[points("p-1"), points("p-2")],
-        points_history=[points("h-1"), points("h-2")],
+        visits=[visit("visit-v1"), visit("visit-v2")],
+        sales=[sale("sale-s01"), sale("sale-s02")],
+        points=[points("points-01"), points("points-02")],
+        points_history=[payout("payout-h1"), payout("payout-h2")],
         page_size=1,
     )
     service = GuideShopUIService(client)
@@ -214,31 +233,29 @@ def test_pagination_routes_are_opaque_and_points_preserve_filter():
 
 def test_detail_screens_include_required_and_optional_fields_safely():
     client = InMemoryGuideShopClient(
-        visits=[visit(company_id="<company>")],
-        sales=[sale(status="voided")],
-        points=[points(status="credited", reason="<credited>")],
+        visits=[visit()],
+        sales=[sale(category="<Textiles>")],
+        points=[points(status="credited")],
     )
     service = GuideShopUIService(client)
 
-    visit_screen = run(service.visit_detail("visit-1"))
-    sale_screen = run(service.sale_detail("sale-1"))
-    points_screen = run(service.points_detail("points-1"))
+    visit_screen = run(service.visit_detail("visit-01"))
+    sale_screen = run(service.sale_detail("sale-001"))
+    points_screen = run(service.points_detail("points-01"))
 
     for label in ["Компания", "Дата визита", "Туристов", "Статус", "Создано", "Обновлено"]:
         assert label in visit_screen.text
-    assert "&lt;company&gt;" in visit_screen.text
-    assert "Аннулировано" in sale_screen.text
+    assert "Оплата" in sale_screen.text
     assert "125.40 USD" in sale_screen.text
-    assert "&lt;credited&gt;" in points_screen.text
+    assert "&lt;Textiles&gt;" in sale_screen.text
     assert "Зачислено" in points_screen.text
 
     absent_client = InMemoryGuideShopClient(
-        sales=[sale()], points=[points(reason=None)]
+        sales=[sale()], points=[points()]
     )
     absent_service = GuideShopUIService(absent_client)
-    assert "Аннулировано" not in run(absent_service.sale_detail("sale-1")).text
-    absent_points = run(absent_service.points_detail("points-1")).text
-    assert "Причина" not in absent_points
+    assert "Аннулировано" not in run(absent_service.sale_detail("sale-001")).text
+    absent_points = run(absent_service.points_detail("points-01")).text
     assert "Зачислено" not in absent_points
 
 

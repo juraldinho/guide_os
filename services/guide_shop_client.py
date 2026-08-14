@@ -15,8 +15,9 @@ from services.guide_shop_contracts import (
     APIListResponseDTO,
     CompanyDTO,
     PageDTO,
+    PointsAccrualDTO,
+    PointsPayoutDTO,
     PointsStatus,
-    PointsTransactionDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -76,15 +77,15 @@ class GuideShopClient(Protocol):
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
-    ) -> APIListResponseDTO[PointsTransactionDTO]: ...
+    ) -> APIListResponseDTO[PointsAccrualDTO]: ...
 
     async def get_points_transaction(
         self, points_transaction_id: str
-    ) -> APIDetailResponseDTO[PointsTransactionDTO]: ...
+    ) -> APIDetailResponseDTO[PointsAccrualDTO]: ...
 
     async def list_history(
         self, cursor: str | None = None
-    ) -> APIListResponseDTO[PointsTransactionDTO]: ...
+    ) -> APIListResponseDTO[PointsPayoutDTO]: ...
 
 
 class DisabledGuideShopClient:
@@ -121,23 +122,24 @@ class DisabledGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsAccrualDTO]:
         self._disabled()
 
     async def get_points_transaction(
         self, points_transaction_id: str
-    ) -> APIDetailResponseDTO[PointsTransactionDTO]:
+    ) -> APIDetailResponseDTO[PointsAccrualDTO]:
         self._disabled()
 
     async def list_history(
         self, cursor: str | None = None
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsPayoutDTO]:
         self._disabled()
 
 
 _MAX_RESPONSE_BYTES = 1_000_000
-_TRANSIENT_STATUSES = {429, 502, 503, 504}
+_TRANSIENT_STATUSES = {429, 503}
 _BEARER_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9\-._~+/]+=*\Z")
+_CURSOR_PATTERN = re.compile(r"^[A-Za-z0-9._~=-]+$")
 
 
 class HTTPGuideShopClient:
@@ -204,7 +206,10 @@ class HTTPGuideShopClient:
     def _optional_cursor(cursor: str | None) -> str | None:
         if cursor is None:
             return None
-        return HTTPGuideShopClient._required_string(cursor, "cursor")
+        value = HTTPGuideShopClient._required_string(cursor, "cursor")
+        if not 8 <= len(value) <= 256 or _CURSOR_PATTERN.fullmatch(value) is None:
+            raise GuideShopClientError("Invalid pagination cursor")
+        return value
 
     async def _access_token(self) -> str:
         token = await self._token_provider.get_access_token(self._guide_os_id)
@@ -268,19 +273,23 @@ class HTTPGuideShopClient:
         params: dict[str, str] | None,
         response_type,
     ):
-        token = await self._access_token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        }
         url = f"{self._settings.base_url}{path}"
         session = await self._get_session()
 
         for attempt in range(self._settings.max_retries + 1):
+            token = await self._access_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            }
             response = None
             try:
                 response = await session.request(
-                    "GET", url, params=params, headers=headers
+                    "GET",
+                    url,
+                    params=params,
+                    headers=headers,
+                    allow_redirects=False,
                 )
                 if 200 <= response.status < 300:
                     body = await self._read_bounded_response(response)
@@ -368,24 +377,20 @@ class HTTPGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsAccrualDTO]:
         if status is not None and not isinstance(status, PointsStatus):
             raise GuideShopClientError("Invalid points status")
         cursor = self._optional_cursor(cursor)
-        params = {}
-        if status is not None:
-            params["status"] = status.value
-        if cursor is not None:
-            params["cursor"] = cursor
+        params = {"cursor": cursor} if cursor is not None else None
         return await self._request(
             "/integration/v1/me/points",
-            params or None,
-            APIListResponseDTO[PointsTransactionDTO],
+            params,
+            APIListResponseDTO[PointsAccrualDTO],
         )
 
     async def get_points_transaction(
         self, points_transaction_id: str
-    ) -> APIDetailResponseDTO[PointsTransactionDTO]:
+    ) -> APIDetailResponseDTO[PointsAccrualDTO]:
         points_transaction_id = self._required_string(
             points_transaction_id, "points transaction ID"
         )
@@ -393,25 +398,27 @@ class HTTPGuideShopClient:
             "/integration/v1/me/points/"
             f"{quote(points_transaction_id, safe='')}",
             None,
-            APIDetailResponseDTO[PointsTransactionDTO],
+            APIDetailResponseDTO[PointsAccrualDTO],
         )
 
     async def list_history(
         self, cursor: str | None = None
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsPayoutDTO]:
         cursor = self._optional_cursor(cursor)
         params = {"cursor": cursor} if cursor is not None else None
         return await self._request(
             "/integration/v1/me/history",
             params,
-            APIListResponseDTO[PointsTransactionDTO],
+            APIListResponseDTO[PointsPayoutDTO],
         )
 
 
 GuideShopHTTPClient = HTTPGuideShopClient
 
 
-DTO = TypeVar("DTO", CompanyDTO, VisitDTO, SaleDTO, PointsTransactionDTO)
+DTO = TypeVar(
+    "DTO", CompanyDTO, VisitDTO, SaleDTO, PointsAccrualDTO, PointsPayoutDTO
+)
 
 
 class InMemoryGuideShopClient:
@@ -421,8 +428,8 @@ class InMemoryGuideShopClient:
         companies: Sequence[CompanyDTO] = (),
         visits: Sequence[VisitDTO] = (),
         sales: Sequence[SaleDTO] = (),
-        points: Sequence[PointsTransactionDTO] = (),
-        points_history: Sequence[PointsTransactionDTO] = (),
+        points: Sequence[PointsAccrualDTO] = (),
+        points_history: Sequence[PointsPayoutDTO] = (),
         page_size: int = 50,
     ) -> None:
         if isinstance(page_size, bool) or not isinstance(page_size, int) or page_size <= 0:
@@ -431,9 +438,9 @@ class InMemoryGuideShopClient:
         self._companies = self._validated_copy(companies, CompanyDTO)
         self._visits = self._validated_copy(visits, VisitDTO)
         self._sales = self._validated_copy(sales, SaleDTO)
-        self._points = self._validated_copy(points, PointsTransactionDTO)
+        self._points = self._validated_copy(points, PointsAccrualDTO)
         self._points_history = self._validated_copy(
-            points_history, PointsTransactionDTO
+            points_history, PointsPayoutDTO
         )
         self._page_size = page_size
         self._request_number = 0
@@ -488,10 +495,13 @@ class InMemoryGuideShopClient:
         data = [value.model_copy(deep=True) for value in values[position:end]]
         envelope_type = APIListResponseDTO[dto_type]
         return envelope_type(
-            schema_version="1.0",
+            schema_version="1.0.0",
             request_id=self._request_id(),
             data=data,
-            page=PageDTO(next_cursor=next_cursor),
+            page=PageDTO(
+                next_cursor=next_cursor,
+                has_more=next_cursor is not None,
+            ),
         )
 
     def _detail_response(
@@ -501,7 +511,7 @@ class InMemoryGuideShopClient:
             if getattr(value, id_field) == object_id:
                 envelope_type = APIDetailResponseDTO[dto_type]
                 return envelope_type(
-                    schema_version="1.0",
+                    schema_version="1.0.0",
                     request_id=self._request_id(),
                     data=value.model_copy(deep=True),
                 )
@@ -538,7 +548,7 @@ class InMemoryGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsAccrualDTO]:
         if status is not None and not isinstance(status, PointsStatus):
             raise GuideShopClientError("Invalid points status")
         values = (
@@ -547,24 +557,24 @@ class InMemoryGuideShopClient:
             else tuple(item for item in self._points if item.status == status)
         )
         scope = f"points:{status.value if status is not None else 'all'}"
-        return self._list_response(values, PointsTransactionDTO, scope, cursor)
+        return self._list_response(values, PointsAccrualDTO, scope, cursor)
 
     async def get_points_transaction(
         self, points_transaction_id: str
-    ) -> APIDetailResponseDTO[PointsTransactionDTO]:
+    ) -> APIDetailResponseDTO[PointsAccrualDTO]:
         return self._detail_response(
             self._points,
-            PointsTransactionDTO,
-            "points_transaction_id",
+            PointsAccrualDTO,
+            "points_accrual_id",
             points_transaction_id,
         )
 
     async def list_history(
         self, cursor: str | None = None
-    ) -> APIListResponseDTO[PointsTransactionDTO]:
+    ) -> APIListResponseDTO[PointsPayoutDTO]:
         return self._list_response(
             self._points_history,
-            PointsTransactionDTO,
+            PointsPayoutDTO,
             "history",
             cursor,
         )
