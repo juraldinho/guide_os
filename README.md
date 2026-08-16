@@ -5,12 +5,16 @@ notifications, and optional GuideShop views.
 
 ## Prerequisites
 
-- Python 3.13.1
+- Python 3.13.14
 - A Telegram bot token for local execution
 
 Each Mac, Railway service, or other environment needs its own virtual
 environment and secrets. Paths differ between environments, so a virtual
 environment must never be copied between Macs or deployments.
+
+Railpack reads the exact runtime from `.python-version`. The pinned release
+has an attested precompiled mise artifact; GitHub artifact verification must
+remain enabled.
 
 ## Fresh local setup
 

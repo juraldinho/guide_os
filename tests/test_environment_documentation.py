@@ -60,7 +60,8 @@ def test_reproducible_environment_documentation_is_complete_and_safe():
     environment_text = (ROOT / ".env.example").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert python_version == "3.13.1\n"
+    assert python_version == "3.13.14\n"
+    assert "artifact verification must\nremain enabled" in readme
 
     assignments = parse_environment_template(environment_text)
     counts = Counter(name for name, _ in assignments)
