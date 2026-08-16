@@ -1,69 +1,77 @@
 # Guide OS — Project Context for AI
 
-> Обновлено: 2026-07-29. Этот файл описывает фактическое состояние репозитория и предназначен как стартовый контекст для AI-ассистентов.
+> Обновлено: 2026-08-16. Навигационный контекст по фактическому репозиторию. При конфликте приоритет имеют текущий код, тесты и `.ai/`.
 
-## 1. Что это за продукт
+## 1. Продукт
 
-Guide OS — персональный Telegram-органайзер для туристических гидов. Бот помогает вести календарь туров и выходных, проверять занятость, хранить детали поездок, учитывать доход, смотреть статистику и получать напоминания.
+Guide OS — персональный Telegram-инструмент туристического гида: календарь туров и выходных, проверка занятости, карточки поездок, доход, статистика, профиль и напоминания.
 
-Это отдельный продукт для гида. Не смешивать его с GuideShop: GuideShop — CRM партнёрской точки, а Guide OS — личный рабочий инструмент гида.
+Guide OS также становится пользовательской точкой входа в экосистему GuideShop: гид должен видеть только собственные официальные компании, визиты, продажи, баланс PTS и историю начислений GuideShop. Интеграция не меняет владельцев данных:
 
-## 2. Текущее состояние
+- GuideShop — источник истины для официальных Partner, Visits, Sales и PTS;
+- Guide OS — источник истины для профиля гида, личного календаря и будущих self-reported external sales;
+- прямой доступ между SQLite-базами запрещён;
+- интеграция работает через versioned HTTPS API, подписанные service JWT и lifecycle evidence.
+
+## 2. Снимок репозитория
 
 - Репозиторий: `DEVELOPMENT/guide_os`
-- Ветка на момент проверки: `main`
-- HEAD: `2dd18a38c071ddc1952e5cd23ee827bc262b47d4`
-- Последний коммит: `Add basic user profile` от 2026-06-22
-- Основной интерфейс: Telegram-бот на long polling
-- Хранилище: локальная SQLite
-- Пользовательская модель: данные изолированы по Telegram `user_id`
-- Отдельного веб-приложения или HTTP API нет
-- В репозитории присутствует незакоммиченный Markdown-файл `GUIDE_OS_DECISION_SOURCE_SUMMARY.md`; это документация, не часть runtime
+- Candidate-ветка: `staging-guide-user-lifecycle-api`
+- HEAD: `b89562294461b925755255ac48e9a53d65d0b071`
+- Последний коммит: `Use attested Python runtime for Railpack builds` от 2026-08-16
+- Основной runtime: Aiogram long polling, `python bot.py`
+- Staging provider runtime: отдельный API-only entrypoint, без Telegram polling
+- Хранилище: SQLite, WAL
+- Python: 3.13; зафиксированный runtime — 3.13.14
+- Business timezone: `Asia/Tashkent`
 
-Тесты в рамках этого обновления не запускались, чтобы не изменять рабочие артефакты. В репозитории есть тесты для парсинга дат, уведомлений и миграций, статистики, туров и валидаторов.
+На момент проверки runtime/config/tests clean. Изменены только Markdown-файлы `.ai/*`, `docs/project_context.md` и новый `docs/GUIDE_OS_PROJECT_OVERVIEW_EN.md`. Это project state; не откатывать и не перезаписывать без необходимости.
 
-## 3. Реализованные возможности
+Последнее зафиксированное evidence для candidate: full suite `632 passed`; commit `b895622` прошёл GitHub CI `31942628286` и Integration Contracts `31942628273`. Staging deployment `a79abd94…` успешно установил Python 3.13.14 с включённой GitHub artifact attestation verification.
 
-- добавление однодневного или многодневного тура;
-- добавление выходного;
-- календарь, список туров месяца и просмотр выбранного дня;
-- проверка свободной даты;
-- предупреждение о пересечении дат;
-- карточка тура и редактирование дат, компании, города, дохода, заметки, статуса и статуса оплаты;
-- удаление одной записи или всей многодневной группы;
-- подсчёт дохода, неоплаченных туров и статистики за месяц/всё время;
-- профиль пользователя и редактирование отображаемого имени;
-- пользовательские уведомления о будущих турах;
-- административный отчёт, рассылка и скачивание backup базы;
-- журналирование и глобальная обработка ошибок.
+## 3. Состояние интеграции
 
-## 4. Технологии и запуск
+Завершено:
 
-- Python 3.13
-- Aiogram 3.26
-- SQLite через стандартный `sqlite3`
-- `python-dotenv`
-- Pytest
-- заявленный deployment target: Railway
+- canonical immutable `guide_os_id` как lowercase UUIDv4;
+- additive/idempotent backfill legacy users и защита identity от изменения;
+- одноразовые linking requests без хранения raw token;
+- contract DTO/envelopes/errors и event payloads;
+- pinned authoritative integration contract `v1.1.0` с CI validation;
+- default-off feature flags и fail-closed runtime composition;
+- typed internal routes, user-bound single-use navigation tokens и `/start` deep links;
+- безопасный presentation layer и mock-backed Telegram UI;
+- identity-bound HTTP client и EdDSA service authentication;
+- Guide OS-side link exchange provider, lifecycle evidence и atomic JTI replay protection;
+- API-only isolated Railway staging runtime.
 
-Точка входа:
+Isolated Railway staging активен:
 
-```bash
-python bot.py
-```
+- service deployment основан на exact candidate commit `b895622`;
+- отдельный volume `/data` готов;
+- HTTPS health endpoint подтверждён;
+- production credentials, volume и activation не используются;
+- mise attestation bypass удалён; staging build повторно доказан с включённой verification.
 
-Обязательная переменная окружения:
+GuideShop staging E2E завершён: lifecycle Gate 4A `44/44 PASS`, reads Gate 4B `PASS`, auth/query/cursor `26/26`, FA/IC `0 FAIL`. Production activation, events и notifications пока запрещены; текущая работа ограничена release-candidate safety gates.
 
-- `BOT_TOKEN`
+## 4. Активные возможности Guide OS
 
-Дополнительные переменные:
+- однодневные и многодневные туры;
+- выходные;
+- календарь и карточка дня;
+- проверка свободной даты и conflict warning;
+- редактирование/удаление тура или группы;
+- доход и статистика;
+- профиль пользователя;
+- уведомления о турах;
+- admin report, broadcast и backup;
+- integration identity/link foundation;
+- feature-gated GuideShop presentation/navigation/client/provider layers.
 
-- `TIMEZONE` — по умолчанию `Asia/Tashkent`;
-- `ADMIN_ID` — Telegram ID администратора; значение `0` отключает admin-specific команды.
+## 5. Runtime и архитектура
 
-Не читать, не выводить и не переносить значения из `.env` в документацию, логи, ответы или тесты.
-
-## 5. Архитектура
+### Telegram path
 
 ```text
 Telegram update
@@ -74,89 +82,97 @@ Telegram update
   -> SQLite
 ```
 
-- `bot.py` — создание Bot/Dispatcher, команды, фоновые задачи и регистрация роутеров.
-- `handlers/` — Telegram UX, callback-обработчики и FSM-переходы.
-- `services/` — бизнес-логика календаря, туров, статистики, доходов, карточек и напоминаний.
-- `database/db.py` — соединение, схема, inline-миграции и retry для записи.
-- `database/queries.py` — пользовательские CRUD-запросы и аналитика.
-- `keyboards/` — reply/inline-клавиатуры.
-- `states/` — FSM-состояния.
-- `utils/` — константы, форматирование, даты, валидация и logging.
-- `tests/` — модульные и интеграционные проверки основной логики.
+### GuideShop integration path
 
-Роутеры подключаются в `bot.py`. При старте инициализируется база, затем запускаются фоновые задачи ежедневного admin-отчёта и пользовательских напоминаний.
+```text
+Guide OS user / deep link
+  -> user-bound route/navigation token
+  -> request-scoped GuideShop client
+  -> EdDSA service JWT
+  -> GuideShop /integration/v1 API
 
-## 6. Модель данных
+GuideShop linking request
+  -> Guide OS API-only HTTPS provider
+  -> JWT/JTI validation
+  -> link exchange + lifecycle evidence
+  -> SQLite
+```
 
-Активная схема содержит три таблицы:
+Ключевые компоненты:
 
-### `tours`
+- `bot.py` — Telegram startup и router wiring;
+- `database/db.py` — схема, migrations и concurrency boundaries;
+- `database/queries.py` — основной persistence календаря;
+- `guide_shop_link_api.py` — API-only provider для link exchange;
+- `services/guide_shop_*` — client, contracts, presentation, routes и orchestration;
+- `utils/guide_os_identity.py` — canonical identity;
+- `.github/workflows/integration-contracts.yml` — immutable contract validation;
+- `.ai/` — актуальный project/session/next-task operational state.
 
-Основная сущность календаря. Хранит `user_id`, даты начала/окончания, компанию, город, доход, заметку, статус тура, статус оплаты, тип записи и идентификатор группы.
+## 6. Фактическая SQLite-схема
 
-- `entry_type`: обычный тур или выходной;
-- `tour_group_id`: объединяет записи многодневного тура;
-- все пользовательские операции должны фильтроваться по `user_id`;
-- групповые изменения должны сохранять согласованность всех строк одной группы.
+Основные таблицы:
 
-### `users`
+- `tours` — пользовательские туры и выходные;
+- `users` — Telegram user, настройки и immutable `guide_os_id`;
+- `events` — продуктовые события.
 
-Регистрация пользователя, настройки уведомлений, время напоминания, дата последней отправки и `display_name`.
+Интеграционные таблицы:
 
-### `events`
+- `guide_shop_link_requests` — одноразовые запросы связи;
+- `guide_shop_link_exchanges` — lifecycle exchange;
+- `guide_shop_link_exchange_evidence` — authoritative evidence;
+- `guide_shop_link_jti_replay` — replay protection входящих JWT;
+- `guide_shop_navigation_tokens` — короткие user-bound single-use routes.
 
-Лёгкая продуктовая аналитика и административные метрики.
+Все пользовательские операции календаря фильтруются по Telegram `user_id`. Все интеграционные чтения и маршруты связываются с текущим `guide_os_id`; cross-user resolution должен fail closed.
 
-SQLite работает в WAL-режиме. Записи выполняются через retry-механизм при временной блокировке базы.
+## 7. Security-инварианты
 
-## 7. Основные правила продукта
+- `guide_os_id` стабилен, уникален и неизменяем.
+- Raw linking token, private key и JWT не сохраняются и не логируются.
+- Service JWT: EdDSA, короткий TTL, строгие audience/scope/identity/kid checks.
+- JTI consumption атомарный; replay запрещён.
+- Navigation/deep-link tokens user-bound, TTL-aware и single-use.
+- Identity lookup выполняется до token consumption.
+- Client/service создаются request-scoped и очищаются при success, error и cancellation.
+- Feature flags default off; неполная конфигурация fail closed.
+- Staging и production keys, URLs, volumes и processes полностью разделены.
+- Не выводить в Markdown/chat JWT, PEM, raw token, membership reference или персональные данные.
 
-- Сохранять фокус на личном календаре и учёте работы гида.
-- Не добавлять marketplace, CRM партнёров, GuideShop-функции, AI-функции или Google Calendar без отдельного продуктового решения.
-- Русский язык — основной язык пользовательского интерфейса.
-- Любой доступ к туру обязан учитывать `user_id`; нельзя открывать или изменять чужую запись только по `tour_id`.
-- Многодневный тур — группа связанных записей; изменение или удаление должно учитывать `tour_group_id`.
-- Выходной не должен попадать в рабочий доход и статистику туров.
-- Пользовательские даты и фоновые задачи должны учитывать `TIMEZONE`.
-- Не менять тексты, callback data и FSM-переходы без проверки связанной клавиатуры и handler-а.
+## 8. Продуктовые границы
 
-## 8. Карта ключевых потоков
+- Не переносить GuideShop CRM-операции в Guide OS без утверждённого contract/workstream.
+- Официальные данные GuideShop в Guide OS read-only до отдельного approval.
+- Будущие личные места и внешние продажи принадлежат только гиду и не формируют глобальный каталог.
+- Возможный external-sale points claim — отдельный post-MVP write workstream с anti-fraud, legal и redemption решениями.
+- Core Guide OS должен работать при отключённой или недоступной интеграции.
+- Русский язык остаётся основным Telegram UX.
 
-| Поток | Основные файлы |
-|---|---|
-| Старт и главное меню | `handlers/start.py`, `keyboards/main_menu.py` |
-| Добавление тура/выходного | `handlers/add_tour.py`, `states/add_tour_state.py`, `services/tour_service.py` |
-| Календарь и день | `handlers/calendar.py`, `handlers/tour_cards.py`, `services/calendar_service.py`, `services/day_card_service.py` |
-| Проверка даты | `handlers/check_date.py`, `states/check_date_state.py` |
-| Редактирование/удаление | `handlers/tour_edits.py`, `states/tour_edit.py`, `services/tour_service.py` |
-| Доход и статистика | `handlers/income.py`, `handlers/stats.py`, `services/income_service.py`, `services/stats_service.py` |
-| Профиль | `handlers/profile.py`, `states/profile_state.py` |
-| Уведомления | `handlers/notifications.py`, `services/reminder_service.py` |
-| Admin-функции | `handlers/admin_report.py`, `handlers/broadcast.py` |
-
-## 9. Как AI должен работать с проектом
+## 9. Правила работы AI
 
 Перед изменением:
 
-1. прочитать этот файл и затронутые handler/service/query;
-2. проверить `git status` и не перезаписывать пользовательские изменения;
-3. определить, относится ли изменение к одной записи или ко всей группе тура;
-4. проверить границы доступа по `user_id`;
-5. найти связанные тесты и callback/FSM-контракты.
+1. прочитать `.ai/PROJECT.md`, `.ai/SESSION.md`, `.ai/NEXT_TASK.md` и этот файл;
+2. проверить `git status` и provenance текущего commit/deployment;
+3. определить Telegram, provider или consumer path;
+4. проверить identity, token, scope, replay, timeout, retry и cleanup boundaries;
+5. не менять GuideShop, contracts, Railway или production из этого репозитория без отдельного scope.
 
 После изменения:
 
-1. запускать сначала узкие тесты, затем весь набор, если это безопасно;
-2. сообщать, какие тесты реально запускались;
-3. не утверждать, что Railway или production здоровы без внешней проверки;
-4. не коммитить базы, `.env`, логи, кэши, архивы и виртуальное окружение.
+1. запустить focused tests, затем full suite;
+2. проверить `git diff --check`;
+3. отдельно фиксировать local, CI, staging и production evidence;
+4. не объявлять gate PASS без sanitized positive/negative evidence;
+5. не коммитить `.env`, DB/WAL/SHM, logs, backups, keys, tokens, caches и archives.
 
 ## 10. Источники истины
 
-При конфликте информации использовать приоритет:
-
-1. актуальный код и тесты;
-2. `database/db.py` и `database/queries.py` для фактической схемы и persistence;
-3. `bot.py` для реального runtime и порядка роутеров;
-4. этот файл как навигационный снимок;
-5. README, старые планы, RTF-файлы и архивы только как исторический контекст.
+1. текущий код и тесты;
+2. `.ai/SESSION.md` и `.ai/NEXT_TASK.md` для operational state;
+3. `database/db.py` для схемы;
+4. authoritative pinned contract для integration semantics;
+5. CI/staging evidence с exact commit;
+6. этот файл как краткая карта проекта;
+7. README, roadmap и старые документы только как исторический контекст.

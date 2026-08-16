@@ -1,10 +1,10 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-12
+> Обновлено: 2026-08-16
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Общий integration baseline 0–4 и Guide OS Stage 5D provider завершены. Identity, contract `v1.1.0`, link lifecycle/evidence, inbound EdDSA verification, JTI replay protection и три default-off link-exchange routes готовы. Реальное соединение и production activation отсутствуют. Следующая совместная задача — Stage 6 isolated HTTP E2E с GuideShop.
+Guide OS работает как отдельный Telegram-инструмент гида. Общий integration baseline 0–4, Guide OS Stage 5D provider, isolated Railway staging readiness и GuideShop staging E2E завершены. Identity, contract `v1.1.0`, link lifecycle/evidence, inbound EdDSA verification, JTI replay protection и staging HTTPS provider готовы. Production activation отсутствует. Текущая задача — подготовка точного release-candidate diff при выключенных production integration flags.
 
 GuideShop должен оставаться источником истины для официальных компаний, подтверждённых Visits/Sales и points. Guide OS является источником истины для будущих личных мест гида и самостоятельно внесённых внешних продаж. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения официальных данных и события GuideShop для уведомлений.
 
@@ -180,14 +180,22 @@ GuideShop должен оставаться источником истины д
 - Stage 3D: реализованы строгие user-bound single-use `/start` deep links и development-only smoke helper.
 - Stage 4A: реализованы identity-bound HTTP client, request-scoped composition, Ed25519/EdDSA auth contract, async token provider и default-off real runtime composition.
 - Stage 4A закрыт: `470 passed`, локальный fake smoke test ранее подтверждён владельцем.
-- Stage 4B начнётся только после появления GuideShop staging API на Mac Neo.
-- GuideShop verifier/API availability, события и production activation ещё не реализованы.
-- Reproducible-environment quality gate завершён: `.env.example`, Python `3.13.1`, README и documentation test; full suite `471 passed`.
+- Stage 4B GuideShop staging reads завершён; production events и activation ещё не включены.
+- Reproducible-environment quality gate завершён; текущий runtime pin — attested Python `3.13.14`.
 - Continuous-integration quality gate завершён: clean GitHub Actions runner устанавливает pinned dependencies и выполняет полный suite без secrets, Telegram polling, GuideShop network calls или deployment; CI run `31408186374` успешен, `472 passed`.
 - Contract `v1.1.0` закреплён на commit `c071fd45d4ec684f5ac32e8e9e71bc26d4014283` и проверяется отдельным hosted workflow.
 - Guide OS Stage 5D provider завершён: реализованы link exchange persistence, authoritative lifecycle evidence, inbound GuideShop EdDSA verifier, atomic JTI replay protection и три `/integration/v1/link-exchanges...` routes.
-- Provider имеет отдельный default-off flag, разрешён только для isolated development/test loopback execution и не содержит реальных ключей или deployment activation.
+- Provider имеет отдельные default-off flags и явный isolated Railway staging runtime path; production activation остаётся fail-closed.
 - Проверка Stage 5D: focused provider `30 passed`; полный suite `584 passed`; GitHub CI run `31622573211` и Integration Contracts run `31622573278` — success.
+- API-only staging entrypoint commit `ac779b417b6adb50f43494cf4c0d25e6e292d646`: focused `117 passed`, полный suite `601 passed`, CI `31743087618` и contracts `31743087697` — success.
+- Isolated Railway staging deployment активен на exact candidate commit `b895622`; volume `/data` READY.
+- Staging HTTPS base URL: `https://guide-os-staging-api-staging.up.railway.app`; `GET /health` независимо подтверждён с HTTP 200 и безопасным JSON payload.
+- Staging-only mise bypass удалён; deployment `a79abd94…` успешно verified GitHub artifact attestations для Python `3.13.14`.
+- GuideShop staging E2E закрыт: Gate 4A lifecycle `44/44 PASS`, Gate 4B reads `PASS`, auth/query/cursor `26/26`, FA/IC `0 FAIL`, contract `v1.1.0`.
+- GuideShop production `v1.3.0` выпущен с выключенными integration flags; Guide OS production activation по-прежнему запрещена.
+- Production lifecycle absence audit PASS: staging lifecycle variables, integration flags и mise bypass отсутствуют во всех production-effective scopes.
+- Candidate `b895622` прошёл full suite `632`, GitHub CI и Integration Contracts; production-safe staging proof завершён без attestation bypass.
+- Fresh production SQLite backup PASS: age-encrypted off-platform artifact verified by restore; production unchanged. Railway native snapshot отсутствует, но owner отдельно утвердил local-only recovery copy.
 
 ## Readiness checklist перед production-интеграцией
 

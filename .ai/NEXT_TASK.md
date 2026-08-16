@@ -1,39 +1,42 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-13
+> Обновлено: 2026-08-16
 
 ## Единственная следующая задача
 
-Закоммитить и отправить проверенный API-only staging entrypoint, затем подтвердить GitHub CI.
+Создать отдельный docs-only commit из проверенных Markdown-изменений и получить CI PASS.
 
 ## Цель
 
-Получить immutable commit и clean-runner evidence для API-only процесса до подключения Railway source или deployment.
+Зафиксировать проверенный operational/project documentation state отдельным commit без изменения runtime candidate или infrastructure.
 
 ## Требуемый результат
 
-- один commit включает API-only entrypoint, health route, focused tests и актуальную `.ai`-документацию;
-- commit отправлен в `origin/main`;
-- CI и Integration Contracts workflow для точного commit успешны;
-- рабочая директория clean и `main == origin/main`;
-- Railway source, deployment, domain и flags не меняются.
+- commit содержит ровно четыре `.ai/*.md` и два `docs/*.md` файла;
+- sensitive/staleness scan и `git diff --check` проходят;
+- branch pushed без merge;
+- hosted CI workflows проходят на exact docs commit;
+- working tree становится clean.
 
 ## Ограничения
 
-- Не менять уже проверенный implementation/test diff, кроме обязательной документации.
-- Не устанавливать и не читать staging key material.
-- Не подключать Railway source и не создавать deployment/domain.
-- Не менять Railway variables и не включать flags.
-- Не менять production или GuideShop.
+- Не изменять файлы перед staging; текущий Markdown diff уже reviewed.
+- Abort, если staged set содержит не ровно шесть утверждённых Markdown-файлов.
+- Не включать secrets, production data или backup paths/passwords в repository docs.
+- Не менять runtime source/tests/config.
+- Не merge/tag/release.
+- Не затрагивать GuideShop или integration flags.
 
 ## Definition of Done
 
-- Commit создан и отправлен.
-- GitHub clean-runner checks успешны.
-- Commit содержит только ожидаемые файлы и не содержит secrets/runtime artifacts.
-- Локальная ветка синхронизирована и clean.
-- Railway, production, GuideShop и keys не затронуты.
+- Docs-only commit создан и pushed.
+- CI/Integration Contracts successful.
+- Working tree clean.
+- Runtime candidate и infrastructure неизменны.
+- Production и GuideShop не затронуты.
 
 ## Зафиксировано для последующей работы
 
-После этого отдельными gates выполняются: установка staging keys, source/deployment, HTTPS domain, provider activation и E2E. GuideShop Gate 3 продолжается только после явного подтверждения readiness `4/4`.
+После docs separation потребуется raw-dump containment resolution и exact release-candidate merge diff. Production integration flags обеих систем остаются выключенными.
+
+Production backup PASS: encrypted artifact существует вне repositories с mode `600`; integrity и restore reconciliation прошли. Railway native snapshot отсутствует из-за permission limitation и не является release blocker после owner-approved off-platform backup.

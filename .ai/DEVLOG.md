@@ -359,3 +359,227 @@ GuideShop Gate 3 readiness: `3/4`. Готовы inbound GuideShop public key, ou
 Независимая проверка: focused suite `117 passed`; полный suite `601 passed`; `git diff --check` clean. Изменения ещё не закоммичены.
 
 Следующая задача: commit/push API-only entrypoint и подтверждение clean-runner CI. После этого требуется отдельно проверить происхождение нового production latest deployment baseline до любых Railway source/deploy действий.
+
+## 2026-08-14 — API-only staging entrypoint закоммичен и прошёл CI
+
+Выполнено:
+
+- commit `ac779b417b6adb50f43494cf4c0d25e6e292d646` (`Add API-only GuideShop staging provider`) отправлен в `origin/main`;
+- commit содержит ровно семь ожидаемых code/test/Markdown файлов;
+- focused suite: `117 passed`;
+- полный suite: `601 passed`;
+- `git diff --check` clean;
+- GitHub CI run `31743087618` — success;
+- Integration Contracts run `31743087697` — success;
+- `main == origin/main`, working tree clean;
+- Railway, GuideShop, keys, flags, source, deployment, domain и production не изменялись.
+
+Следующая задача: read-only provenance audit production latest deployment `26d2c035-e5a0-457f-a4af-17dd8204e549`. До завершения аудита запрещены staging source connection, deployment, domain и feature activation.
+
+## 2026-08-14 — Production deployment provenance audit завершён
+
+Read-only audit установил:
+
+- production deployment `26d2c035-e5a0-457f-a4af-17dd8204e549` был GitHub auto-deploy commit `d4198daaef01bc50a28633bedc2c9eb5759aa7cc` из `main`;
+- deployment завершился `FAILED` на `BUILD_IMAGE`, не запускал runtime и никогда не становился active;
+- последующий deployment `af558089…` аналогично был auto-deploy commit `ac779b417b6adb50f43494cf4c0d25e6e292d646` и также не стал active;
+- production active deployment остался `1e048703-6848-4839-9ce2-f69129b9d839` (`SUCCESS`);
+- production variables hash, volume, instances и active runtime не изменились;
+- staging service сохранил отсутствие source, start command, deployments и domain;
+- audit не выполнил Railway mutations и не затронул GuideShop или source code.
+
+Вердикт: `SAFE TO PROCEED TO STAGING DEPLOYMENT GATE`.
+
+Остаточный production risk: production `guide_os` подключён к GitHub `main`, поэтому каждый push создаёт новый failed production deployment attempt. Это не блокирует изолированный staging deploy, но требует отдельного будущего исправления production build/deployment flow.
+
+## 2026-08-14 — Staging deployment gate заблокирован Railpack/mise
+
+Выполнено:
+
+- staging source подключён к `juraldinho/guide_os` / `main` на exact commit `ac779b417b6adb50f43494cf4c0d25e6e292d646`;
+- start command установлен как `python guide_shop_link_api.py`;
+- выполнены один initial deployment и один разрешённый retry;
+- deployments `0e861878-bb67-4619-8662-ed99ec02ddd2` и `2ebea9ce-e950-4dd9-98e6-932e40a20f68` детерминированно завершились `FAILED` до запуска приложения;
+- Railpack v0.36.4 / mise не смог установить `python@3.13.1`: для precompiled artifact отсутствовала GitHub attestation;
+- runtime, domain и health checks не были достигнуты;
+- rollback вернул `GUIDESHOP_LINK_PROVIDER_ENABLED` и `GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED` в `false`;
+- production, GuideShop, keys, volume и repository source не изменялись.
+
+GuideShop Gate 3 readiness остаётся `3/4`; HTTPS base URL отсутствует.
+
+Официальная mise documentation подтверждает scoped build setting `MISE_PYTHON_GITHUB_ATTESTATIONS`. Следующий gate может временно установить его в `false` только для isolated staging, повторно включить provider flags и выполнить один deployment attempt. Это staging-only supply-chain exception; production использовать его запрещено.
+
+## 2026-08-14 — Guide OS staging readiness 4/4
+
+Выполнено:
+
+- `MISE_PYTHON_GITHUB_ATTESTATIONS=false` установлен только в isolated staging service;
+- глобальный `MISE_GITHUB_ATTESTATIONS` и production variables не изменялись;
+- provider и staging authorization flags включены только в staging;
+- единственный deployment attempt `5c098777-ba6e-40ad-ba03-83480b0e3596` завершён `SUCCESS` на exact commit `ac779b417b6adb50f43494cf4c0d25e6e292d646`;
+- API-only process `python guide_shop_link_api.py` стал active без Telegram polling и `BOT_TOKEN`;
+- staging volume `/data` остался `READY`;
+- создан ровно один Railway HTTPS domain: `https://guide-os-staging-api-staging.up.railway.app`;
+- три внешние HTTPS health checks вернули HTTP 200 и expected safe payload;
+- дополнительная независимая проверка этим чатом также получила HTTP 200, `application/json` и expected parsed payload;
+- production active runtime, variables, volume, source и instances не изменились;
+- GuideShop и repository source не изменялись, secrets не раскрывались.
+
+Вердикт: `PASS — GUIDE OS STAGING READINESS 4/4`. GuideShop может продолжить Gate 3, используя переданный HTTPS base URL и ранее переданный Guide OS public handoff. Production activation остаётся запрещённой.
+
+## 2026-08-16 — GuideShop staging E2E handoff принят
+
+Получено и принято как закрытие внешнего E2E gate:
+
+- GuideShop Gate 4A lifecycle: `PASS`, `44/44`;
+- подтверждён lifecycle `issue → exchange → awaiting → confirm → active → evidence → revoke`;
+- raw-token replay и JTI replay отклонены;
+- после проверки оставлена чистая active link;
+- GuideShop Gate 4B reads: `PASS`;
+- dataset evidence: Companies `1`, Visits `2`, Sales `4`, Points `2`, History `1`;
+- auth/query/cursor matrix: `26/26`;
+- FA/IC: `0 FAIL`;
+- contract baseline: `v1.1.0`;
+- GuideShop production release `v1.3.0` выполнен, но все integration flags остаются выключены.
+
+GuideShop E2E больше не является блокером Guide OS release candidate. Production GuideShop integration включать запрещено.
+
+Оставшиеся Guide OS production-release blockers:
+
+1. read-only подтвердить отсутствие staging lifecycle variables в production;
+2. исправить Railpack production build failure на candidate-ветке;
+3. повторить full suite и staging deploy после исправления;
+4. получить свежий backup production SQLite;
+5. отделить `.ai`/docs изменения от runtime candidate;
+6. повторно проверить exact merge diff;
+7. только затем выполнить fast-forward/merge и наблюдать production deploy.
+
+## 2026-08-16 — Production lifecycle absence audit завершён
+
+Read-only audit подтвердил:
+
+- `GUIDESHOP_STAGING_LIFECYCLE_ENABLED` отсутствует во всех production-effective scopes;
+- `GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS` отсутствует во всех production-effective scopes;
+- семь GuideShop integration flags отсутствуют и эффективны как default-off;
+- `MISE_PYTHON_GITHUB_ATTESTATIONS` и `MISE_GITHUB_ATTESTATIONS` отсутствуют в production;
+- production service имеет только четыре user-set keys: `ADMIN_ID`, `BOT_TOKEN`, `DATABASE_PATH`, `TIMEZONE`;
+- production before/after snapshots идентичны; audit не выполнил mutation;
+- candidate commit `e49a5a7174a34e836dbf806b30b2c61ebdc69c48` уже имеет successful staging deployment `414fee35…` с staging-only build exception.
+
+Вердикт: production lifecycle absence blocker закрыт.
+
+Процессное замечание: во временной директории был создан ранний raw variable dump, затем удалён. До production release требуется подтвердить, что secret values не выводились в terminal/chat/log/history и не покидали локальный temp storage. При невозможности доказать containment затронутые production secrets должны быть ротированы.
+
+Следующий blocker: устранить production Railpack build failure на candidate-ветке и доказать successful staging build без `MISE_PYTHON_GITHUB_ATTESTATIONS=false`.
+
+## 2026-08-16 — Production-safe Railpack code gate завершён
+
+Cursor подготовил минимальный uncommitted fix на candidate-ветке:
+
+- `.python-version`: `3.13.1` → `3.13.14`;
+- README фиксирует exact runtime и требование не отключать artifact verification;
+- environment documentation test обновлён под новый pin;
+- Python `3.13.14` dependency install и `pip check` прошли;
+- focused tests: `2 passed`;
+- full suite: `632 passed`;
+- `git diff --check`: clean;
+- attestation bypass в repository config не добавлен;
+- Railway, production, GuideShop и integration flags не изменялись.
+
+Причина прежнего failure: старый mise precompiled artifact Python `3.13.1` не имел GitHub attestation. Для выбранного Python `3.13.14` подтверждены attested artifact и успешная независимая verification.
+
+Code gate: `PASS — ready for review`. Следующий этап: создать отдельный candidate commit только из трёх build-gate файлов, получить CI PASS, затем отдельным Railway gate удалить staging-only `MISE_PYTHON_GITHUB_ATTESTATIONS` и доказать staging deployment без bypass.
+
+Обнаружено несоответствие в pre-existing dirty `docs/project_context.md`, где ещё указан Python `3.13.1`. Этот файл запрещено смешивать с runtime build commit; документация будет синхронизирована отдельным docs-gate.
+
+## 2026-08-16 — Attested Python candidate commit и CI завершены
+
+- branch: `staging-guide-user-lifecycle-api`;
+- commit: `b89562294461b925755255ac48e9a53d65d0b071`;
+- message: `Use attested Python runtime for Railpack builds`;
+- commit содержит ровно `.python-version`, `README.md`, `tests/test_environment_documentation.py`;
+- push в `origin/staging-guide-user-lifecycle-api` успешен;
+- GitHub CI run `31942628286`: success;
+- Integration Contracts run `31942628273`: success;
+- branch синхронизирована с origin;
+- `.ai/*` и pre-existing docs изменения остались вне commit;
+- merge, Railway, production и GuideShop не изменялись.
+
+Следующий gate: staging proof build exact commit `b895622…` после удаления staging-only `MISE_PYTHON_GITHUB_ATTESTATIONS`, с production before/after invariants и health verification.
+
+## 2026-08-16 — Staging attestation proof завершён
+
+- обнаруженный auto-deploy `382d5087…` не принят как proof, потому что был собран до удаления bypass;
+- `MISE_PYTHON_GITHUB_ATTESTATIONS` удалён только из staging без implicit deployment;
+- оба bypass key отсутствуют во всех staging scopes;
+- выполнен ровно один controlled deployment `a79abd94-c7c8-4f61-b18b-9de3c136fbcd`;
+- deployment exact commit `b89562294461b925755255ac48e9a53d65d0b071` завершён `SUCCESS`;
+- Railpack запросил и установил Python `3.13.14`, GitHub artifact attestations verified;
+- API-only start command остался `python guide_shop_link_api.py`;
+- staging volume `/data` остался Ready;
+- три HTTPS health checks вернули HTTP 200 и expected parsed JSON;
+- production before/after идентичен;
+- repositories и GuideShop не изменялись;
+- secrets не печатались.
+
+Вердикт: production-safe Railpack blocker закрыт. Следующий production-release blocker — fresh consistent backup production SQLite.
+
+## 2026-08-16 — Production SQLite backup preflight завершён
+
+Read-only preflight подтвердил:
+
+- production database: expected `/data/guide_os.db`, WAL mode;
+- size `139264` bytes, volume имеет около `4.5 GiB` free;
+- runtime поддерживает Python `sqlite3.Connection.backup()`;
+- raw copy live database запрещён;
+- Railway поддерживает native volume-instance backups, но сейчас backup/schedule отсутствуют;
+- binary-safe export возможен через Railway SSH с прямым перенаправлением stdout в local file без печати содержимого;
+- production before/after invariants идентичны;
+- rows, PII и secrets не читались и не печатались;
+- никаких файлов, backups или infrastructure mutations не создано.
+
+Вердикт: `NEEDS USER DECISION`. До mutation gate владелец должен утвердить destination, encryption/key custody и необходимость complementary Railway snapshot.
+
+## 2026-08-16 — Production backup Gate 1 заблокирован Railway authorization
+
+- owner утвердил Railway native snapshot + local age-encrypted copy;
+- local destination создан с mode `700`, вне repositories и `/tmp`;
+- `age v1.3.1` установлен;
+- единственная попытка `volumeInstanceBackupCreate` завершилась `Not Authorized`;
+- Railway backups/schedules после попытки: `0/0`;
+- согласно gate ordering local online backup не запускался;
+- container `/tmp` snapshot, plaintext и encrypted local files отсутствуют;
+- production before/after invariants идентичны;
+- secrets, rows, PII и binary data не печатались.
+
+Вердикт: `BLOCKED` только для dual-backup варианта. Требуется либо authorized Railway identity, либо явное разрешение владельца продолжить с проверенной age-encrypted off-platform копией без native Railway snapshot.
+
+## 2026-08-16 — Local age backup attempt прерван на interactive export
+
+- owner разрешил local age-encrypted backup без Railway snapshot;
+- consistent remote SQLite snapshot был создан и прошёл integrity check;
+- export pipeline был terminated во время `age -p` prompt из-за совместного использования interactive terminal Railway SSH и age;
+- encrypted target не создан;
+- local plaintext files отсутствуют;
+- remote `/tmp` snapshot удалён, `snapshot_gone=true`;
+- production `/data` listing, source size и mtime не изменились;
+- Railway native snapshot не повторялся.
+
+Вердикт: backup всё ещё отсутствует. Для одной новой попытки требуется owner approval; corrected export должен изолировать Railway stdin/stderr от TTY, используемого `age`, без ослабления encryption или печати binary data.
+
+## 2026-08-16 — Production SQLite encrypted backup завершён
+
+- owner разрешил одну corrected retry без Railway native snapshot;
+- fresh consistent online backup создан с UTC `20260816T122903Z`;
+- encrypted artifact filename: `guide_os-prod-20260816T122903Z-b7ebbbcf.db.gz.age` (stored outside repositories);
+- file mode `600`, size `17983`, SHA-256 `e0418a2b4f3a5fcdc544577aec25f7fe6a9c8fcb18d968d0d1e6dfd8bd43fee9`;
+- remote/restored database SHA-256 совпали;
+- remote/restored integrity checks: `ok`;
+- schema inventory и per-table counts совпали без чтения/печати row contents;
+- local и remote plaintext artifacts удалены;
+- Railway native snapshot не повторялся;
+- production before/after идентичен;
+- repositories и GuideShop не изменялись;
+- secrets/passphrase/PII/binary/base64 не печатались.
+
+Локальная независимая проверка подтвердила encrypted file mode, size и SHA-256. Production backup blocker закрыт.
