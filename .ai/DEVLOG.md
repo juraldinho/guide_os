@@ -583,3 +583,27 @@ Read-only preflight подтвердил:
 - secrets/passphrase/PII/binary/base64 не печатались.
 
 Локальная независимая проверка подтвердила encrypted file mode, size и SHA-256. Production backup blocker закрыт.
+
+## 2026-08-16 — Docs separation commit завершён
+
+- docs-only commit `dd04e4c0ac170a92d3ff37c627898d7c17ac6f76` создан на `staging-guide-user-lifecycle-api`;
+- commit содержит ровно четыре `.ai/*.md` и два `docs/*.md` файла;
+- staged sensitive-data scan и `git diff --cached --check` clean;
+- CI run `31952195788` и Integration Contracts run `31952195720` successful;
+- branch синхронизирована с origin, working tree clean;
+- runtime, infrastructure, production и GuideShop не изменялись.
+
+Следующий release blocker: read-only containment audit раннего raw production variable dump; при недостаточном доказательстве требуется ротация затронутого production secret.
+
+## 2026-08-16 — Raw variable dump containment audit завершён
+
+- raw Railway variable output был сначала записан в temp file, затем unsanitized прочитан через `head`;
+- prefix попал в Cursor Shell tool stdout;
+- raw file удалён, external upload/commit evidence отсутствует;
+- строгий containment доказать невозможно из-за tool-result retention;
+- единственный secret-bearing production user key в scope: `BOT_TOKEN`;
+- `ADMIN_ID`, `DATABASE_PATH`, `TIMEZONE` credential rotation не требуют;
+- production variables повторно не читались, secret values в audit не выводились;
+- Railway, repositories, production и GuideShop не изменялись.
+
+Вердикт: `ROTATION REQUIRED` только для production `BOT_TOKEN`. Ротацию следует объединить с контролируемым production release window после exact merge-diff review, чтобы не оставить bot offline на старом runtime и не вызвать build старого Python pin.

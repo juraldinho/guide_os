@@ -74,10 +74,12 @@ Guide OS staging/E2E, production lifecycle absence audit, production-safe Railpa
 - Candidate commit `b89562294461b925755255ac48e9a53d65d0b071` содержит ровно Python pin/README/test; CI `31942628286` и contracts `31942628273` successful.
 - Staging proof deployment `a79abd94…` SUCCESS на `b895622…`: Python 3.13.14 attestations verified, bypass keys absent, health 3/3, production unchanged.
 - Production backup PASS: verified age artifact `guide_os-prod-20260816T122903Z-b7ebbbcf.db.gz.age`, mode `600`, encrypted SHA-256 `e0418a2b…fee9`; restore integrity/count reconciliation passed, plaintext cleaned, production unchanged.
+- Docs-only commit `dd04e4c` pushed; CI `31952195788` and contracts `31952195720` successful; working tree был clean до следующего operational update.
+- Containment audit verdict `ROTATION REQUIRED`: unsanitized raw variable prefix попал в Cursor Shell output; minimum scope только production `BOT_TOKEN`.
 
 ## Следующее действие
 
-Согласно `.ai/NEXT_TASK.md`, провести read-only audit/separation оставшихся Markdown changes. Merge/deploy production и tag запрещены.
+Согласно `.ai/NEXT_TASK.md`, провести финальный read-only exact merge-diff review. `BOT_TOKEN` ротировать только в последующем controlled release window; merge/deploy production и tag пока запрещены.
 
 ## Зафиксированное будущее требование
 
