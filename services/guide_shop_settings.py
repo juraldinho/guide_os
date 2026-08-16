@@ -36,7 +36,12 @@ _PUBLIC_KEY_PEM_PATTERN = re.compile(
 )
 _PROVIDER_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
 _PROVIDER_RAILWAY_STAGING_HOSTS = frozenset({"0.0.0.0"})
+_PROVIDER_RAILWAY_PRODUCTION_HOSTS = frozenset({"0.0.0.0"})
 _PROVIDER_LOCAL_APP_ENVS = frozenset({"development", "test"})
+
+
+def _production_lifecycle_kid_forbidden(kid: str) -> bool:
+    return "staging" in kid.split("-")
 
 
 class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
@@ -44,6 +49,10 @@ class GuideShopInboundJWTSettingsError(GuideShopSettingsError):
 
 
 class GuideShopStagingLifecycleSettingsError(GuideShopSettingsError):
+    pass
+
+
+class GuideShopProductionLifecycleSettingsError(GuideShopSettingsError):
     pass
 
 
@@ -138,6 +147,98 @@ class GuideShopStagingLifecycleSettings:
         )
 
 
+@dataclass(frozen=True, init=False)
+class GuideShopProductionLifecycleSettings:
+    enabled: bool
+    app_env: str | None
+    public_keys: tuple[tuple[str, str], ...] = field(repr=False, compare=False)
+
+    def __init__(
+        self,
+        enabled: bool = False,
+        app_env: str | None = None,
+        public_keys: Mapping[str, str] | None = None,
+    ) -> None:
+        if not isinstance(enabled, bool):
+            raise GuideShopProductionLifecycleSettingsError(
+                "Invalid production lifecycle configuration"
+            )
+        if not enabled:
+            object.__setattr__(self, "enabled", False)
+            object.__setattr__(self, "app_env", app_env)
+            object.__setattr__(self, "public_keys", ())
+            return
+        if app_env != "production" or not isinstance(public_keys, Mapping):
+            raise GuideShopProductionLifecycleSettingsError(
+                "Invalid production lifecycle configuration"
+            )
+        items = []
+        seen = set()
+        for kid, pem in public_keys.items():
+            if (
+                not isinstance(kid, str)
+                or _LINK_KID_PATTERN.fullmatch(kid) is None
+                or _production_lifecycle_kid_forbidden(kid)
+                or kid in seen
+                or not isinstance(pem, str)
+                or _PUBLIC_KEY_PEM_PATTERN.fullmatch(pem) is None
+            ):
+                raise GuideShopProductionLifecycleSettingsError(
+                    "Invalid production lifecycle configuration"
+                )
+            try:
+                key = serialization.load_pem_public_key(pem.encode("ascii"))
+            except Exception:
+                raise GuideShopProductionLifecycleSettingsError(
+                    "Invalid production lifecycle configuration"
+                ) from None
+            if not isinstance(key, Ed25519PublicKey):
+                raise GuideShopProductionLifecycleSettingsError(
+                    "Invalid production lifecycle configuration"
+                )
+            seen.add(kid)
+            items.append((kid, pem))
+        if not items:
+            raise GuideShopProductionLifecycleSettingsError(
+                "Invalid production lifecycle configuration"
+            )
+        object.__setattr__(self, "enabled", True)
+        object.__setattr__(self, "app_env", app_env)
+        object.__setattr__(self, "public_keys", tuple(items))
+
+    @classmethod
+    def from_env(
+        cls, values: Mapping[str, str] | None = None
+    ) -> "GuideShopProductionLifecycleSettings":
+        source = os.environ if values is None else values
+        enabled = _read_flag(source, "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED")
+        if not enabled:
+            return cls()
+        raw_keys = source.get("GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS")
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError
+                result[key] = value
+            return result
+
+        try:
+            parsed = (
+                json.loads(raw_keys, object_pairs_hook=unique_object)
+                if isinstance(raw_keys, str)
+                else None
+            )
+        except (TypeError, ValueError):
+            parsed = None
+        return cls(
+            enabled=True,
+            app_env=source.get("APP_ENV"),
+            public_keys=parsed,
+        )
+
+
 @dataclass(frozen=True)
 class GuideShopLinkProviderSettings:
     enabled: bool = False
@@ -172,6 +273,10 @@ class GuideShopLinkProviderSettings:
             if self.host not in _PROVIDER_RAILWAY_STAGING_HOSTS:
                 raise GuideShopSettingsError("Invalid GuideShop provider configuration")
             return
+        if self.app_env == "production":
+            if self.host not in _PROVIDER_RAILWAY_PRODUCTION_HOSTS:
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            return
         raise GuideShopSettingsError("Invalid GuideShop provider configuration")
 
     @classmethod
@@ -194,6 +299,23 @@ class GuideShopLinkProviderSettings:
             )
         if app_env == "staging":
             if not _read_flag(source, "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED"):
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            if _read_flag(source, "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED"):
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            if "GUIDESHOP_LINK_PROVIDER_HOST" not in source:
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            host = source.get("GUIDESHOP_LINK_PROVIDER_HOST")
+            port = _read_required_int(source, "PORT")
+            return cls(
+                enabled=True,
+                host=host,
+                port=port,
+                app_env=app_env,
+            )
+        if app_env == "production":
+            if not _read_flag(source, "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED"):
+                raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+            if _read_flag(source, "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED"):
                 raise GuideShopSettingsError("Invalid GuideShop provider configuration")
             if "GUIDESHOP_LINK_PROVIDER_HOST" not in source:
                 raise GuideShopSettingsError("Invalid GuideShop provider configuration")

@@ -2,6 +2,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import logging
+import signal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 from aiohttp.test_utils import make_mocked_request
@@ -9,6 +12,7 @@ from multidict import CIMultiDict
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 import services.guide_shop_link_provider as provider_module
@@ -25,12 +29,16 @@ from services.guide_shop_link_provider import (
 )
 from services.guide_shop_settings import GuideShopInboundJWTSettings
 from services.guide_shop_settings import GuideShopLinkProviderSettings
+from services.guide_shop_settings import GuideShopProductionLifecycleSettings
+from services.guide_shop_settings import GuideShopProductionLifecycleSettingsError
 
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
 RAW_TOKEN = "synthetic-http-link-token-1234567890"
 MEMBERSHIP = "cgm_b20af940"
 KID = "link-key-2026"
+PRODUCTION_KID = "synthetic-production-link-key"
+PRODUCTION_KID_ALT = "synthetic-production-link-key-alt"
 
 
 def run(awaitable):
@@ -684,3 +692,627 @@ def test_cancelled_startup_cleans_runner_once(monkeypatch, components):
             "APP_ENV": "test",
         }))
     runner.cleanup.assert_awaited_once_with()
+
+
+def _public_pem(private_key):
+    return private_key.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+
+
+def _generated_pem():
+    return _public_pem(Ed25519PrivateKey.generate())
+
+
+@pytest.fixture
+def production_pem():
+    return _generated_pem()
+
+
+def _production_provider_env(**overrides):
+    values = {
+        "GUIDESHOP_LINK_PROVIDER_ENABLED": "true",
+        "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED": "true",
+        "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
+        "PORT": "8080",
+        "APP_ENV": "production",
+    }
+    values.update(overrides)
+    return values
+
+
+def _without(values, *names):
+    return {key: value for key, value in values.items() if key not in names}
+
+
+def _production_runtime_env(pem, *, lifecycle_keys=None, link_keys=None, **overrides):
+    keys = {PRODUCTION_KID: pem}
+    values = _production_provider_env(
+        GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED="true",
+        GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS=json.dumps(
+            keys if lifecycle_keys is None else lifecycle_keys
+        ),
+        GUIDESHOP_LINK_JWT_PUBLIC_KEYS=json.dumps(
+            keys if link_keys is None else link_keys
+        ),
+    )
+    values.update(overrides)
+    return values
+
+
+def _mock_runner(monkeypatch):
+    runner = Mock()
+    runner.setup = AsyncMock()
+    runner.cleanup = AsyncMock()
+    site = Mock()
+    site.start = AsyncMock()
+    monkeypatch.setattr(provider_module.web, "AppRunner", Mock(return_value=runner))
+    monkeypatch.setattr(provider_module.web, "TCPSite", Mock(return_value=site))
+    return runner, site
+
+
+def test_production_provider_settings_require_explicit_production_authorization():
+    assert GuideShopLinkProviderSettings.from_env(
+        _production_provider_env()
+    ) == GuideShopLinkProviderSettings(True, "0.0.0.0", 8080, "production")
+    for values in (
+        _without(
+            _production_provider_env(), "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED"
+        ),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED="false"),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED=""),
+        # Staging authorization must never open the production surface.
+        {
+            **_without(
+                _production_provider_env(),
+                "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED",
+            ),
+            "GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED": "true",
+        },
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED="true"),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="127.0.0.1"),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="::1"),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_HOST="10.0.0.1"),
+        _production_provider_env(GUIDESHOP_LINK_PROVIDER_HOST=""),
+        _without(_production_provider_env(), "GUIDESHOP_LINK_PROVIDER_HOST"),
+        _without(_production_provider_env(), "PORT"),
+        _production_provider_env(PORT=""),
+        _production_provider_env(PORT="0"),
+        _production_provider_env(PORT="-1"),
+        _production_provider_env(PORT="8080.5"),
+        _production_provider_env(PORT="65536"),
+        _production_provider_env(PORT=" 8080"),
+        _production_provider_env(PORT="not-a-port"),
+        _without(_production_provider_env(), "APP_ENV"),
+        _production_provider_env(APP_ENV="unknown"),
+        _production_provider_env(APP_ENV="development"),
+        _production_provider_env(APP_ENV="test"),
+    ):
+        with pytest.raises(Exception):
+            GuideShopLinkProviderSettings.from_env(values)
+    # The local Railway PORT alternative must not substitute for PORT.
+    with pytest.raises(Exception):
+        GuideShopLinkProviderSettings.from_env(
+            _without(
+                _production_provider_env(GUIDESHOP_LINK_PROVIDER_PORT="8081"), "PORT"
+            )
+        )
+
+
+def test_production_authorization_does_not_satisfy_staging():
+    with pytest.raises(Exception):
+        GuideShopLinkProviderSettings.from_env(
+            _production_provider_env(APP_ENV="staging")
+        )
+    assert GuideShopLinkProviderSettings.from_env(
+        _staging_provider_env()
+    ) == GuideShopLinkProviderSettings(True, "0.0.0.0", 8080, "staging")
+
+
+def test_staging_provider_rejects_mixed_production_authorization_flag():
+    with pytest.raises(Exception):
+        GuideShopLinkProviderSettings.from_env(
+            _staging_provider_env(GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED="true")
+        )
+    assert GuideShopLinkProviderSettings.from_env(
+        _staging_provider_env()
+    ) == GuideShopLinkProviderSettings(True, "0.0.0.0", 8080, "staging")
+    assert GuideShopLinkProviderSettings.from_env(
+        _staging_provider_env(GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED="false")
+    ) == GuideShopLinkProviderSettings(True, "0.0.0.0", 8080, "staging")
+
+
+def test_staging_runtime_rejects_enabled_production_lifecycle_before_runner(
+    monkeypatch, production_pem
+):
+    runner = Mock(side_effect=AssertionError("runner created"))
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner)
+    with pytest.raises(Exception):
+        run(
+            start_guide_shop_link_provider(
+                {
+                    **_staging_provider_env(),
+                    "GUIDESHOP_LINK_JWT_PUBLIC_KEYS": json.dumps(
+                        {PRODUCTION_KID: production_pem}
+                    ),
+                    "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+                    "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                        {PRODUCTION_KID: production_pem}
+                    ),
+                }
+            )
+        )
+    runner.assert_not_called()
+
+
+def test_production_lifecycle_settings_reject_staging_segment_kid(production_pem):
+    with pytest.raises(GuideShopProductionLifecycleSettingsError):
+        GuideShopProductionLifecycleSettings.from_env(
+            {
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+                "APP_ENV": "production",
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                    {"guideshop-staging-link-key": production_pem}
+                ),
+            }
+        )
+
+
+def test_production_lifecycle_settings_default_off_and_read_only_their_variables(
+    production_pem,
+):
+    assert GuideShopProductionLifecycleSettings.from_env({}) == (
+        GuideShopProductionLifecycleSettings()
+    )
+    assert GuideShopProductionLifecycleSettings.from_env(
+        {"GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "false"}
+    ).enabled is False
+    assert GuideShopProductionLifecycleSettings.from_env(
+        {
+            "GUIDESHOP_STAGING_LIFECYCLE_ENABLED": "true",
+            "GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+            "APP_ENV": "staging",
+        }
+    ).enabled is False
+    settings = GuideShopProductionLifecycleSettings.from_env(
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        }
+    )
+    assert settings.enabled is True
+    assert settings.app_env == "production"
+    assert dict(settings.public_keys) == {PRODUCTION_KID: production_pem}
+    assert production_pem.strip().splitlines()[1] not in repr(settings)
+    assert settings == GuideShopProductionLifecycleSettings(
+        True, "production", {PRODUCTION_KID: _generated_pem()}
+    )
+
+
+def test_production_lifecycle_settings_fail_closed_on_environment_and_key_material(
+    production_pem,
+):
+    other_pem = _generated_pem()
+    non_ed25519_pem = _public_pem(ec.generate_private_key(ec.SECP256R1()))
+    for values in (
+        # Staging environment and staging-only variables cannot satisfy production.
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "staging",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "test",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        },
+        {"GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true", "APP_ENV": "production"},
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": "{}",
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": "{",
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": "[]",
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": (
+                '{"%s": "%s", "%s": "%s"}'
+                % (
+                    PRODUCTION_KID,
+                    production_pem.replace("\n", "\\n"),
+                    PRODUCTION_KID,
+                    other_pem.replace("\n", "\\n"),
+                )
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {"short": production_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {"Synthetic-Production-Link-Key": production_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: "not-a-pem"}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: non_ed25519_pem}
+            ),
+        },
+        {
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+            "APP_ENV": "production",
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: 1}
+            ),
+        },
+    ):
+        with pytest.raises(GuideShopProductionLifecycleSettingsError):
+            GuideShopProductionLifecycleSettings.from_env(values)
+
+
+def test_production_composition_requires_equivalent_lifecycle_and_link_key_allowlists(
+    monkeypatch, production_pem
+):
+    runner, site = _mock_runner(monkeypatch)
+    staging_verifier = Mock(side_effect=AssertionError("staging verifier created"))
+    monkeypatch.setattr(
+        provider_module, "GuideShopStagingLifecycleJWTVerifier", staging_verifier
+    )
+    captured = {}
+    build_app = provider_module.create_guide_shop_link_provider_app
+
+    def spy(*args, **kwargs):
+        captured["kwargs"] = kwargs
+        return build_app(*args, **kwargs)
+
+    monkeypatch.setattr(provider_module, "create_guide_shop_link_provider_app", spy)
+    started = run(
+        start_guide_shop_link_provider(_production_runtime_env(production_pem))
+    )
+    assert started is runner
+    site.start.assert_awaited_once_with()
+    runner.cleanup.assert_not_called()
+    assert provider_module.web.TCPSite.call_args.args[1:] == ("0.0.0.0", 8080)
+    assert captured["kwargs"]["lifecycle_verifier"] is None
+    staging_verifier.assert_not_called()
+
+
+def test_production_composition_rejects_missing_mismatched_or_staging_key_material(
+    monkeypatch, production_pem
+):
+    other_pem = _generated_pem()
+    runner = Mock(side_effect=AssertionError("runner created"))
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner)
+    for values in (
+        _production_runtime_env(
+            production_pem, GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED="false"
+        ),
+        _without(
+            _production_runtime_env(production_pem),
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED",
+        ),
+        _production_runtime_env(
+            production_pem, GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS="{}"
+        ),
+        _without(
+            _production_runtime_env(production_pem),
+            "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS",
+        ),
+        _production_runtime_env(production_pem, GUIDESHOP_LINK_JWT_PUBLIC_KEYS="{}"),
+        _without(
+            _production_runtime_env(production_pem), "GUIDESHOP_LINK_JWT_PUBLIC_KEYS"
+        ),
+        _production_runtime_env(production_pem, link_keys={PRODUCTION_KID: other_pem}),
+        _production_runtime_env(
+            production_pem, link_keys={PRODUCTION_KID_ALT: production_pem}
+        ),
+        _production_runtime_env(
+            production_pem,
+            link_keys={
+                PRODUCTION_KID: production_pem,
+                PRODUCTION_KID_ALT: other_pem,
+            },
+        ),
+        _production_runtime_env(
+            production_pem,
+            lifecycle_keys={
+                PRODUCTION_KID: production_pem,
+                PRODUCTION_KID_ALT: other_pem,
+            },
+        ),
+        # Staging lifecycle material must never authorize the production runtime.
+        {
+            **_without(
+                _production_runtime_env(production_pem),
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED",
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS",
+            ),
+            "GUIDESHOP_STAGING_LIFECYCLE_ENABLED": "true",
+            "GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS": json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        },
+        _production_runtime_env(
+            production_pem,
+            GUIDESHOP_STAGING_LIFECYCLE_ENABLED="true",
+            GUIDESHOP_STAGING_LIFECYCLE_JWT_PUBLIC_KEYS=json.dumps(
+                {PRODUCTION_KID: production_pem}
+            ),
+        ),
+        _production_runtime_env(
+            production_pem, GUIDESHOP_LINK_PROVIDER_STAGING_ENABLED="true"
+        ),
+    ):
+        with pytest.raises(Exception):
+            run(start_guide_shop_link_provider(values))
+    runner.assert_not_called()
+
+
+def test_production_runtime_keeps_staging_lifecycle_routes_not_found(
+    monkeypatch, production_pem
+):
+    _mock_runner(monkeypatch)
+    bootstrap = Mock(side_effect=AssertionError("staging bootstrap called"))
+    monkeypatch.setattr(provider_module, "ensure_staging_guide_user", bootstrap)
+    captured = {}
+    build_app = provider_module.create_guide_shop_link_provider_app
+
+    def spy(*args, **kwargs):
+        captured["app"] = build_app(*args, **kwargs)
+        return captured["app"]
+
+    monkeypatch.setattr(provider_module, "create_guide_shop_link_provider_app", spy)
+    run(start_guide_shop_link_provider(_production_runtime_env(production_pem)))
+
+    async def exercise(client):
+        for path in (
+            "/integration/v1/staging/link-tokens",
+            "/integration/v1/staging/link-exchanges/lex_0000000000000001/confirm",
+            "/integration/v1/staging/link-exchanges/lex_0000000000000001/revoke",
+        ):
+            response = await client.post(path)
+            assert response.status == 404
+            assert (await response.json())["code"] == "not_found"
+        health = await client.get("/health")
+        assert health.status == 200
+        assert await health.json() == {"schema_version": "1.0.0", "status": "ok"}
+
+    run(exercise(DirectClient(captured["app"])))
+    bootstrap.assert_not_called()
+
+
+def test_disabled_provider_ignores_production_settings_and_key_values(monkeypatch):
+    lifecycle = Mock(side_effect=AssertionError("production lifecycle parsed"))
+    inbound = Mock(side_effect=AssertionError("keys parsed"))
+    runner = Mock(side_effect=AssertionError("runner created"))
+    monkeypatch.setattr(
+        provider_module.GuideShopProductionLifecycleSettings, "from_env", lifecycle
+    )
+    monkeypatch.setattr(provider_module.GuideShopInboundJWTSettings, "from_env", inbound)
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner)
+    assert run(
+        start_guide_shop_link_provider(
+            {
+                "GUIDESHOP_LINK_PROVIDER_PRODUCTION_ENABLED": "true",
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_ENABLED": "true",
+                "GUIDESHOP_PRODUCTION_LIFECYCLE_JWT_PUBLIC_KEYS": "{",
+                "GUIDESHOP_LINK_JWT_PUBLIC_KEYS": "{",
+                "GUIDESHOP_LINK_PROVIDER_HOST": "0.0.0.0",
+                "PORT": "bad",
+                "APP_ENV": "production",
+            }
+        )
+    ) is None
+    lifecycle.assert_not_called()
+    inbound.assert_not_called()
+    runner.assert_not_called()
+
+
+def test_invalid_production_configuration_stays_generic_in_errors_and_logs(
+    monkeypatch, caplog, production_pem
+):
+    caplog.set_level(logging.DEBUG)
+    other_pem = _generated_pem()
+    runner = Mock(side_effect=AssertionError("runner created"))
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner)
+    with pytest.raises(Exception) as raised:
+        run(
+            start_guide_shop_link_provider(
+                _production_runtime_env(
+                    production_pem, link_keys={PRODUCTION_KID: other_pem}
+                )
+            )
+        )
+    text = f"{raised.value}{raised.value!r}{caplog.text}"
+    forbidden = [
+        PRODUCTION_KID,
+        "BEGIN PUBLIC KEY",
+        "PRIVATE",
+        "0.0.0.0",
+        *production_pem.strip().splitlines()[1:-1],
+        *other_pem.strip().splitlines()[1:-1],
+    ]
+    assert all(value not in text for value in forbidden)
+    runner.assert_not_called()
+
+
+def _bot_runtime(monkeypatch):
+    monkeypatch.setenv("BOT_TOKEN", "runtime-test-token")
+    import bot as bot_module
+
+    runtime = SimpleNamespace(
+        module=bot_module,
+        order=[],
+        loops={},
+        bot=Mock(),
+        runner=Mock(),
+        provider_start=AsyncMock(),
+        polling=AsyncMock(),
+        setup_commands=AsyncMock(),
+        created_tasks=[],
+    )
+    runtime.runner.cleanup = AsyncMock()
+    runtime.provider_start.return_value = runtime.runner
+
+    async def start_provider(*args, **kwargs):
+        runtime.order.append("start_provider")
+        runtime.loops["provider"] = asyncio.get_running_loop()
+        return await runtime.provider_start(*args, **kwargs)
+
+    async def start_polling(*args, **kwargs):
+        runtime.order.append("start_polling")
+        runtime.loops["polling"] = asyncio.get_running_loop()
+        return await runtime.polling(*args, **kwargs)
+
+    def create_task(coro, *args, **kwargs):
+        coro.close()
+        task = Mock()
+        runtime.created_tasks.append(task)
+        return task
+
+    dispatcher = Mock()
+    dispatcher.start_polling = start_polling
+    runtime.dispatcher = dispatcher
+
+    monkeypatch.setattr(bot_module, "setup_logging", Mock())
+    monkeypatch.setattr(bot_module, "configure_guide_shop_runtime", Mock())
+    monkeypatch.setattr(bot_module, "Bot", Mock(return_value=runtime.bot))
+    monkeypatch.setattr(bot_module, "setup_bot_commands", runtime.setup_commands)
+    monkeypatch.setattr(
+        bot_module, "init_db", Mock(side_effect=lambda: runtime.order.append("init_db"))
+    )
+    monkeypatch.setattr(bot_module, "send_daily_admin_report", AsyncMock())
+    monkeypatch.setattr(bot_module, "send_tour_reminders", AsyncMock())
+    monkeypatch.setattr(bot_module.asyncio, "create_task", create_task)
+    monkeypatch.setattr(bot_module, "start_guide_shop_link_provider", start_provider)
+    monkeypatch.setattr(bot_module, "Dispatcher", Mock(return_value=dispatcher))
+    return runtime
+
+
+def test_bot_runtime_disabled_provider_starts_polling_without_cleanup(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
+
+    run(runtime.module.main())
+
+    assert runtime.order == ["init_db", "start_provider", "start_polling"]
+    runtime.setup_commands.assert_awaited_once_with(runtime.bot)
+    runtime.polling.assert_awaited_once_with(runtime.bot, skip_updates=True)
+    runtime.runner.cleanup.assert_not_called()
+    assert len(runtime.created_tasks) == 2
+
+
+def test_bot_runtime_starts_provider_after_init_db_on_the_polling_loop(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+
+    run(runtime.module.main())
+
+    assert runtime.order == ["init_db", "start_provider", "start_polling"]
+    assert runtime.loops["provider"] is runtime.loops["polling"]
+    runtime.provider_start.assert_awaited_once_with()
+    runtime.runner.cleanup.assert_awaited_once_with()
+
+
+def test_bot_runtime_cleans_provider_once_on_polling_failure(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.polling.side_effect = RuntimeError("polling failed")
+
+    with pytest.raises(RuntimeError, match="polling failed"):
+        run(runtime.module.main())
+
+    runtime.runner.cleanup.assert_awaited_once_with()
+
+
+def test_bot_runtime_cleans_provider_once_on_polling_cancellation(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.polling.side_effect = asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        run(runtime.module.main())
+
+    runtime.runner.cleanup.assert_awaited_once_with()
+
+
+def test_bot_runtime_cleans_provider_once_when_polling_returns_after_signal(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    received = []
+    previous = signal.getsignal(signal.SIGTERM)
+
+    async def stopped_by_signal(*args, **kwargs):
+        signal.raise_signal(signal.SIGTERM)
+        await asyncio.sleep(0)
+        return None
+
+    runtime.polling.side_effect = stopped_by_signal
+    signal.signal(signal.SIGTERM, lambda signum, frame: received.append(signum))
+    try:
+        run(runtime.module.main())
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+    assert received == [signal.SIGTERM]
+    assert runtime.order == ["init_db", "start_provider", "start_polling"]
+    runtime.runner.cleanup.assert_awaited_once_with()
+
+
+def test_bot_runtime_provider_startup_failure_prevents_polling_and_double_cleanup(
+    monkeypatch,
+):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.side_effect = RuntimeError("provider failed")
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        run(runtime.module.main())
+
+    assert runtime.order == ["init_db", "start_provider"]
+    runtime.polling.assert_not_awaited()
+    runtime.runner.cleanup.assert_not_called()
+    runtime.dispatcher.include_router.assert_not_called()

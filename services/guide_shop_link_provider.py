@@ -25,6 +25,8 @@ from services.guide_shop_link_service import (
 from services.guide_shop_settings import (
     GuideShopInboundJWTSettings,
     GuideShopLinkProviderSettings,
+    GuideShopProductionLifecycleSettings,
+    GuideShopSettingsError,
     GuideShopStagingLifecycleSettings,
 )
 from services.guide_shop_staging_lifecycle_auth import (
@@ -312,15 +314,29 @@ async def start_guide_shop_link_provider(values=None, *, clock=None):
     runtime = GuideShopLinkProviderSettings.from_env(values)
     if not runtime.enabled:
         return None
-    settings = GuideShopInboundJWTSettings.from_env(values)
+    lifecycle_verifier = None
+    if runtime.app_env == "production":
+        staging_lifecycle = GuideShopStagingLifecycleSettings.from_env(values)
+        if staging_lifecycle.enabled:
+            raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+        production_lifecycle = GuideShopProductionLifecycleSettings.from_env(values)
+        if not production_lifecycle.enabled:
+            raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+        settings = GuideShopInboundJWTSettings.from_env(values)
+        if dict(production_lifecycle.public_keys) != dict(settings.public_keys):
+            raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+    else:
+        production_lifecycle = GuideShopProductionLifecycleSettings.from_env(values)
+        if production_lifecycle.enabled:
+            raise GuideShopSettingsError("Invalid GuideShop provider configuration")
+        settings = GuideShopInboundJWTSettings.from_env(values)
+        lifecycle_settings = GuideShopStagingLifecycleSettings.from_env(values)
+        if lifecycle_settings.enabled:
+            lifecycle_verifier = GuideShopStagingLifecycleJWTVerifier(
+                lifecycle_settings, clock=clock
+            )
     verifier = GuideShopInboundJWTVerifier(settings, clock=clock)
     service = GuideShopLinkExchangeService(clock=clock)
-    lifecycle_settings = GuideShopStagingLifecycleSettings.from_env(values)
-    lifecycle_verifier = None
-    if lifecycle_settings.enabled:
-        lifecycle_verifier = GuideShopStagingLifecycleJWTVerifier(
-            lifecycle_settings, clock=clock
-        )
     runner = web.AppRunner(
         create_guide_shop_link_provider_app(
             verifier, service, lifecycle_verifier=lifecycle_verifier
