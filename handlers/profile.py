@@ -8,7 +8,12 @@ from aiogram.types import (
     Message,
 )
 
-from database.queries import get_user_profile, update_user_display_name, register_user
+from database.queries import (
+    get_guide_os_id,
+    get_user_profile,
+    register_user,
+    update_user_display_name,
+)
 from states.profile_state import ProfileState
 
 router = Router()
@@ -31,20 +36,29 @@ def _build_cancel_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _format_profile_card(user_id: int, display_name: str | None) -> str:
+def _format_profile_card(
+    user_id: int, display_name: str | None, guide_os_id: str | None = None
+) -> str:
     name = display_name if display_name else "не указано"
-    return (
+    card = (
         "👤 Профиль\n\n"
         f"Имя: {name}\n"
         f"Telegram ID: {user_id}"
     )
+    if guide_os_id:
+        card += (
+            f"\n\nКод профиля Guide OS: {guide_os_id}\n"
+            "Покажите этот код владельцу или менеджеру GuideShop "
+            "для привязки профиля."
+        )
+    return card
 
 
 async def _show_profile(target: Message | CallbackQuery, user_id: int) -> None:
     register_user(user_id)
     profile = get_user_profile(user_id)
     display_name = profile.get("display_name") if profile else None
-    text = _format_profile_card(user_id, display_name)
+    text = _format_profile_card(user_id, display_name, get_guide_os_id(user_id))
 
     if isinstance(target, CallbackQuery):
         await target.message.edit_text(text, reply_markup=_build_profile_keyboard())

@@ -15,7 +15,11 @@ TOKEN_TYPE = "guideshop-link-service+jwt"
 ISSUER = "guideshop-integration"
 AUDIENCE = "guide-os-integration"
 SUBJECT = "guideshop:link-service"
-ALLOWED_SCOPES = {"guideshop:link:exchange", "guideshop:link:status"}
+ALLOWED_SCOPES = {
+    "guideshop:link:exchange",
+    "guideshop:link:status",
+    "guideshop:profile:resolve",
+}
 MAX_TTL_SECONDS = 60
 MAX_CLOCK_SKEW_SECONDS = 10
 MAX_TOKEN_BYTES = 8192

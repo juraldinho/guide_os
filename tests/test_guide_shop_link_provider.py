@@ -166,6 +166,7 @@ def test_exact_routes_and_methods_only(components):
         ("POST", "/integration/v1/link-exchanges"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}/evidence"),
+        ("POST", "/integration/v1/guide-profiles/resolve"),
         ("POST", "/integration/v1/staging/link-tokens"),
         ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/confirm"),
         ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/revoke"),
@@ -1316,3 +1317,169 @@ def test_bot_runtime_provider_startup_failure_prevents_polling_and_double_cleanu
     runtime.polling.assert_not_awaited()
     runtime.runner.cleanup.assert_not_called()
     runtime.dispatcher.include_router.assert_not_called()
+
+
+RESOLVE_PATH = "/integration/v1/guide-profiles/resolve"
+RESOLVE_SCOPE = "guideshop:profile:resolve"
+
+
+def resolve_body(**changes):
+    body = {"schema_version": "1.0.0", "profile_code": get_guide_os_id(101)}
+    body.update(changes)
+    return body
+
+
+def test_resolve_profile_returns_canonical_guide_os_id(signing_key, components):
+    register_user(101)
+    expected = get_guide_os_id(101)
+
+    async def exercise(client):
+        response = await client.post(
+            RESOLVE_PATH,
+            json=resolve_body(),
+            headers={
+                **bearer(signing_key, RESOLVE_SCOPE, "resolve-valid-jti-0001"),
+                "X-Correlation-ID": "req_resolve_0001",
+            },
+        )
+        payload = await response.json()
+        assert response.status == 200
+        assert payload == {
+            "schema_version": "1.0.0",
+            "request_id": "req_resolve_0001",
+            "guide_os_id": expected,
+        }
+        assert "101" not in json.dumps({k: v for k, v in payload.items() if k != "guide_os_id"})
+
+    run(with_client(components, exercise))
+
+
+@pytest.mark.parametrize("mutate", [
+    {"schema_version": "2.0.0"},
+    {"profile_code": "not-a-uuid"},
+    {"profile_code": "A2F0AB44-9A44-4E44-8E44-000000000000"},
+    {"profile_code": 42},
+    {"profile_code": ""},
+    {"extra": "field"},
+])
+def test_resolve_profile_rejects_malformed_input(signing_key, components, mutate):
+    register_user(101)
+
+    async def exercise(client):
+        body = resolve_body(**mutate)
+        response = await client.post(
+            RESOLVE_PATH,
+            json=body,
+            headers=bearer(signing_key, RESOLVE_SCOPE, f"resolve-bad-{hash(str(mutate)) & 0xffff}-jti"),
+        )
+        assert response.status == 400
+        assert (await response.json())["code"] == "invalid_request"
+
+    run(with_client(components, exercise))
+
+
+def test_resolve_profile_unknown_code_is_not_found(signing_key, components):
+    async def exercise(client):
+        response = await client.post(
+            RESOLVE_PATH,
+            json={
+                "schema_version": "1.0.0",
+                "profile_code": "a2f0ab44-9a44-4e44-8e44-000000000001",
+            },
+            headers=bearer(signing_key, RESOLVE_SCOPE, "resolve-missing-jti-01"),
+        )
+        assert response.status == 404
+        payload = await response.json()
+        assert payload["code"] == "not_found"
+        assert "guide_os_id" not in payload
+
+    run(with_client(components, exercise))
+
+
+def test_resolve_profile_auth_failures_are_unauthenticated(signing_key, components):
+    register_user(101)
+    other_key = Ed25519PrivateKey.generate()
+    issued_at = int(NOW.timestamp())
+    expired = bearer(
+        signing_key, RESOLVE_SCOPE, "resolve-expired-jti-01",
+        iat=issued_at - 600, exp=issued_at - 500,
+    )
+    unknown_kid_token = jwt.encode(
+        {
+            "iss": "guideshop-integration",
+            "aud": "guide-os-integration",
+            "sub": "guideshop:link-service",
+            "scope": RESOLVE_SCOPE,
+            "iat": issued_at,
+            "exp": issued_at + 60,
+            "jti": "resolve-unknown-kid-jti",
+        },
+        other_key,
+        algorithm="EdDSA",
+        headers={"kid": "unknown-kid-2026", "typ": "guideshop-link-service+jwt"},
+    )
+
+    async def exercise(client):
+        for headers in (
+            bearer(signing_key, "guideshop:link:status", "resolve-wrong-scope-jti"),
+            {"Authorization": "Bearer not.a.jwt"},
+            {"Authorization": f"Bearer {unknown_kid_token}"},
+            expired,
+        ):
+            response = await client.post(
+                RESOLVE_PATH, json=resolve_body(), headers=headers
+            )
+            assert response.status == 401
+            assert (await response.json())["code"] == "unauthenticated"
+        replay = bearer(signing_key, RESOLVE_SCOPE, "resolve-replayed-jti-001")
+        first = await client.post(RESOLVE_PATH, json=resolve_body(), headers=replay)
+        assert first.status == 200
+        second = await client.post(RESOLVE_PATH, json=resolve_body(), headers=replay)
+        assert second.status == 401
+
+    run(with_client(components, exercise))
+
+
+def test_resolve_profile_unavailable_maps_to_503(signing_key, components, monkeypatch):
+    register_user(101)
+    body = resolve_body()
+    monkeypatch.setattr(
+        provider_module,
+        "get_user_id_by_guide_os_id",
+        Mock(side_effect=RuntimeError("database unavailable")),
+    )
+
+    async def exercise(client):
+        response = await client.post(
+            RESOLVE_PATH,
+            json=body,
+            headers=bearer(signing_key, RESOLVE_SCOPE, "resolve-unavail-jti-01"),
+        )
+        assert response.status == 503
+        assert (await response.json())["code"] == "temporarily_unavailable"
+
+    run(with_client(components, exercise))
+
+
+def test_resolve_profile_response_contains_no_personal_data(signing_key, components):
+    register_user(101)
+    from database.queries import update_user_display_name
+    update_user_display_name(101, "Секретное Имя")
+
+    async def exercise(client):
+        response = await client.post(
+            RESOLVE_PATH,
+            json=resolve_body(),
+            headers={
+                **bearer(signing_key, RESOLVE_SCOPE, "resolve-privacy-jti-01"),
+                "X-Correlation-ID": "req_resolve_privacy",
+            },
+        )
+        assert response.status == 200
+        payload = await response.json()
+        assert set(payload) == {"schema_version", "request_id", "guide_os_id"}
+        raw = json.dumps(payload, ensure_ascii=False)
+        assert "101" not in raw.replace(payload["guide_os_id"], "")
+        assert "Секретное" not in raw
+
+    run(with_client(components, exercise))
