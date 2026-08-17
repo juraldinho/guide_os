@@ -14,6 +14,7 @@ from services.guide_shop_link_exchange_service import (
     GUIDE_SHOP_LINK_AUDIENCE,
     GuideShopLinkExchangeService,
     InvalidLinkExchangeTransitionError,
+    LinkExchangeConflictError,
     LinkExchangeError,
     LinkExchangeNotFoundError,
     LinkExchangeTokenError,
@@ -36,14 +37,18 @@ from services.guide_shop_staging_lifecycle_auth import (
     SCOPE_ISSUE,
     SCOPE_REVOKE,
 )
-from database.queries import ensure_staging_guide_user, get_user_id_by_guide_os_id
-from utils.guide_os_identity import is_canonical_guide_os_id
+from database.queries import ensure_staging_guide_user, get_guide_os_id
 
 
 MAX_REQUEST_BODY_BYTES = 4096
 _REQUEST_ID = re.compile(r"[A-Za-z0-9._:-]{8,128}\Z")
 _OPAQUE_ID = re.compile(r"(?![0-9]+\Z)[A-Za-z0-9._:-]{8,128}\Z")
 _RAW_TOKEN = re.compile(r"[A-Za-z0-9._~-]{24,256}\Z")
+_MAX_SQLITE_INTEGER = 2**63 - 1
+
+
+def _is_supported_telegram_id(value):
+    return type(value) is int and 0 < value <= _MAX_SQLITE_INTEGER
 
 
 def _utc(value):
@@ -223,24 +228,83 @@ def create_guide_shop_link_provider_app(
             data = json.loads(body, object_pairs_hook=unique_object)
             if (
                 not isinstance(data, dict)
-                or set(data) != {"schema_version", "profile_code"}
+                or set(data) != {"schema_version", "telegram_id"}
                 or data["schema_version"] != "1.0.0"
-                or not is_canonical_guide_os_id(data["profile_code"])
+                or not _is_supported_telegram_id(data["telegram_id"])
             ):
                 raise ValueError
         except (ValueError, UnicodeError, json.JSONDecodeError, web.HTTPRequestEntityTooLarge):
             return _error(rid, 400, "invalid_request", "Invalid request")
         try:
-            user_id = get_user_id_by_guide_os_id(data["profile_code"])
+            guide_os_id = get_guide_os_id(data["telegram_id"])
         except Exception:
             return _error(rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10)
-        if user_id is None:
+        if guide_os_id is None:
             return _error(rid, 404, "not_found", "Entity not found")
         return web.json_response({
             "schema_version": "1.0.0",
             "request_id": rid,
-            "guide_os_id": data["profile_code"],
+            "guide_os_id": guide_os_id,
         })
+
+    async def create_profile_link_exchange(request):
+        rid, principal, failure = await prepare(request, "guideshop:profile:link")
+        if failure is not None:
+            return failure
+        if request.content_type != "application/json":
+            return _error(rid, 400, "invalid_request", "Invalid request")
+        try:
+            body = await request.read()
+            if len(body) > MAX_REQUEST_BODY_BYTES:
+                raise ValueError
+            def unique_object(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result:
+                        raise ValueError
+                    result[key] = value
+                return result
+            data = json.loads(body, object_pairs_hook=unique_object)
+            if (
+                not isinstance(data, dict)
+                or set(data) != {
+                    "schema_version", "telegram_id", "audience",
+                    "guide_membership_ref",
+                }
+                or data["schema_version"] != "1.0.0"
+                or data["audience"] != GUIDE_SHOP_LINK_AUDIENCE
+                or not _is_supported_telegram_id(data["telegram_id"])
+                or not isinstance(data["guide_membership_ref"], str)
+                or _OPAQUE_ID.fullmatch(data["guide_membership_ref"]) is None
+            ):
+                raise ValueError
+        except (ValueError, UnicodeError, json.JSONDecodeError, web.HTTPRequestEntityTooLarge):
+            return _error(rid, 400, "invalid_request", "Invalid request")
+        try:
+            guide_os_id = get_guide_os_id(data["telegram_id"])
+        except Exception:
+            return _error(rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10)
+        if guide_os_id is None:
+            return _error(rid, 404, "not_found", "Entity not found")
+        try:
+            exchange, created = service.create_active_for_verified_profile(
+                guide_os_id,
+                data["audience"],
+                data["guide_membership_ref"],
+                principal.subject,
+            )
+            return web.json_response(
+                _exchange_payload(exchange, rid),
+                status=201 if created else 200,
+            )
+        except LinkExchangeConflictError:
+            return _error(rid, 409, "link_conflict", "Link exchange conflict")
+        except LinkExchangeNotFoundError:
+            return _error(rid, 404, "not_found", "Entity not found")
+        except (LinkExchangeTokenError, InvalidLinkExchangeTransitionError):
+            return _error(rid, 422, "invalid_transition", "Link exchange is unavailable")
+        except LinkExchangeError:
+            return _error(rid, 503, "temporarily_unavailable", "Service unavailable", retry_after=10)
 
     async def health(_request):
         return web.json_response({"schema_version": "1.0.0", "status": "ok"})
@@ -339,6 +403,9 @@ def create_guide_shop_link_provider_app(
         allow_head=False,
     )
     app.router.add_post("/integration/v1/guide-profiles/resolve", resolve_profile)
+    app.router.add_post(
+        "/integration/v1/guide-profile-link-exchanges", create_profile_link_exchange
+    )
     app.router.add_post("/integration/v1/staging/link-tokens", issue_token)
     app.router.add_post(
         "/integration/v1/staging/link-exchanges/{link_exchange_id}/confirm",

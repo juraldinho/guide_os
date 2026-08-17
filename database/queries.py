@@ -770,6 +770,129 @@ def create_guide_shop_link_exchange_atomic(
     return run_write_with_retry(operation)
 
 
+def create_or_activate_guide_profile_link_exchange(
+    *,
+    guide_os_id: str,
+    audience: str,
+    token_hash: str,
+    link_exchange_id: str,
+    evidence_ref: str,
+    service_subject: str,
+    guide_membership_ref: str,
+    now_iso: str,
+    token_expires_at: str,
+    exchange_expires_at: str,
+) -> tuple[str, dict | None]:
+    """Owner/Manager verified-profile linking in one atomic transaction.
+
+    Returns ("existing", row) for an idempotent retry of the exact binding,
+    ("conflict", None) when another active association exists, and
+    ("created", row) after creating and activating a normal exchange.
+    """
+    identity = validate_guide_os_id(guide_os_id)
+
+    def operation(conn):
+        active_rows = conn.execute(
+            """
+            SELECT * FROM guide_shop_link_exchanges
+            WHERE service_subject = ?
+              AND status = 'active'
+              AND (guide_membership_ref = ? OR guide_os_id = ?)
+            """,
+            (service_subject, guide_membership_ref, identity),
+        ).fetchall()
+        for row in active_rows:
+            if (
+                row["guide_membership_ref"] == guide_membership_ref
+                and row["guide_os_id"] == identity
+            ):
+                return "existing", dict(row)
+        if active_rows:
+            return "conflict", None
+
+        # Recover the exact awaiting binding first so a retry after a partial
+        # failure between creation and activation stays idempotent.
+        awaiting = conn.execute(
+            """
+            SELECT link_exchange_id FROM guide_shop_link_exchanges
+            WHERE service_subject = ?
+              AND guide_membership_ref = ?
+              AND guide_os_id = ?
+              AND status = 'awaiting_guide_confirmation'
+              AND exchange_expires_at > ?
+            ORDER BY id LIMIT 1
+            """,
+            (service_subject, guide_membership_ref, identity, now_iso),
+        ).fetchone()
+        if awaiting is not None:
+            target_id = awaiting["link_exchange_id"]
+        else:
+            conn.execute(
+                """
+                UPDATE guide_shop_link_requests
+                SET status = 'revoked', revoked_at = ?
+                WHERE guide_os_id = ? AND audience = ? AND status = 'issued'
+                """,
+                (now_iso, identity, audience),
+            )
+            cursor = conn.execute(
+                """
+                INSERT INTO guide_shop_link_requests (
+                    guide_os_id, token_hash, audience, status,
+                    created_at, expires_at, consumed_at
+                ) VALUES (?, ?, ?, 'consumed', ?, ?, ?)
+                """,
+                (identity, token_hash, audience, now_iso, token_expires_at, now_iso),
+            )
+            conn.execute(
+                """
+                INSERT INTO guide_shop_link_exchanges (
+                    link_exchange_id, link_request_id, guide_os_id,
+                    service_subject, guide_membership_ref, status,
+                    token_expires_at, exchange_expires_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'awaiting_guide_confirmation', ?, ?, ?, ?)
+                """,
+                (
+                    link_exchange_id,
+                    cursor.lastrowid,
+                    identity,
+                    service_subject,
+                    guide_membership_ref,
+                    token_expires_at,
+                    exchange_expires_at,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            target_id = link_exchange_id
+
+        updated = conn.execute(
+            """
+            UPDATE guide_shop_link_exchanges
+            SET status = 'active', updated_at = ?
+            WHERE link_exchange_id = ? AND status = 'awaiting_guide_confirmation'
+            """,
+            (now_iso, target_id),
+        )
+        if updated.rowcount != 1:
+            return "unavailable", None
+        conn.execute(
+            """
+            INSERT INTO guide_shop_link_exchange_evidence (
+                link_exchange_id, status, evidence_ref, occurred_at
+            ) VALUES (?, 'active', ?, ?)
+            """,
+            (target_id, evidence_ref, now_iso),
+        )
+        row = conn.execute(
+            "SELECT * FROM guide_shop_link_exchanges WHERE link_exchange_id = ?",
+            (target_id,),
+        ).fetchone()
+        return "created", dict(row)
+
+    return run_write_with_retry(operation)
+
+
 def get_guide_shop_link_exchange_scoped(
     link_exchange_id: str, service_subject: str, guide_membership_ref: str
 ) -> dict | None:

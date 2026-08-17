@@ -7,6 +7,7 @@ import sqlite3
 
 from database.queries import (
     create_guide_shop_link_exchange_atomic,
+    create_or_activate_guide_profile_link_exchange,
     get_guide_shop_link_exchange_evidence_for_guide,
     get_guide_shop_link_exchange_evidence_scoped,
     get_guide_shop_link_exchange_for_guide,
@@ -41,6 +42,10 @@ class InvalidLinkExchangeTransitionError(LinkExchangeError):
 
 
 class EvidenceNotReadyError(LinkExchangeError):
+    pass
+
+
+class LinkExchangeConflictError(LinkExchangeError):
     pass
 
 
@@ -154,6 +159,48 @@ class GuideShopLinkExchangeService:
         if result != "created" or row is None:
             raise LinkExchangeTokenError("Link exchange token rejected")
         return self._exchange(row)
+
+    def create_active_for_verified_profile(
+        self, guide_os_id, audience, guide_membership_ref,
+        service_subject=GUIDE_SHOP_LINK_SERVICE_SUBJECT,
+    ) -> tuple[LinkExchange, bool]:
+        """Create and activate one exchange for an Owner/Manager verified
+        profile code. Returns (exchange, created) where created is False for
+        an idempotent retry of the exact same binding."""
+        self._scope(service_subject, guide_membership_ref)
+        if audience != GUIDE_SHOP_LINK_AUDIENCE:
+            raise LinkExchangeTokenError("Link exchange token rejected")
+        try:
+            identity = validate_guide_os_id(guide_os_id)
+        except Exception:
+            raise LinkExchangeNotFoundError("Link exchange not found") from None
+        now = self._now()
+        # Internal single-use token: only its hash ever leaves this scope.
+        token_hash = hashlib.sha256(
+            secrets.token_urlsafe(32).encode()
+        ).hexdigest()
+        try:
+            result, row = create_or_activate_guide_profile_link_exchange(
+                guide_os_id=identity,
+                audience=audience,
+                token_hash=token_hash,
+                link_exchange_id=self._opaque("lex_"),
+                evidence_ref=self._opaque("evd_"),
+                service_subject=service_subject,
+                guide_membership_ref=guide_membership_ref,
+                now_iso=now.isoformat(),
+                token_expires_at=(now + CONFIRMATION_WINDOW).isoformat(),
+                exchange_expires_at=(now + CONFIRMATION_WINDOW).isoformat(),
+            )
+        except LinkExchangeError:
+            raise
+        except Exception:
+            raise LinkExchangeError("Link exchange operation failed") from None
+        if result == "conflict":
+            raise LinkExchangeConflictError("Link exchange conflict")
+        if result in {"existing", "created"} and row is not None:
+            return self._exchange(row), result == "created"
+        raise LinkExchangeError("Link exchange operation failed")
 
     def _load(self, link_exchange_id, service_subject, guide_membership_ref):
         self._scope(service_subject, guide_membership_ref)

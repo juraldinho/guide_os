@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
+import re
 import signal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -167,6 +168,7 @@ def test_exact_routes_and_methods_only(components):
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}"),
         ("GET", "/integration/v1/link-exchanges/{link_exchange_id}/evidence"),
         ("POST", "/integration/v1/guide-profiles/resolve"),
+        ("POST", "/integration/v1/guide-profile-link-exchanges"),
         ("POST", "/integration/v1/staging/link-tokens"),
         ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/confirm"),
         ("POST", "/integration/v1/staging/link-exchanges/{link_exchange_id}/revoke"),
@@ -1324,7 +1326,7 @@ RESOLVE_SCOPE = "guideshop:profile:resolve"
 
 
 def resolve_body(**changes):
-    body = {"schema_version": "1.0.0", "profile_code": get_guide_os_id(101)}
+    body = {"schema_version": "1.0.0", "telegram_id": 101}
     body.update(changes)
     return body
 
@@ -1352,14 +1354,17 @@ def test_resolve_profile_returns_canonical_guide_os_id(signing_key, components):
         assert "101" not in json.dumps({k: v for k, v in payload.items() if k != "guide_os_id"})
 
     run(with_client(components, exercise))
+    assert get_guide_os_id(101) == expected
 
 
 @pytest.mark.parametrize("mutate", [
     {"schema_version": "2.0.0"},
-    {"profile_code": "not-a-uuid"},
-    {"profile_code": "A2F0AB44-9A44-4E44-8E44-000000000000"},
-    {"profile_code": 42},
-    {"profile_code": ""},
+    {"telegram_id": True},
+    {"telegram_id": "101"},
+    {"telegram_id": 0},
+    {"telegram_id": -1},
+    {"telegram_id": 101.0},
+    {"telegram_id": 2**63},
     {"extra": "field"},
 ])
 def test_resolve_profile_rejects_malformed_input(signing_key, components, mutate):
@@ -1378,14 +1383,27 @@ def test_resolve_profile_rejects_malformed_input(signing_key, components, mutate
     run(with_client(components, exercise))
 
 
-def test_resolve_profile_unknown_code_is_not_found(signing_key, components):
+def test_resolve_profile_rejects_malformed_json(signing_key, components):
     async def exercise(client):
         response = await client.post(
             RESOLVE_PATH,
-            json={
-                "schema_version": "1.0.0",
-                "profile_code": "a2f0ab44-9a44-4e44-8e44-000000000001",
+            data=b'{"schema_version":"1.0.0","telegram_id":',
+            headers={
+                **bearer(signing_key, RESOLVE_SCOPE, "resolve-json-jti-0001"),
+                "Content-Type": "application/json",
             },
+        )
+        assert response.status == 400
+        assert (await response.json())["code"] == "invalid_request"
+
+    run(with_client(components, exercise))
+
+
+def test_resolve_profile_unknown_telegram_id_is_not_found(signing_key, components):
+    async def exercise(client):
+        response = await client.post(
+            RESOLVE_PATH,
+            json={"schema_version": "1.0.0", "telegram_id": 999999999},
             headers=bearer(signing_key, RESOLVE_SCOPE, "resolve-missing-jti-01"),
         )
         assert response.status == 404
@@ -1445,7 +1463,7 @@ def test_resolve_profile_unavailable_maps_to_503(signing_key, components, monkey
     body = resolve_body()
     monkeypatch.setattr(
         provider_module,
-        "get_user_id_by_guide_os_id",
+        "get_guide_os_id",
         Mock(side_effect=RuntimeError("database unavailable")),
     )
 
@@ -1483,3 +1501,316 @@ def test_resolve_profile_response_contains_no_personal_data(signing_key, compone
         assert "Секретное" not in raw
 
     run(with_client(components, exercise))
+
+
+PROFILE_LINK_PATH = "/integration/v1/guide-profile-link-exchanges"
+PROFILE_LINK_SCOPE = "guideshop:profile:link"
+
+
+def profile_link_body(**changes):
+    body = {
+        "schema_version": "1.0.0",
+        "telegram_id": 101,
+        "audience": "guideshop-link",
+        "guide_membership_ref": MEMBERSHIP,
+    }
+    body.update(changes)
+    return body
+
+
+def _table_counts():
+    from database.db import get_connection
+    db = get_connection()
+    counts = {
+        table: db.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
+        for table in (
+            "guide_shop_link_requests",
+            "guide_shop_link_exchanges",
+            "guide_shop_link_exchange_evidence",
+        )
+    }
+    db.close()
+    return counts
+
+
+def _active_exchange_rows():
+    from database.db import get_connection
+    db = get_connection()
+    rows = [
+        dict(row)
+        for row in db.execute(
+            "SELECT * FROM guide_shop_link_exchanges WHERE status = 'active'"
+        ).fetchall()
+    ]
+    db.close()
+    return rows
+
+
+def test_profile_link_creates_real_active_exchange_with_lifecycle(
+    signing_key, components, caplog
+):
+    caplog.set_level(logging.DEBUG)
+    register_user(101)
+    from database.queries import update_user_display_name
+    update_user_display_name(101, "Секретное Имя")
+    expected_guide = get_guide_os_id(101)
+
+    async def exercise(client):
+        response = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers={
+                **bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-jti-000001"),
+                "X-Correlation-ID": "req_profile_link_01",
+            },
+        )
+        created = await response.json()
+        assert response.status == 201
+        assert set(created) == {
+            "schema_version", "request_id", "link_exchange_id", "guide_os_id",
+            "status", "token_expires_at", "exchange_expires_at", "created_at",
+            "updated_at",
+        }
+        assert created["request_id"] == "req_profile_link_01"
+        assert created["guide_os_id"] == expected_guide
+        assert created["status"] == "active"
+        assert "telegram_id" not in created
+        assert 101 not in created.values()
+        assert "Секретное" not in json.dumps(created, ensure_ascii=False)
+        assert created["link_exchange_id"].startswith("lex_")
+        assert all(created[name].endswith("Z") for name in (
+            "token_expires_at", "exchange_expires_at", "created_at", "updated_at"
+        ))
+        status = await client.get(
+            f"/integration/v1/link-exchanges/{created['link_exchange_id']}",
+            headers=bearer(signing_key, "guideshop:link:status", "profile-link-status-jti"),
+        )
+        assert status.status == 200
+        assert (await status.json())["status"] == "active"
+        evidence = await client.get(
+            f"/integration/v1/link-exchanges/{created['link_exchange_id']}/evidence",
+            headers=bearer(signing_key, "guideshop:link:status", "profile-link-evd-jti-1"),
+        )
+        payload = await evidence.json()
+        assert evidence.status == 200
+        assert payload["status"] == "active"
+        assert payload["link_exchange_id"] == created["link_exchange_id"]
+        assert payload["evidence_ref"].startswith("evd_")
+        return created
+
+    created = run(with_client(components, exercise))
+    # The internal raw token is hash-only, single-use, and never surfaced.
+    from database.db import get_connection
+    db = get_connection()
+    request_row = db.execute(
+        "SELECT token_hash, status FROM guide_shop_link_requests"
+    ).fetchone()
+    db.close()
+    assert request_row["status"] == "consumed"
+    assert re.fullmatch(r"[0-9a-f]{64}", request_row["token_hash"])
+    assert "raw_link_token" not in json.dumps(created)
+    assert request_row["token_hash"] not in caplog.text
+    active = _active_exchange_rows()
+    assert len(active) == 1 and active[0]["link_exchange_id"] == created["link_exchange_id"]
+
+
+@pytest.mark.parametrize("mutate", [
+    {"schema_version": "2.0.0"},
+    {"telegram_id": True},
+    {"telegram_id": "101"},
+    {"telegram_id": 0},
+    {"telegram_id": -1},
+    {"telegram_id": 101.0},
+    {"telegram_id": 2**63},
+    {"audience": "wrong-audience"},
+    {"guide_membership_ref": 123},
+    {"guide_membership_ref": "short"},
+    {"extra": "field"},
+])
+def test_profile_link_rejects_malformed_input(signing_key, components, mutate):
+    register_user(101)
+
+    async def exercise(client):
+        response = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(**mutate),
+            headers=bearer(
+                signing_key, PROFILE_LINK_SCOPE,
+                f"profile-link-bad-{hash(str(mutate)) & 0xffff}-jti",
+            ),
+        )
+        assert response.status == 400
+        assert (await response.json())["code"] == "invalid_request"
+
+    run(with_client(components, exercise))
+    assert _table_counts() == {
+        "guide_shop_link_requests": 0,
+        "guide_shop_link_exchanges": 0,
+        "guide_shop_link_exchange_evidence": 0,
+    }
+
+
+def test_profile_link_rejects_malformed_json(signing_key, components):
+    async def exercise(client):
+        response = await client.post(
+            PROFILE_LINK_PATH,
+            data=b'{"schema_version":"1.0.0","telegram_id":',
+            headers={
+                **bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-json-jti-1"),
+                "Content-Type": "application/json",
+            },
+        )
+        assert response.status == 400
+        assert (await response.json())["code"] == "invalid_request"
+
+    run(with_client(components, exercise))
+    assert _table_counts()["guide_shop_link_exchanges"] == 0
+
+
+def test_profile_link_unknown_telegram_id_is_not_found(signing_key, components):
+    async def exercise(client):
+        response = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(telegram_id=999999999),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-miss-jti-1"),
+        )
+        assert response.status == 404
+        assert (await response.json())["code"] == "not_found"
+
+    run(with_client(components, exercise))
+    assert _table_counts()["guide_shop_link_exchanges"] == 0
+
+
+def test_profile_link_wrong_scope_and_replayed_jti_are_unauthenticated(
+    signing_key, components
+):
+    register_user(101)
+
+    async def exercise(client):
+        wrong = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers=bearer(signing_key, RESOLVE_SCOPE, "profile-link-scope-jti-1"),
+        )
+        assert wrong.status == 401
+        replay = bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-replay-jti")
+        first = await client.post(
+            PROFILE_LINK_PATH, json=profile_link_body(), headers=replay
+        )
+        assert first.status == 201
+        second = await client.post(
+            PROFILE_LINK_PATH, json=profile_link_body(), headers=replay
+        )
+        assert second.status == 401
+        assert (await second.json())["code"] == "unauthenticated"
+
+    run(with_client(components, exercise))
+    assert len(_active_exchange_rows()) == 1
+
+
+def test_profile_link_exact_retry_is_idempotent(signing_key, components):
+    register_user(101)
+
+    async def exercise(client):
+        first = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-retry-jti1"),
+        )
+        second = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-retry-jti2"),
+        )
+        created = await first.json()
+        repeated = await second.json()
+        assert first.status == 201
+        assert second.status == 200
+        assert repeated["link_exchange_id"] == created["link_exchange_id"]
+        assert repeated["status"] == "active"
+
+    run(with_client(components, exercise))
+    counts = _table_counts()
+    assert len(_active_exchange_rows()) == 1
+    assert counts["guide_shop_link_requests"] == 1
+    assert counts["guide_shop_link_exchange_evidence"] == 1
+
+
+def test_profile_link_concurrent_retry_creates_one_active_exchange(components):
+    from concurrent.futures import ThreadPoolExecutor
+
+    register_user(101)
+    service = components[1]
+    guide = get_guide_os_id(101)
+
+    def attempt():
+        return service.create_active_for_verified_profile(
+            guide, "guideshop-link", MEMBERSHIP
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [future.result() for future in (
+            pool.submit(attempt), pool.submit(attempt)
+        )]
+    identifiers = {exchange.link_exchange_id for exchange, _ in results}
+    assert len(identifiers) == 1
+    assert sorted(created for _, created in results) == [False, True]
+    assert all(exchange.status == "active" for exchange, _ in results)
+    assert len(_active_exchange_rows()) == 1
+    assert _table_counts()["guide_shop_link_exchange_evidence"] == 1
+
+
+def test_profile_link_conflicting_associations_fail_closed(signing_key, components):
+    register_user(101)
+    register_user(202)
+
+    async def exercise(client):
+        first = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-conf-jti1"),
+        )
+        assert first.status == 201
+        # The same membership must not bind to a different guide.
+        other_guide = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(telegram_id=202),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-conf-jti2"),
+        )
+        assert other_guide.status == 409
+        assert (await other_guide.json())["code"] == "link_conflict"
+        # The same guide must not bind to a second membership.
+        other_membership = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(guide_membership_ref="cgm_other001"),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-conf-jti3"),
+        )
+        assert other_membership.status == 409
+        assert (await other_membership.json())["code"] == "link_conflict"
+
+    run(with_client(components, exercise))
+    assert len(_active_exchange_rows()) == 1
+
+
+def test_profile_link_partial_failure_rolls_back_without_false_evidence(components):
+    register_user(101)
+    register_user(202)
+    fixed = GuideShopLinkExchangeService(
+        clock=lambda: NOW, random_bytes=lambda size: b"\x11" * size
+    )
+    first, created = fixed.create_active_for_verified_profile(
+        get_guide_os_id(101), "guideshop-link", MEMBERSHIP
+    )
+    assert created is True and first.status == "active"
+    before = _table_counts()
+    # The colliding opaque identifiers abort the transaction mid-way; every
+    # write in it must roll back together.
+    with pytest.raises(LinkExchangeError):
+        fixed.create_active_for_verified_profile(
+            get_guide_os_id(202), "guideshop-link", "cgm_other002"
+        )
+    assert _table_counts() == before
+    active = _active_exchange_rows()
+    assert len(active) == 1
+    assert active[0]["link_exchange_id"] == first.link_exchange_id
+    assert active[0]["guide_membership_ref"] == MEMBERSHIP

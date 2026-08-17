@@ -18,6 +18,7 @@ SUBJECT = "guideshop:link-service"
 ALLOWED_SCOPES = {
     "guideshop:link:exchange",
     "guideshop:link:status",
+    "guideshop:profile:link",
     "guideshop:profile:resolve",
 }
 MAX_TTL_SECONDS = 60
