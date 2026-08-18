@@ -43,9 +43,25 @@ def run(awaitable):
     return asyncio.run(awaitable)
 
 
-def company(company_id="company-1", name="Silk Road", status="active"):
+def company(
+    company_id="company-1",
+    name="Silk Road",
+    status="active",
+    phone=None,
+    address=None,
+    description=None,
+    company_type=None,
+):
     return CompanyDTO.model_validate(
-        {"company_id": company_id, "display_name": name, "status": status}
+        {
+            "company_id": company_id,
+            "display_name": name,
+            "status": status,
+            "phone": phone,
+            "address": address,
+            "description": description,
+            "type": company_type,
+        }
     )
 
 
@@ -126,13 +142,12 @@ class NoCallClient:
         return super().__getattribute__(name)
 
 
-def test_home_does_not_call_client_and_has_six_ordered_actions():
+def test_home_does_not_call_client_and_has_five_ordered_actions_without_sales():
     screen = run(GuideShopUIService(NoCallClient()).home())
     assert screen.parse_mode == "HTML"
     assert [action.label for action in screen.actions] == [
         "Компании",
         "Визиты",
-        "Продажи",
         "Ожидающие баллы",
         "Зачисленные баллы",
         "История",
@@ -140,13 +155,12 @@ def test_home_does_not_call_client_and_has_six_ordered_actions():
     assert [action.route.kind for action in screen.actions] == [
         "companies",
         "visits",
-        "sales",
         "points",
         "points",
         "history",
     ]
-    assert screen.actions[3].route.points_status == PointsStatus.PENDING
-    assert screen.actions[4].route.points_status == PointsStatus.CREDITED
+    assert screen.actions[2].route.points_status == PointsStatus.PENDING
+    assert screen.actions[3].route.points_status == PointsStatus.CREDITED
     assert "баланс" not in screen.text.lower()
 
 
@@ -243,15 +257,61 @@ def test_pagination_routes_are_opaque_and_points_preserve_filter():
     assert all(cursor not in run(service.home()).text for cursor in [visit_next.cursor, sale_next.cursor, points_next.cursor, history_next.cursor])
 
 
-def test_company_detail_shows_name_and_russian_status_without_opaque_id():
+def test_company_dto_accepts_optional_fields_and_null_values():
+    populated = CompanyDTO.model_validate(
+        {
+            "company_id": "cmp_opaque",
+            "display_name": "Silk Road",
+            "status": "inactive",
+            "phone": "+99890",
+            "address": "Tashkent",
+            "description": "Textiles",
+            "type": "Shop",
+        }
+    )
+    nullable = CompanyDTO.model_validate(
+        {
+            "company_id": "cmp_opaque_2",
+            "display_name": "Silk Road 2",
+            "status": "active",
+            "phone": None,
+            "address": None,
+            "description": None,
+            "type": None,
+        }
+    )
+    assert populated.phone == "+99890"
+    assert nullable.phone is None
+    assert nullable.address is None
+    assert nullable.description is None
+    assert nullable.type is None
+
+
+def test_company_detail_shows_all_fields_and_russian_status_without_opaque_id():
     service = GuideShopUIService(
-        InMemoryGuideShopClient(companies=[company("cmp_opaque", "Silk Road", "inactive")])
+        InMemoryGuideShopClient(
+            companies=[
+                company(
+                    "cmp_opaque",
+                    "Silk Road",
+                    "inactive",
+                    phone="<script>+998</script>",
+                    address="Main <b>street</b>",
+                    description="Desc <img />",
+                    company_type="Retail <unsafe>",
+                )
+            ]
+        )
     )
 
     screen = run(service.company_detail("cmp_opaque"))
 
     assert "Silk Road" in screen.text
     assert "Неактивна" in screen.text
+    assert "Тип: Retail &lt;unsafe&gt;" in screen.text
+    assert "Телефон: &lt;script&gt;+998&lt;/script&gt;" in screen.text
+    assert "Адрес: Main &lt;b&gt;street&lt;/b&gt;" in screen.text
+    assert "Описание: Desc &lt;img /&gt;" in screen.text
     assert "cmp_opaque" not in screen.text
     assert screen.actions == (
         GuideShopAction("⬅️ Назад к компаниям", GuideShopRoute(kind="companies")),
@@ -265,6 +325,29 @@ def test_company_detail_unknown_company_is_safe():
 
     assert "Компания не найдена" in screen.text
     assert "missing-company" not in screen.text
+
+
+def test_company_detail_missing_optional_fields_show_not_specified():
+    service = GuideShopUIService(
+        InMemoryGuideShopClient(
+            companies=[
+                company(
+                    "company-1",
+                    "Silk Road",
+                    "active",
+                    phone=None,
+                    address="",
+                    description=None,
+                    company_type="",
+                )
+            ]
+        )
+    )
+    screen = run(service.company_detail("company-1"))
+    assert "Телефон: Не указано" in screen.text
+    assert "Адрес: Не указано" in screen.text
+    assert "Описание: Не указано" in screen.text
+    assert "Тип: Не указано" in screen.text
 
 
 def test_detail_screens_include_required_and_optional_fields_safely():
@@ -284,6 +367,8 @@ def test_detail_screens_include_required_and_optional_fields_safely():
         assert label in visit_screen.text
     assert "07.08.2026 17:00" in visit_screen.text
     assert "Активен" in visit_screen.text
+    assert "Баллы за визит" in visit_screen.text
+    assert "16.00 PTS — Выплачено" in visit_screen.text
     assert "Оплата: card" in sale_screen.text
     assert "125.40 USD" in sale_screen.text
     assert "&lt;Textiles&gt;" in sale_screen.text
@@ -299,6 +384,32 @@ def test_detail_screens_include_required_and_optional_fields_safely():
     assert "Аннулировано" not in run(absent_service.sale_detail("sale-001")).text
     absent_points = run(absent_service.points_detail("points-01")).text
     assert "Зачислено" not in absent_points
+
+
+def test_visit_detail_uses_exact_visit_id_for_points_and_shows_empty_state():
+    class RecordingClient(InMemoryGuideShopClient):
+        def __init__(self):
+            super().__init__(
+                companies=[company("company-1", "Silk Road", "active")],
+                visits=[visit("visit-01", "company-1")],
+                points=[],
+            )
+            self.calls = []
+
+        async def list_points(self, status=None, cursor=None, visit_id=None):
+            self.calls.append(
+                {"status": status, "cursor": cursor, "visit_id": visit_id}
+            )
+            return await super().list_points(
+                status=status, cursor=cursor, visit_id=visit_id
+            )
+
+    client = RecordingClient()
+    screen = run(GuideShopUIService(client).visit_detail("visit-01"))
+    assert client.calls == [{"status": None, "cursor": None, "visit_id": "visit-01"}]
+    assert "Баллы за визит: не начислены" in screen.text
+    assert "Баллы за визит:\nБаллы за визит: не начислены" not in screen.text
+    assert screen.text.count("Баллы за визит") == 1
 
 
 def test_unknown_payment_method_renders_as_unspecified_in_russian():

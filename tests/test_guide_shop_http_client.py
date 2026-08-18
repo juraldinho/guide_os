@@ -501,13 +501,16 @@ def test_cursor_and_points_status_queries_are_optional_and_strict():
         [
             FakeResponse(payload=list_envelope(visit_payload())),
             FakeResponse(payload=list_envelope(points_payload())),
+            FakeResponse(payload=list_envelope(points_payload())),
         ]
     )
     client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
     run(client.list_visits("opaque-cursor"))
     run(client.list_points(PointsStatus.PENDING, "points-cursor"))
+    run(client.list_points(visit_id="visit-opaque-01"))
     assert session.requests[0][2]["params"] == {"cursor": "opaque-cursor"}
     assert session.requests[1][2]["params"] == {"cursor": "points-cursor"}
+    assert session.requests[2][2]["params"] == {"visit_id": "visit-opaque-01"}
 
     before = len(session.requests)
     with pytest.raises(GuideShopClientError):
@@ -516,6 +519,8 @@ def test_cursor_and_points_status_queries_are_optional_and_strict():
         run(client.list_points("pending"))
     with pytest.raises(GuideShopClientError):
         run(client.get_sale(123))
+    with pytest.raises(GuideShopClientError):
+        run(client.list_points(visit_id=""))
     assert len(session.requests) == before
 
 

@@ -306,11 +306,23 @@ def test_ids_must_be_opaque_strings(value):
         CompanyDTO.model_validate(payload)
 
 
-def test_unknown_fields_old_versions_and_boolean_count_are_rejected():
+def test_company_optional_fields_are_supported_and_other_contract_guards_hold():
     payload = company_payload()
     payload["phone"] = "+998000000000"
-    with pytest.raises(ValidationError):
-        CompanyDTO.model_validate(payload)
+    payload["address"] = "Tashkent"
+    payload["description"] = "Main partner"
+    payload["type"] = "Retail"
+    assert CompanyDTO.model_validate(payload).phone == "+998000000000"
+    nullable = company_payload()
+    nullable["phone"] = None
+    nullable["address"] = None
+    nullable["description"] = None
+    nullable["type"] = None
+    model = CompanyDTO.model_validate(nullable)
+    assert model.phone is None
+    assert model.address is None
+    assert model.description is None
+    assert model.type is None
 
     envelope = {
         "schema_version": "1.0",

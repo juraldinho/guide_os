@@ -28,6 +28,7 @@ from services.guide_shop_navigation import GuideShopRoute
 
 UI_TZ = ZoneInfo(TIMEZONE)
 UNKNOWN_COMPANY = "Компания не найдена"
+NOT_SPECIFIED = "Не указано"
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,14 @@ def _company_text(company: CompanyDTO) -> str:
     )
 
 
+def _optional_company_value(value: str | None) -> str:
+    if value is None:
+        return NOT_SPECIFIED
+    if not value.strip():
+        return NOT_SPECIFIED
+    return value
+
+
 def _visit_text(visit: VisitDTO) -> str:
     return (
         f"🏢 Компания: {_safe(visit.company_id)}\n"
@@ -195,7 +204,6 @@ class GuideShopUIService:
             actions=(
                 GuideShopAction("Компании", GuideShopRoute(kind="companies")),
                 GuideShopAction("Визиты", GuideShopRoute(kind="visits")),
-                GuideShopAction("Продажи", GuideShopRoute(kind="sales")),
                 GuideShopAction(
                     "Ожидающие баллы",
                     GuideShopRoute(
@@ -248,6 +256,10 @@ class GuideShopUIService:
         else:
             text = (
                 f"🏢 <b>{_safe(company.display_name)}</b>\n"
+                f"Тип: {_safe(_optional_company_value(company.type))}\n"
+                f"Телефон: {_safe(_optional_company_value(company.phone))}\n"
+                f"Адрес: {_safe(_optional_company_value(company.address))}\n"
+                f"Описание: {_safe(_optional_company_value(company.description))}\n"
                 f"Статус: {_company_status_label(company.status)}"
             )
         return _screen(
@@ -288,16 +300,26 @@ class GuideShopUIService:
     async def visit_detail(self, visit_id: str) -> GuideShopScreen:
         try:
             visit = (await self._client.get_visit(visit_id)).data
+            points_response = await self._client.list_points(visit_id=visit_id)
+            company_names = await _company_name_map(self._client)
         except GuideShopClientError as error:
             return guide_shop_error_screen(error)
 
+        if points_response.data:
+            points_block = "Баллы за визит:\n" + "\n".join(
+                f"{_safe(item.amount)} {_safe(item.unit)} — {_points_status_label(item.status)}"
+                for item in points_response.data
+            )
+        else:
+            points_block = "Баллы за визит: не начислены"
         text = (
-            f"🏢 Компания: {_safe(visit.company_id)}\n"
+            f"🏢 Компания: {_safe(_company_name(visit.company_id, company_names))}\n"
             f"Дата визита: {_timestamp(visit.visit_at)}\n"
             f"Туристов: {_safe(visit.tourist_count)}\n"
             f"Статус: {_visit_status_label(visit.status)}\n"
             f"Создано: {_timestamp(visit.created_at)}\n"
-            f"Обновлено: {_timestamp(visit.updated_at)}"
+            f"Обновлено: {_timestamp(visit.updated_at)}\n"
+            + points_block
         )
         return _screen(
             text,

@@ -77,6 +77,7 @@ class GuideShopClient(Protocol):
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
+        visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]: ...
 
     async def get_points_transaction(
@@ -122,6 +123,7 @@ class DisabledGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
+        visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]:
         self._disabled()
 
@@ -377,14 +379,19 @@ class HTTPGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
+        visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]:
         if status is not None and not isinstance(status, PointsStatus):
             raise GuideShopClientError("Invalid points status")
         cursor = self._optional_cursor(cursor)
-        params = {"cursor": cursor} if cursor is not None else None
+        params: dict[str, str] = {}
+        if cursor is not None:
+            params["cursor"] = cursor
+        if visit_id is not None:
+            params["visit_id"] = self._required_string(visit_id, "visit ID")
         return await self._request(
             "/integration/v1/me/points",
-            params,
+            params or None,
             APIListResponseDTO[PointsAccrualDTO],
         )
 
@@ -548,6 +555,7 @@ class InMemoryGuideShopClient:
         self,
         status: PointsStatus | None = None,
         cursor: str | None = None,
+        visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]:
         if status is not None and not isinstance(status, PointsStatus):
             raise GuideShopClientError("Invalid points status")
@@ -556,6 +564,10 @@ class InMemoryGuideShopClient:
             if status is None
             else tuple(item for item in self._points if item.status == status)
         )
+        if visit_id is not None:
+            if not isinstance(visit_id, str) or not visit_id.strip():
+                raise GuideShopClientError("Invalid visit ID")
+            values = tuple(item for item in values if item.visit_id == visit_id)
         scope = f"points:{status.value if status is not None else 'all'}"
         return self._list_response(values, PointsAccrualDTO, scope, cursor)
 

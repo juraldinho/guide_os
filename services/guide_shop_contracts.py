@@ -136,6 +136,10 @@ class CompanyDTO(StrictDTO):
     company_id: OpaqueId
     display_name: BoundedName
     status: CompanyStatus
+    phone: StrictStr | None = None
+    address: StrictStr | None = None
+    description: StrictStr | None = None
+    type: StrictStr | None = None
 
 
 class VisitDTO(StrictDTO):
