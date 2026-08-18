@@ -34,6 +34,7 @@ NOW = datetime(2026, 8, 7, 12, 0, tzinfo=timezone.utc)
     [
         {"kind": "home"},
         {"kind": "companies"},
+        {"kind": "company_detail", "object_id": "company-1"},
         {"kind": "visits", "cursor": "opaque-cursor"},
         {"kind": "visit_detail", "object_id": "visit-1"},
         {"kind": "sales", "cursor": "opaque-cursor"},
@@ -48,19 +49,26 @@ def test_valid_route_variants(payload):
     assert route.kind == payload["kind"]
 
 
-@pytest.mark.parametrize("kind", ["visit_detail", "sale_detail", "points_detail"])
+@pytest.mark.parametrize(
+    "kind", ["company_detail", "visit_detail", "sale_detail", "points_detail"]
+)
 def test_detail_routes_require_object_id(kind):
     with pytest.raises(ValidationError, match="requires object_id"):
         GuideShopRoute.model_validate({"kind": kind})
 
 
-@pytest.mark.parametrize("kind", ["home", "companies", "visits", "sales", "points", "history"])
+@pytest.mark.parametrize(
+    "kind", ["home", "companies", "visits", "sales", "points", "history"]
+)
 def test_non_detail_routes_reject_object_id(kind):
     with pytest.raises(ValidationError, match="must not contain object_id"):
         GuideShopRoute.model_validate({"kind": kind, "object_id": "object-1"})
 
 
-@pytest.mark.parametrize("kind", ["home", "companies", "visit_detail", "sale_detail", "points_detail"])
+@pytest.mark.parametrize(
+    "kind",
+    ["home", "companies", "company_detail", "visit_detail", "sale_detail", "points_detail"],
+)
 def test_cursor_is_rejected_outside_allowed_list_routes(kind):
     payload = {"kind": kind, "cursor": "cursor-1"}
     if kind.endswith("_detail"):

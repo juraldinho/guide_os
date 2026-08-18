@@ -217,6 +217,7 @@ class RecordingService:
 
     async def home(self): return await self._record("home")
     async def companies(self): return await self._record("companies")
+    async def company_detail(self, object_id): return await self._record("company_detail", object_id)
     async def visits(self, cursor=None): return await self._record("visits", cursor)
     async def visit_detail(self, object_id): return await self._record("visit_detail", object_id)
     async def sales(self, cursor=None): return await self._record("sales", cursor)
@@ -231,6 +232,7 @@ class RecordingService:
     [
         (GuideShopRoute(kind="home"), ("home", ())),
         (GuideShopRoute(kind="companies"), ("companies", ())),
+        (GuideShopRoute(kind="company_detail", object_id="c1"), ("company_detail", ("c1",))),
         (GuideShopRoute(kind="visits", cursor="c1"), ("visits", ("c1",))),
         (GuideShopRoute(kind="visit_detail", object_id="v1"), ("visit_detail", ("v1",))),
         (GuideShopRoute(kind="sales", cursor="c2"), ("sales", ("c2",))),

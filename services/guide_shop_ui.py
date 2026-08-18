@@ -1,6 +1,11 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
+from datetime import datetime
 from html import escape
 from typing import Literal
+from zoneinfo import ZoneInfo
+
+from config import TIMEZONE
 
 from services.guide_shop_client import (
     GuideShopAccessDeniedError,
@@ -20,6 +25,9 @@ from services.guide_shop_contracts import (
     VisitDTO,
 )
 from services.guide_shop_navigation import GuideShopRoute
+
+UI_TZ = ZoneInfo(TIMEZONE)
+UNKNOWN_COMPANY = "Компания не найдена"
 
 
 @dataclass(frozen=True)
@@ -54,8 +62,55 @@ def _safe(value: object) -> str:
     return escape(str(raw_value))
 
 
+def _company_status_label(status: object) -> str:
+    return {
+        "active": "Активна",
+        "inactive": "Неактивна",
+    }.get(getattr(status, "value", status), "Неизвестно")
+
+
+def _visit_status_label(status: object) -> str:
+    return {
+        "active": "Активен",
+        "completed": "Завершен",
+        "cancelled": "Отменен",
+    }.get(getattr(status, "value", status), "Неизвестно")
+
+
+def _sale_status_label(status: object) -> str:
+    return {
+        "active": "Активна",
+    }.get(getattr(status, "value", status), "Неизвестно")
+
+
+def _points_status_label(status: object) -> str:
+    return {
+        "pending": "Ожидает выплаты",
+        "credited": "Выплачено",
+    }.get(getattr(status, "value", status), "Неизвестно")
+
+
+def _format_total(values: list[Decimal]) -> str:
+    return format(sum(values, Decimal("0")), "f")
+
+
 def _timestamp(value: object) -> str:
-    return _safe(value.isoformat())
+    if not isinstance(value, datetime):
+        raise TypeError("timestamp value must be datetime")
+    localized = value.astimezone(UI_TZ)
+    return _safe(localized.strftime("%d.%m.%Y %H:%M"))
+
+
+def _company_name(company_id: str, company_names: dict[str, str]) -> str:
+    return company_names.get(company_id, UNKNOWN_COMPANY)
+
+
+async def _company_name_map(client: GuideShopClient) -> dict[str, str]:
+    response = await client.list_companies()
+    return {
+        company.company_id: company.display_name
+        for company in response.data
+    }
 
 
 def _back_home() -> GuideShopAction:
@@ -83,7 +138,7 @@ def guide_shop_error_screen(error: GuideShopClientError) -> GuideShopScreen:
 def _company_text(company: CompanyDTO) -> str:
     return (
         f"🏢 <b>{_safe(company.display_name)}</b>\n"
-        f"Статус: {_safe(company.status)}"
+        f"Статус: {_company_status_label(company.status)}"
     )
 
 
@@ -92,7 +147,7 @@ def _visit_text(visit: VisitDTO) -> str:
         f"🏢 Компания: {_safe(visit.company_id)}\n"
         f"Дата визита: {_timestamp(visit.visit_at)}\n"
         f"Туристов: {_safe(visit.tourist_count)}\n"
-        f"Статус: {_safe(visit.status)}"
+        f"Статус: {_visit_status_label(visit.status)}"
     )
 
 
@@ -107,22 +162,24 @@ def _sale_text(sale: SaleDTO) -> str:
         f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}\n"
         f"Категория: {_safe(sale.category_name)}\n"
         f"{_sale_payment_line(sale)}\n"
-        f"Статус: {_safe(sale.status)}\n"
+        f"Статус: {_sale_status_label(sale.status)}\n"
         f"Создано: {_timestamp(sale.created_at)}"
     )
 
 
-def _points_text(transaction: PointsAccrualDTO) -> str:
+def _points_text(transaction: PointsAccrualDTO, company_names: dict[str, str]) -> str:
     lines = [
+        f"🏢 Компания: {_safe(_company_name(transaction.company_id, company_names))}",
         f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}",
-        f"Статус: {_safe(transaction.status)}",
+        f"Статус: {_points_status_label(transaction.status)}",
         f"Рассчитано: {_timestamp(transaction.calculated_at)}",
     ]
     return "\n".join(lines)
 
 
-def _history_text(transaction: PointsPayoutDTO) -> str:
+def _history_text(transaction: PointsPayoutDTO, company_names: dict[str, str]) -> str:
     return (
+        f"🏢 Компания: {_safe(_company_name(transaction.company_id, company_names))}\n"
         f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}\n"
         f"Выплачено: {_timestamp(transaction.paid_at)}"
     )
@@ -161,12 +218,42 @@ class GuideShopUIService:
         except GuideShopClientError as error:
             return guide_shop_error_screen(error)
 
+        actions = [
+            GuideShopAction(
+                company.display_name,
+                GuideShopRoute(kind="company_detail", object_id=company.company_id),
+            )
+            for company in response.data
+        ]
+        actions.append(_back_home())
         text = (
             "\n\n".join(_company_text(company) for company in response.data)
             if response.data
             else "Компании пока отсутствуют."
         )
-        return _screen(text, [_back_home()])
+        return _screen(text, actions)
+
+    async def company_detail(self, company_id: str) -> GuideShopScreen:
+        try:
+            response = await self._client.list_companies()
+        except GuideShopClientError as error:
+            return guide_shop_error_screen(error)
+
+        company = next(
+            (item for item in response.data if item.company_id == company_id),
+            None,
+        )
+        if company is None:
+            text = f"🏢 <b>{UNKNOWN_COMPANY}</b>"
+        else:
+            text = (
+                f"🏢 <b>{_safe(company.display_name)}</b>\n"
+                f"Статус: {_company_status_label(company.status)}"
+            )
+        return _screen(
+            text,
+            [GuideShopAction("⬅️ Назад к компаниям", GuideShopRoute(kind="companies"))],
+        )
 
     async def visits(self, cursor: str | None = None) -> GuideShopScreen:
         try:
@@ -208,7 +295,7 @@ class GuideShopUIService:
             f"🏢 Компания: {_safe(visit.company_id)}\n"
             f"Дата визита: {_timestamp(visit.visit_at)}\n"
             f"Туристов: {_safe(visit.tourist_count)}\n"
-            f"Статус: {_safe(visit.status)}\n"
+            f"Статус: {_visit_status_label(visit.status)}\n"
             f"Создано: {_timestamp(visit.created_at)}\n"
             f"Обновлено: {_timestamp(visit.updated_at)}"
         )
@@ -255,7 +342,7 @@ class GuideShopUIService:
             f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}",
             f"Категория: {_safe(sale.category_name)}",
             _sale_payment_line(sale),
-            f"Статус: {_safe(sale.status)}",
+            f"Статус: {_sale_status_label(sale.status)}",
             f"Создано: {_timestamp(sale.created_at)}",
             f"Обновлено: {_timestamp(sale.updated_at)}",
         ]
@@ -271,6 +358,7 @@ class GuideShopUIService:
     ) -> GuideShopScreen:
         try:
             response = await self._client.list_points(status, cursor)
+            company_names = await _company_name_map(self._client)
         except GuideShopClientError as error:
             return guide_shop_error_screen(error)
 
@@ -296,8 +384,19 @@ class GuideShopUIService:
                 )
             )
         actions.append(_back_home())
+        total_label = (
+            "На этой странице ожидает выплаты"
+            if status is PointsStatus.PENDING
+            else "На этой странице выплачено"
+            if status is PointsStatus.CREDITED
+            else "Баллов на этой странице"
+        )
         text = (
-            "\n\n".join(_points_text(item) for item in response.data)
+            (
+                f"{total_label}: "
+                f"{_format_total([Decimal(item.amount) for item in response.data])} PTS\n\n"
+                + "\n\n".join(_points_text(item, company_names) for item in response.data)
+            )
             if response.data
             else "Операции с баллами пока отсутствуют."
         )
@@ -315,7 +414,7 @@ class GuideShopUIService:
 
         lines = [
             f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}",
-            f"Статус: {_safe(transaction.status)}",
+            f"Статус: {_points_status_label(transaction.status)}",
         ]
         lines.append(f"Рассчитано: {_timestamp(transaction.calculated_at)}")
         if transaction.credited_at is not None:
@@ -329,6 +428,7 @@ class GuideShopUIService:
     async def history(self, cursor: str | None = None) -> GuideShopScreen:
         try:
             response = await self._client.list_history(cursor)
+            company_names = await _company_name_map(self._client)
         except GuideShopClientError as error:
             return guide_shop_error_screen(error)
 
@@ -351,7 +451,7 @@ class GuideShopUIService:
             )
         actions.append(_back_home())
         text = (
-            "\n\n".join(_history_text(item) for item in response.data)
+            "\n\n".join(_history_text(item, company_names) for item in response.data)
             if response.data
             else "История операций пока отсутствует."
         )

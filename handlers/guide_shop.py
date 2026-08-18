@@ -100,6 +100,8 @@ async def _dispatch_route(
         return await service.home()
     if route.kind == "companies":
         return await service.companies()
+    if route.kind == "company_detail":
+        return await service.company_detail(route.object_id)
     if route.kind == "visits":
         return await service.visits(route.cursor)
     if route.kind == "visit_detail":

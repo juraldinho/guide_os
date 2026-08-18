@@ -1,5 +1,6 @@
 import asyncio
 import copy
+from decimal import Decimal
 import socket
 
 import pytest
@@ -35,6 +36,7 @@ from services.guide_shop_ui import (
 
 
 UTC = "2026-08-07T12:00:00Z"
+LOCAL_TIME = "07.08.2026 17:00"
 
 
 def run(awaitable):
@@ -63,11 +65,16 @@ def visit(visit_id="visit-01", company_id="company-1"):
     )
 
 
-def sale(sale_id="sale-001", category="Textiles", payment_method="card"):
+def sale(
+    sale_id="sale-001",
+    category="Textiles",
+    payment_method="card",
+    company_id="company-1",
+):
     payload = {
         "sale_id": sale_id,
         "visit_id": "visit-01",
-        "company_id": "company-1",
+        "company_id": company_id,
         "amount": "125.40",
         "currency": "USD",
         "status": "active",
@@ -80,10 +87,10 @@ def sale(sale_id="sale-001", category="Textiles", payment_method="card"):
     return SaleDTO.model_validate(payload)
 
 
-def points(points_id="points-01", status="pending"):
+def points(points_id="points-01", status="pending", company_id="company-1"):
     payload = {
         "points_accrual_id": points_id,
-        "company_id": "company-1",
+        "company_id": company_id,
         "visit_id": "visit-01",
         "amount": "16.00",
         "unit": "PTS",
@@ -97,12 +104,12 @@ def points(points_id="points-01", status="pending"):
     return PointsAccrualDTO.model_validate(payload)
 
 
-def payout(payout_id="payout-01", accrual_id="points-01"):
+def payout(payout_id="payout-01", accrual_id="points-01", company_id="company-1"):
     return PointsPayoutDTO.model_validate(
         {
             "payout_id": payout_id,
             "points_accrual_id": accrual_id,
-            "company_id": "company-1",
+            "company_id": company_id,
             "visit_id": "visit-01",
             "amount": "16.00",
             "unit": "PTS",
@@ -157,7 +164,7 @@ def test_presentation_models_are_immutable_and_strict():
 
 
 def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
-    companies = [company("company1", "<b>First</b>", "active"), company("company2", "Second")]
+    companies = [company("company-1", "<b>First</b>", "active"), company("company-2", "Second")]
     visits = [visit("visit-v2", "company-2"), visit("visit-v1", "company-1")]
     sales = [sale("sale-s02", "<Textiles>"), sale("sale-s01", "Ceramics")]
     transactions = [points("points-02"), points("points-01")]
@@ -179,8 +186,10 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
     history_screen = run(service.history())
 
     assert "&lt;b&gt;First&lt;/b&gt;" in company_screen.text
-    assert "active" in company_screen.text
+    assert "Активна" in company_screen.text
     assert company_screen.text.index("First") < company_screen.text.index("Second")
+    assert [a.label for a in company_screen.actions[:-1]] == ["<b>First</b>", "Second"]
+    assert [a.route.kind for a in company_screen.actions[:-1]] == ["company_detail", "company_detail"]
     assert "company-2" in visit_screen.text
     assert [a.label for a in visit_screen.actions[:-1]] == [
         "Открыть визит 1",
@@ -194,11 +203,14 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
         "Открыть продажу 2",
     ]
     assert [a.route.object_id for a in sale_screen.actions[:-1]] == ["sale-s02", "sale-s01"]
+    assert "Баллов на этой странице" in points_screen.text
     assert "16.00" in points_screen.text
+    assert "&lt;b&gt;First&lt;/b&gt;" in points_screen.text
     assert [a.label for a in points_screen.actions[:-1]] == [
         "Открыть операцию 1",
         "Открыть операцию 2",
     ]
+    assert "&lt;b&gt;First&lt;/b&gt;" in history_screen.text
     assert [a.label for a in history_screen.actions[:-1]] == [
         "Открыть операцию 1",
         "Открыть операцию 2",
@@ -231,8 +243,33 @@ def test_pagination_routes_are_opaque_and_points_preserve_filter():
     assert all(cursor not in run(service.home()).text for cursor in [visit_next.cursor, sale_next.cursor, points_next.cursor, history_next.cursor])
 
 
+def test_company_detail_shows_name_and_russian_status_without_opaque_id():
+    service = GuideShopUIService(
+        InMemoryGuideShopClient(companies=[company("cmp_opaque", "Silk Road", "inactive")])
+    )
+
+    screen = run(service.company_detail("cmp_opaque"))
+
+    assert "Silk Road" in screen.text
+    assert "Неактивна" in screen.text
+    assert "cmp_opaque" not in screen.text
+    assert screen.actions == (
+        GuideShopAction("⬅️ Назад к компаниям", GuideShopRoute(kind="companies")),
+    )
+
+
+def test_company_detail_unknown_company_is_safe():
+    service = GuideShopUIService(InMemoryGuideShopClient(companies=[company("company-1")]))
+
+    screen = run(service.company_detail("missing-company"))
+
+    assert "Компания не найдена" in screen.text
+    assert "missing-company" not in screen.text
+
+
 def test_detail_screens_include_required_and_optional_fields_safely():
     client = InMemoryGuideShopClient(
+        companies=[company("company-1", "Silk Road", "active")],
         visits=[visit()],
         sales=[sale(category="<Textiles>")],
         points=[points(status="credited")],
@@ -245,12 +282,17 @@ def test_detail_screens_include_required_and_optional_fields_safely():
 
     for label in ["Компания", "Дата визита", "Туристов", "Статус", "Создано", "Обновлено"]:
         assert label in visit_screen.text
+    assert "07.08.2026 17:00" in visit_screen.text
+    assert "Активен" in visit_screen.text
     assert "Оплата: card" in sale_screen.text
     assert "125.40 USD" in sale_screen.text
     assert "&lt;Textiles&gt;" in sale_screen.text
+    assert "Активна" in sale_screen.text
     assert "Зачислено" in points_screen.text
+    assert "Выплачено" in points_screen.text
 
     absent_client = InMemoryGuideShopClient(
+        companies=[company("company-1", "Silk Road", "active")],
         sales=[sale()], points=[points()]
     )
     absent_service = GuideShopUIService(absent_client)
@@ -270,6 +312,66 @@ def test_unknown_payment_method_renders_as_unspecified_in_russian():
     assert "Оплата: unknown" not in list_screen.text
     assert "Оплата: unknown" not in detail_screen.text
     assert "Оплата: card" not in list_screen.text
+
+
+def test_pending_points_total_uses_decimal_and_company_name():
+    companies = [company("company-1", "Silk Road"), company("company-2", "Bukhara Tours")]
+    accruals = [points("points-01"), points("points-02", company_id="company-2")]
+    client = InMemoryGuideShopClient(companies=companies, points=accruals)
+
+    screen = run(GuideShopUIService(client).points(PointsStatus.PENDING))
+
+    assert "На этой странице ожидает выплаты: 32.00 PTS" in screen.text
+    assert "Silk Road" in screen.text
+    assert "Bukhara Tours" in screen.text
+    assert "company-1" not in screen.text
+    assert "company-2" not in screen.text
+    assert Decimal("16.00") + Decimal("16.00") == Decimal("32.00")
+
+
+def test_credited_points_total_uses_decimal_and_company_name():
+    companies = [company("company-1", "Silk Road"), company("company-2", "Bukhara Tours")]
+    credited = [
+        points("points-01", "credited"),
+        points("points-02", "credited", company_id="company-2"),
+    ]
+    client = InMemoryGuideShopClient(companies=companies, points=credited)
+
+    screen = run(GuideShopUIService(client).points(PointsStatus.CREDITED))
+
+    assert "На этой странице выплачено: 32.00 PTS" in screen.text
+    assert "Silk Road" in screen.text
+    assert "Bukhara Tours" in screen.text
+    assert "company-1" not in screen.text
+    assert "company-2" not in screen.text
+
+
+def test_history_shows_company_name_without_opaque_ids():
+    client = InMemoryGuideShopClient(
+        companies=[company("company-1", "Silk Road")],
+        points_history=[payout(company_id="company-1")],
+    )
+
+    screen = run(GuideShopUIService(client).history())
+
+    assert "Silk Road" in screen.text
+    assert "company-1" not in screen.text
+    assert "payout-01" not in screen.text
+    assert "points-01" not in screen.text
+
+
+def test_unknown_company_name_is_safe_for_points_and_history():
+    client = InMemoryGuideShopClient(
+        companies=[],
+        points=[points()],
+        points_history=[payout()],
+    )
+
+    points_screen = run(GuideShopUIService(client).points(PointsStatus.PENDING))
+    history_screen = run(GuideShopUIService(client).history())
+
+    assert "Компания не найдена" in points_screen.text
+    assert "Компания не найдена" in history_screen.text
 
 
 @pytest.mark.parametrize(

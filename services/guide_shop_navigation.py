@@ -66,6 +66,7 @@ class GuideShopRoute(BaseModel):
     kind: Literal[
         "home",
         "companies",
+        "company_detail",
         "visits",
         "visit_detail",
         "sales",
@@ -80,7 +81,12 @@ class GuideShopRoute(BaseModel):
 
     @model_validator(mode="after")
     def validate_route_fields(self) -> "GuideShopRoute":
-        detail_kinds = {"visit_detail", "sale_detail", "points_detail"}
+        detail_kinds = {
+            "company_detail",
+            "visit_detail",
+            "sale_detail",
+            "points_detail",
+        }
         cursor_kinds = {"visits", "sales", "points", "history"}
 
         if self.kind in detail_kinds:
