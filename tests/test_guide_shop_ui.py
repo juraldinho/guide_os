@@ -204,7 +204,15 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
     assert company_screen.text.index("First") < company_screen.text.index("Second")
     assert [a.label for a in company_screen.actions[:-1]] == ["<b>First</b>", "Second"]
     assert [a.route.kind for a in company_screen.actions[:-1]] == ["company_detail", "company_detail"]
-    assert "company-2" in visit_screen.text
+    assert "Second" in visit_screen.text
+    assert "&lt;b&gt;First&lt;/b&gt;" in visit_screen.text
+    assert "company-1" not in visit_screen.text
+    assert "company-2" not in visit_screen.text
+    assert "visit-v2" not in visit_screen.text
+    assert "visit-v1" not in visit_screen.text
+    assert LOCAL_TIME in visit_screen.text
+    assert "Туристов: 3" in visit_screen.text
+    assert "Активен" in visit_screen.text
     assert [a.label for a in visit_screen.actions[:-1]] == [
         "Открыть визит 1",
         "Открыть визит 2",
@@ -217,7 +225,9 @@ def test_lists_render_safe_external_text_exact_decimals_and_preserve_order():
         "Открыть продажу 2",
     ]
     assert [a.route.object_id for a in sale_screen.actions[:-1]] == ["sale-s02", "sale-s01"]
-    assert "Баллов на этой странице" in points_screen.text
+    assert "Ожидает выплаты: 32.00 PTS" in points_screen.text
+    assert "На этой странице" not in points_screen.text
+    assert "Баллов на этой странице" not in points_screen.text
     assert "16.00" in points_screen.text
     assert "&lt;b&gt;First&lt;/b&gt;" in points_screen.text
     assert [a.label for a in points_screen.actions[:-1]] == [
@@ -432,7 +442,10 @@ def test_pending_points_total_uses_decimal_and_company_name():
 
     screen = run(GuideShopUIService(client).points(PointsStatus.PENDING))
 
-    assert "На этой странице ожидает выплаты: 32.00 PTS" in screen.text
+    assert "Ожидает выплаты: 32.00 PTS" in screen.text
+    assert "Silk Road: 16.00 PTS" in screen.text
+    assert "Bukhara Tours: 16.00 PTS" in screen.text
+    assert "На этой странице" not in screen.text
     assert "Silk Road" in screen.text
     assert "Bukhara Tours" in screen.text
     assert "company-1" not in screen.text
@@ -450,7 +463,10 @@ def test_credited_points_total_uses_decimal_and_company_name():
 
     screen = run(GuideShopUIService(client).points(PointsStatus.CREDITED))
 
-    assert "На этой странице выплачено: 32.00 PTS" in screen.text
+    assert "Выплачено: 32.00 PTS" in screen.text
+    assert "Silk Road: 16.00 PTS" in screen.text
+    assert "Bukhara Tours: 16.00 PTS" in screen.text
+    assert "На этой странице" not in screen.text
     assert "Silk Road" in screen.text
     assert "Bukhara Tours" in screen.text
     assert "company-1" not in screen.text
@@ -483,6 +499,103 @@ def test_unknown_company_name_is_safe_for_points_and_history():
 
     assert "Компания не найдена" in points_screen.text
     assert "Компания не найдена" in history_screen.text
+
+
+def test_visit_list_uses_company_names_and_hides_opaque_ids():
+    client = InMemoryGuideShopClient(
+        companies=[
+            company("company-1", "<b>First</b>"),
+            company("company-2", "Second"),
+        ],
+        visits=[visit("visit-v2", "company-2"), visit("visit-v1", "company-1")],
+    )
+
+    screen = run(GuideShopUIService(client).visits())
+
+    assert "Second" in screen.text
+    assert "&lt;b&gt;First&lt;/b&gt;" in screen.text
+    assert LOCAL_TIME in screen.text
+    assert "Туристов: 3" in screen.text
+    assert "Активен" in screen.text
+    assert "company-1" not in screen.text
+    assert "company-2" not in screen.text
+    assert "visit-v1" not in screen.text
+    assert "visit-v2" not in screen.text
+    assert [action.label for action in screen.actions[:-1]] == [
+        "Открыть визит 1",
+        "Открыть визит 2",
+    ]
+    assert [action.route.object_id for action in screen.actions[:-1]] == [
+        "visit-v2",
+        "visit-v1",
+    ]
+
+
+def test_visit_list_unknown_company_uses_safe_fallback():
+    screen = run(
+        GuideShopUIService(
+            InMemoryGuideShopClient(visits=[visit("visit-01", "company-1")])
+        ).visits()
+    )
+
+    assert "Компания не найдена" in screen.text
+    assert "company-1" not in screen.text
+    assert "visit-01" not in screen.text
+
+
+def test_pending_points_complete_total_and_company_breakdown_omit_zero_rows():
+    companies = [
+        company("company-1", "Silk Road"),
+        company("company-2", "Bukhara Tours"),
+    ]
+    accruals = [
+        points("points-01"),
+        points("points-02", "credited", company_id="company-2"),
+    ]
+    client = InMemoryGuideShopClient(
+        companies=companies, points=accruals, page_size=1
+    )
+
+    screen = run(GuideShopUIService(client).points(PointsStatus.PENDING))
+
+    assert screen.text.startswith("Ожидает выплаты: 16.00 PTS")
+    assert "Silk Road: 16.00 PTS" in screen.text
+    assert "Bukhara Tours" not in screen.text
+    assert "На этой странице" not in screen.text
+    assert "company-1" not in screen.text
+    assert "company-2" not in screen.text
+
+
+def test_credited_points_complete_total_and_company_breakdown_omit_zero_rows():
+    companies = [
+        company("company-1", "Silk Road"),
+        company("company-2", "Bukhara Tours"),
+    ]
+    accruals = [
+        points("points-01"),
+        points("points-02", "credited", company_id="company-2"),
+    ]
+    client = InMemoryGuideShopClient(companies=companies, points=accruals)
+
+    screen = run(GuideShopUIService(client).points(PointsStatus.CREDITED))
+
+    assert screen.text.startswith("Выплачено: 16.00 PTS")
+    assert "Bukhara Tours: 16.00 PTS" in screen.text
+    assert "Silk Road: 16.00 PTS" not in screen.text
+    assert "На этой странице" not in screen.text
+    assert "company-1" not in screen.text
+    assert "company-2" not in screen.text
+
+
+def test_pending_and_credited_empty_states_are_russian():
+    service = GuideShopUIService(InMemoryGuideShopClient())
+    pending = run(service.points(PointsStatus.PENDING))
+    credited = run(service.points(PointsStatus.CREDITED))
+
+    assert pending.text == "Ожидающих выплат нет"
+    assert credited.text == "Выплаченных баллов пока нет"
+    assert pending.actions[-1].route.kind == "home"
+    assert credited.actions[-1].route.kind == "home"
 
 
 @pytest.mark.parametrize(

@@ -14,6 +14,7 @@ from services.guide_shop_contracts import (
     PageDTO,
     PointsAccrualDTO,
     PointsPayoutDTO,
+    PointsSummaryDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -108,6 +109,24 @@ def payout_payload() -> dict:
     }
 
 
+def summary_payload() -> dict:
+    return {
+        "schema_version": "1.0.0",
+        "request_id": "req_8f32ab10",
+        "unit": "PTS",
+        "pending_total": "10.00",
+        "credited_total": "5.00",
+        "companies": [
+            {
+                "company_id": "cmp_8f32ab10",
+                "display_name": "Silk Road",
+                "pending_total": "10.00",
+                "credited_total": "5.00",
+            }
+        ],
+    }
+
+
 def list_envelope(item) -> dict:
     return {
         "schema_version": "1.0.0",
@@ -171,6 +190,13 @@ def test_valid_core_dtos_and_envelopes_accept_z_and_fractional_utc():
     assert SaleDTO.model_validate(sale_payload(unresolved=True)).category_id is None
     assert PointsAccrualDTO.model_validate(accrual_payload()).unit == "PTS"
     assert PointsPayoutDTO.model_validate(payout_payload()).payout_id == "pay_8f32ab10"
+    summary = PointsSummaryDTO.model_validate(summary_payload())
+    assert summary.pending_total == "10.00"
+    assert summary.credited_total == "5.00"
+    assert summary.companies[0].display_name == "Silk Road"
+    assert summary.companies[0].pending_total == "10.00"
+    assert isinstance(summary.pending_total, str)
+    assert isinstance(summary.credited_total, str)
 
     company_list = APIListResponseDTO[CompanyDTO].model_validate(
         list_envelope(company_payload())
@@ -296,6 +322,52 @@ def test_points_reject_numbers_and_malformed_decimal_strings(value):
     payload["amount"] = value
     with pytest.raises(ValidationError):
         PointsAccrualDTO.model_validate(payload)
+
+
+def test_points_summary_requires_strict_decimal_strings_and_reconciliation():
+    valid = PointsSummaryDTO.model_validate(summary_payload())
+    assert valid.pending_total == "10.00"
+    assert valid.credited_total == "5.00"
+    assert valid.unit == "PTS"
+    empty = PointsSummaryDTO.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "request_id": "req_8f32ab10",
+            "unit": "PTS",
+            "pending_total": "0.00",
+            "credited_total": "0.00",
+            "companies": [],
+        }
+    )
+    assert empty.companies == []
+    assert empty.pending_total == "0.00"
+
+    for field in ("pending_total", "credited_total"):
+        payload = summary_payload()
+        payload[field] = 10.0
+        with pytest.raises(ValidationError):
+            PointsSummaryDTO.model_validate(payload)
+        payload = summary_payload()
+        payload["companies"][0][field] = 5.0
+        with pytest.raises(ValidationError):
+            PointsSummaryDTO.model_validate(payload)
+        payload = summary_payload()
+        payload[field] = "10.0"
+        with pytest.raises(ValidationError):
+            PointsSummaryDTO.model_validate(payload)
+
+    mismatched = summary_payload()
+    mismatched["pending_total"] = "11.00"
+    with pytest.raises(ValidationError):
+        PointsSummaryDTO.model_validate(mismatched)
+    extra = summary_payload()
+    extra["page"] = {"has_more": False}
+    with pytest.raises(ValidationError):
+        PointsSummaryDTO.model_validate(extra)
+    company_extra = summary_payload()
+    company_extra["companies"][0]["opaque"] = "nope"
+    with pytest.raises(ValidationError):
+        PointsSummaryDTO.model_validate(company_extra)
 
 
 @pytest.mark.parametrize("value", ["", "   ", 123, 1.5, "cmp1", "12345678", "cmp/unsafe"])

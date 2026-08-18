@@ -455,6 +455,7 @@ class ComposedClient:
     async def list_sales(self, cursor=None): raise AssertionError("unused")
     async def get_sale(self, sale_id): raise AssertionError("unused")
     async def list_points(self, status=None, cursor=None): raise AssertionError("unused")
+    async def get_points_summary(self): raise AssertionError("unused")
     async def get_points_transaction(self, points_transaction_id): raise AssertionError("unused")
     async def list_history(self, cursor=None): raise AssertionError("unused")
 

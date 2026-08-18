@@ -22,6 +22,7 @@ from services.guide_shop_contracts import (
     PointsAccrualDTO,
     PointsPayoutDTO,
     PointsStatus,
+    PointsSummaryDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -157,6 +158,7 @@ def disabled_calls(client):
         client.list_sales("ignored"),
         client.get_sale("ignored"),
         client.list_points(PointsStatus.PENDING, "ignored"),
+        client.get_points_summary(),
         client.get_points_transaction("ignored"),
         client.list_history("ignored"),
     ]
@@ -220,6 +222,13 @@ def test_fake_returns_typed_lists_details_filter_and_history_in_input_order():
     assert isinstance(run(client.get_visit("visit-01")), APIDetailResponseDTO)
     assert run(client.get_sale("sale-001")).data.sale_id == "sale-001"
     assert run(client.get_points_transaction("points-1")).data.points_accrual_id == "points-1"
+    summary = run(client.get_points_summary())
+    assert isinstance(summary, PointsSummaryDTO)
+    assert summary.pending_total == "2.00"
+    assert summary.credited_total == "2.00"
+    assert summary.unit == "PTS"
+    assert summary.companies[0].pending_total == "2.00"
+    assert summary.companies[0].credited_total == "2.00"
 
 
 def test_unknown_detail_ids_raise_safe_not_found_error():
@@ -248,6 +257,25 @@ def test_fake_pagination_uses_opaque_scoped_cursors_and_preserves_order():
         run(client.list_sales(cursor))
 
 
+def test_fake_points_summary_is_complete_scope_and_preserves_decimal_strings():
+    client = fake_client(page_size=1)
+    listed = run(client.list_points())
+    summary = run(client.get_points_summary())
+    empty = run(InMemoryGuideShopClient().get_points_summary())
+
+    assert len(listed.data) == 1
+    assert summary.pending_total == "2.00"
+    assert summary.credited_total == "2.00"
+    assert isinstance(summary.pending_total, str)
+    assert isinstance(summary.credited_total, str)
+    assert summary.companies[0].pending_total == "2.00"
+    assert summary.companies[0].credited_total == "2.00"
+    assert empty.pending_total == "0.00"
+    assert empty.credited_total == "0.00"
+    assert empty.companies == []
+    assert isinstance(empty, PointsSummaryDTO)
+
+
 def test_returned_lists_and_models_cannot_mutate_internal_state():
     client = fake_client()
     response = run(client.list_visits())
@@ -270,6 +298,8 @@ def test_fake_operations_perform_no_network_or_sqlite(monkeypatch):
         monkeypatch.setattr(sqlite3, "connect", unexpected)
         assert (await client.list_companies()).data[0].company_id == "company-1"
         assert (await client.get_visit("visit-01")).data.visit_id == "visit-01"
+        summary = await client.get_points_summary()
+        assert summary.pending_total == "2.00"
 
     run(exercise())
 
@@ -282,6 +312,7 @@ def test_protocol_methods_do_not_accept_guide_identity_arguments():
         "list_sales",
         "get_sale",
         "list_points",
+        "get_points_summary",
         "get_points_transaction",
         "list_history",
     ):

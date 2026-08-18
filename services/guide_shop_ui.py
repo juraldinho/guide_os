@@ -20,6 +20,7 @@ from services.guide_shop_contracts import (
     PointsAccrualDTO,
     PointsPayoutDTO,
     PointsStatus,
+    PointsSummaryDTO,
     SaleDTO,
     SalePaymentMethod,
     VisitDTO,
@@ -91,8 +92,8 @@ def _points_status_label(status: object) -> str:
     }.get(getattr(status, "value", status), "Неизвестно")
 
 
-def _format_total(values: list[Decimal]) -> str:
-    return format(sum(values, Decimal("0")), "f")
+def _positive_pts(value: str) -> bool:
+    return Decimal(value) > Decimal("0.00")
 
 
 def _timestamp(value: object) -> str:
@@ -151,9 +152,9 @@ def _optional_company_value(value: str | None) -> str:
     return value
 
 
-def _visit_text(visit: VisitDTO) -> str:
+def _visit_text(visit: VisitDTO, company_names: dict[str, str]) -> str:
     return (
-        f"🏢 Компания: {_safe(visit.company_id)}\n"
+        f"🏢 Компания: {_safe(_company_name(visit.company_id, company_names))}\n"
         f"Дата визита: {_timestamp(visit.visit_at)}\n"
         f"Туристов: {_safe(visit.tourist_count)}\n"
         f"Статус: {_visit_status_label(visit.status)}"
@@ -192,6 +193,95 @@ def _history_text(transaction: PointsPayoutDTO, company_names: dict[str, str]) -
         f"Баллы: {_safe(transaction.amount)} {_safe(transaction.unit)}\n"
         f"Выплачено: {_timestamp(transaction.paid_at)}"
     )
+
+
+def _company_breakdown_lines(
+    companies, *, amount_attr: str
+) -> list[str]:
+    lines = []
+    for company in companies:
+        amount = getattr(company, amount_attr)
+        if _positive_pts(amount):
+            lines.append(f"{_safe(company.display_name)}: {_safe(amount)} PTS")
+    return lines
+
+
+def _points_operations_block(
+    items: list[PointsAccrualDTO], company_names: dict[str, str]
+) -> str:
+    if not items:
+        return ""
+    return "\n\n".join(_points_text(item, company_names) for item in items)
+
+
+def _pending_points_text(
+    summary: PointsSummaryDTO,
+    items: list[PointsAccrualDTO],
+    company_names: dict[str, str],
+) -> str:
+    if not _positive_pts(summary.pending_total):
+        return "Ожидающих выплат нет"
+    parts = [f"Ожидает выплаты: {_safe(summary.pending_total)} PTS"]
+    breakdown = _company_breakdown_lines(
+        summary.companies, amount_attr="pending_total"
+    )
+    if breakdown:
+        parts.append("\n".join(breakdown))
+    operations = _points_operations_block(items, company_names)
+    if operations:
+        parts.append(operations)
+    return "\n\n".join(parts)
+
+
+def _credited_points_text(
+    summary: PointsSummaryDTO,
+    items: list[PointsAccrualDTO],
+    company_names: dict[str, str],
+) -> str:
+    if not _positive_pts(summary.credited_total):
+        return "Выплаченных баллов пока нет"
+    parts = [f"Выплачено: {_safe(summary.credited_total)} PTS"]
+    breakdown = _company_breakdown_lines(
+        summary.companies, amount_attr="credited_total"
+    )
+    if breakdown:
+        parts.append("\n".join(breakdown))
+    operations = _points_operations_block(items, company_names)
+    if operations:
+        parts.append(operations)
+    return "\n\n".join(parts)
+
+
+def _unfiltered_points_text(
+    summary: PointsSummaryDTO,
+    items: list[PointsAccrualDTO],
+    company_names: dict[str, str],
+) -> str:
+    if not _positive_pts(summary.pending_total) and not _positive_pts(
+        summary.credited_total
+    ):
+        return "Операции с баллами пока отсутствуют."
+    sections: list[str] = []
+    if _positive_pts(summary.pending_total):
+        pending_lines = [f"Ожидает выплаты: {_safe(summary.pending_total)} PTS"]
+        breakdown = _company_breakdown_lines(
+            summary.companies, amount_attr="pending_total"
+        )
+        if breakdown:
+            pending_lines.append("\n".join(breakdown))
+        sections.append("\n\n".join(pending_lines))
+    if _positive_pts(summary.credited_total):
+        credited_lines = [f"Выплачено: {_safe(summary.credited_total)} PTS"]
+        breakdown = _company_breakdown_lines(
+            summary.companies, amount_attr="credited_total"
+        )
+        if breakdown:
+            credited_lines.append("\n".join(breakdown))
+        sections.append("\n\n".join(credited_lines))
+    operations = _points_operations_block(items, company_names)
+    if operations:
+        sections.append(operations)
+    return "\n\n".join(sections)
 
 
 class GuideShopUIService:
@@ -270,6 +360,9 @@ class GuideShopUIService:
     async def visits(self, cursor: str | None = None) -> GuideShopScreen:
         try:
             response = await self._client.list_visits(cursor)
+            company_names = (
+                await _company_name_map(self._client) if response.data else {}
+            )
         except GuideShopClientError as error:
             return guide_shop_error_screen(error)
 
@@ -291,7 +384,9 @@ class GuideShopUIService:
             )
         actions.append(_back_home())
         text = (
-            "\n\n".join(_visit_text(visit) for visit in response.data)
+            "\n\n".join(
+                _visit_text(visit, company_names) for visit in response.data
+            )
             if response.data
             else "Визиты пока отсутствуют."
         )
@@ -379,6 +474,7 @@ class GuideShopUIService:
         cursor: str | None = None,
     ) -> GuideShopScreen:
         try:
+            summary = await self._client.get_points_summary()
             response = await self._client.list_points(status, cursor)
             company_names = await _company_name_map(self._client)
         except GuideShopClientError as error:
@@ -406,22 +502,18 @@ class GuideShopUIService:
                 )
             )
         actions.append(_back_home())
-        total_label = (
-            "На этой странице ожидает выплаты"
-            if status is PointsStatus.PENDING
-            else "На этой странице выплачено"
-            if status is PointsStatus.CREDITED
-            else "Баллов на этой странице"
-        )
-        text = (
-            (
-                f"{total_label}: "
-                f"{_format_total([Decimal(item.amount) for item in response.data])} PTS\n\n"
-                + "\n\n".join(_points_text(item, company_names) for item in response.data)
+        if status is PointsStatus.PENDING:
+            text = _pending_points_text(
+                summary, response.data, company_names
             )
-            if response.data
-            else "Операции с баллами пока отсутствуют."
-        )
+        elif status is PointsStatus.CREDITED:
+            text = _credited_points_text(
+                summary, response.data, company_names
+            )
+        else:
+            text = _unfiltered_points_text(
+                summary, response.data, company_names
+            )
         return _screen(text, actions)
 
     async def points_detail(

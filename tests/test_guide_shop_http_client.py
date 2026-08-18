@@ -25,6 +25,7 @@ from services.guide_shop_contracts import (
     PointsAccrualDTO,
     PointsPayoutDTO,
     PointsStatus,
+    PointsSummaryDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -110,6 +111,24 @@ def payout_payload():
         "unit": "PTS",
         "paid_at": UTC,
         "created_at": UTC,
+    }
+
+
+def summary_payload():
+    return {
+        "schema_version": "1.0.0",
+        "request_id": "request-1",
+        "unit": "PTS",
+        "pending_total": "10.00",
+        "credited_total": "5.00",
+        "companies": [
+            {
+                "company_id": "company-1",
+                "display_name": "Company",
+                "pending_total": "10.00",
+                "credited_total": "5.00",
+            }
+        ],
     }
 
 
@@ -381,6 +400,7 @@ def test_client_construction_binds_identity_and_performs_no_http():
         "list_sales",
         "get_sale",
         "list_points",
+        "get_points_summary",
         "get_points_transaction",
         "list_history",
     ):
@@ -467,6 +487,32 @@ def test_all_eight_methods_use_exact_paths_get_and_typed_envelopes():
     assert isinstance(results[4].data, SaleDTO)
     assert isinstance(results[6].data, PointsAccrualDTO)
     assert isinstance(results[7].data[0], PointsPayoutDTO)
+
+
+def test_points_summary_uses_exact_path_and_preserves_decimal_strings():
+    session = FakeSession([FakeResponse(payload=summary_payload())])
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+
+    result = run(client.get_points_summary())
+
+    method, url, kwargs = session.requests[0]
+    assert method == "GET"
+    assert url == "https://api.guideshop.example/integration/v1/me/points/summary"
+    assert kwargs["params"] is None
+    assert isinstance(result, PointsSummaryDTO)
+    assert result.pending_total == "10.00"
+    assert result.credited_total == "5.00"
+    assert result.companies[0].pending_total == "10.00"
+    assert result.companies[0].credited_total == "5.00"
+    assert isinstance(result.pending_total, str)
+    assert isinstance(result.credited_total, str)
+
+    bad = summary_payload()
+    bad["pending_total"] = 10.0
+    session = FakeSession([FakeResponse(payload=bad)])
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+    with pytest.raises(GuideShopClientError, match="Invalid GuideShop response"):
+        run(client.get_points_summary())
 
 
 def test_sale_list_and_detail_accept_unknown_payment_method():

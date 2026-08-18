@@ -73,6 +73,9 @@ class CloseableClient:
     async def list_points(self, status=None, cursor=None):
         raise AssertionError("unused")
 
+    async def get_points_summary(self):
+        raise AssertionError("unused")
+
     async def get_points_transaction(self, points_transaction_id):
         raise AssertionError("unused")
 

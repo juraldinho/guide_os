@@ -4,6 +4,7 @@ import re
 import secrets
 from collections.abc import Sequence
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from typing import Any, Protocol, TypeVar, runtime_checkable
 from urllib.parse import quote
 
@@ -18,6 +19,7 @@ from services.guide_shop_contracts import (
     PointsAccrualDTO,
     PointsPayoutDTO,
     PointsStatus,
+    PointsSummaryDTO,
     SaleDTO,
     VisitDTO,
 )
@@ -80,6 +82,8 @@ class GuideShopClient(Protocol):
         visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]: ...
 
+    async def get_points_summary(self) -> PointsSummaryDTO: ...
+
     async def get_points_transaction(
         self, points_transaction_id: str
     ) -> APIDetailResponseDTO[PointsAccrualDTO]: ...
@@ -125,6 +129,9 @@ class DisabledGuideShopClient:
         cursor: str | None = None,
         visit_id: str | None = None,
     ) -> APIListResponseDTO[PointsAccrualDTO]:
+        self._disabled()
+
+    async def get_points_summary(self) -> PointsSummaryDTO:
         self._disabled()
 
     async def get_points_transaction(
@@ -395,6 +402,13 @@ class HTTPGuideShopClient:
             APIListResponseDTO[PointsAccrualDTO],
         )
 
+    async def get_points_summary(self) -> PointsSummaryDTO:
+        return await self._request(
+            "/integration/v1/me/points/summary",
+            None,
+            PointsSummaryDTO,
+        )
+
     async def get_points_transaction(
         self, points_transaction_id: str
     ) -> APIDetailResponseDTO[PointsAccrualDTO]:
@@ -579,6 +593,66 @@ class InMemoryGuideShopClient:
             PointsAccrualDTO,
             "points_accrual_id",
             points_transaction_id,
+        )
+
+    @staticmethod
+    def _amount_pts(value: Decimal) -> str:
+        quantized = value.quantize(Decimal("0.01"))
+        text = format(quantized, "f")
+        if "." not in text:
+            text = f"{text}.00"
+        return text
+
+    async def get_points_summary(self) -> PointsSummaryDTO:
+        names = {
+            company.company_id: company.display_name
+            for company in self._companies
+        }
+        buckets: dict[str, dict[str, Decimal | str]] = {}
+        for item in self._points:
+            bucket = buckets.get(item.company_id)
+            if bucket is None:
+                buckets[item.company_id] = {
+                    "display_name": names.get(item.company_id, item.company_id),
+                    "pending": Decimal("0.00"),
+                    "credited": Decimal("0.00"),
+                }
+                bucket = buckets[item.company_id]
+            amount = Decimal(item.amount)
+            if item.status == PointsStatus.PENDING:
+                bucket["pending"] = bucket["pending"] + amount
+            elif item.status == PointsStatus.CREDITED:
+                bucket["credited"] = bucket["credited"] + amount
+        companies = [
+            {
+                "company_id": company_id,
+                "display_name": bucket["display_name"],
+                "pending_total": self._amount_pts(bucket["pending"]),
+                "credited_total": self._amount_pts(bucket["credited"]),
+            }
+            for company_id, bucket in sorted(buckets.items(), key=lambda item: item[0])
+        ]
+        pending_total = self._amount_pts(
+            sum(
+                (Decimal(item["pending_total"]) for item in companies),
+                Decimal("0.00"),
+            )
+        )
+        credited_total = self._amount_pts(
+            sum(
+                (Decimal(item["credited_total"]) for item in companies),
+                Decimal("0.00"),
+            )
+        )
+        return PointsSummaryDTO.model_validate(
+            {
+                "schema_version": "1.0.0",
+                "request_id": self._request_id(),
+                "unit": "PTS",
+                "pending_total": pending_total,
+                "credited_total": credited_total,
+                "companies": companies,
+            }
         )
 
     async def list_history(

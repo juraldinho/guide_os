@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 import re
 from typing import Annotated, Generic, Literal, TypeVar
@@ -222,6 +223,38 @@ class PointsPayoutDTO(StrictDTO):
     unit: Literal["PTS"]
     paid_at: UTCTimestamp
     created_at: UTCTimestamp
+
+
+class PointsCompanySummaryDTO(StrictDTO):
+    company_id: OpaqueId
+    display_name: BoundedName
+    pending_total: AmountPts
+    credited_total: AmountPts
+
+
+class PointsSummaryDTO(StrictDTO):
+    schema_version: SchemaVersion
+    request_id: RequestId
+    unit: Literal["PTS"]
+    pending_total: AmountPts
+    credited_total: AmountPts
+    companies: list[PointsCompanySummaryDTO]
+
+    @model_validator(mode="after")
+    def validate_reconciled_totals(self) -> "PointsSummaryDTO":
+        pending = sum(
+            (Decimal(item.pending_total) for item in self.companies),
+            Decimal("0.00"),
+        )
+        credited = sum(
+            (Decimal(item.credited_total) for item in self.companies),
+            Decimal("0.00"),
+        )
+        if pending != Decimal(self.pending_total):
+            raise ValueError("pending_total must equal company pending totals")
+        if credited != Decimal(self.credited_total):
+            raise ValueError("credited_total must equal company credited totals")
+        return self
 
 
 class PageDTO(StrictDTO):
