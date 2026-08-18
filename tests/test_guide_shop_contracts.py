@@ -241,11 +241,37 @@ def test_visit_status_enum(status):
     assert VisitDTO.model_validate(payload).status.value == status
 
 
-@pytest.mark.parametrize("method", ["cash", "card", "transfer"])
+@pytest.mark.parametrize("method", ["cash", "card", "transfer", "unknown"])
 def test_sale_payment_methods(method):
     payload = sale_payload()
     payload["payment_method"] = method
     assert SaleDTO.model_validate(payload).payment_method.value == method
+
+
+def test_sale_list_and_detail_envelopes_accept_unknown_payment_method():
+    payload = sale_payload()
+    payload["payment_method"] = "unknown"
+    listed = APIListResponseDTO[SaleDTO].model_validate(list_envelope(payload))
+    detail = APIDetailResponseDTO[SaleDTO].model_validate(
+        {
+            "schema_version": "1.0.0",
+            "request_id": "req_8f32ab12",
+            "data": payload,
+        }
+    )
+    assert listed.data[0].payment_method.value == "unknown"
+    assert detail.data.payment_method.value == "unknown"
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["crypto", "paypal", "UNKNOWN", "Unknown", "cash ", "", None, 1],
+)
+def test_invalid_sale_payment_methods_are_rejected(method):
+    payload = sale_payload()
+    payload["payment_method"] = method
+    with pytest.raises(ValidationError):
+        SaleDTO.model_validate(payload)
 
 
 @pytest.mark.parametrize("timestamp", ["2026-08-07T12:30:45", "2026-08-07T12:30:45+00:00", "2026-08-07T12:30:45+05:00"])

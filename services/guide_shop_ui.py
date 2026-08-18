@@ -16,6 +16,7 @@ from services.guide_shop_contracts import (
     PointsPayoutDTO,
     PointsStatus,
     SaleDTO,
+    SalePaymentMethod,
     VisitDTO,
 )
 from services.guide_shop_navigation import GuideShopRoute
@@ -95,11 +96,17 @@ def _visit_text(visit: VisitDTO) -> str:
     )
 
 
+def _sale_payment_line(sale: SaleDTO) -> str:
+    if sale.payment_method is SalePaymentMethod.UNKNOWN:
+        return "Способ оплаты: не указан"
+    return f"Оплата: {_safe(sale.payment_method)}"
+
+
 def _sale_text(sale: SaleDTO) -> str:
     return (
         f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}\n"
         f"Категория: {_safe(sale.category_name)}\n"
-        f"Оплата: {_safe(sale.payment_method)}\n"
+        f"{_sale_payment_line(sale)}\n"
         f"Статус: {_safe(sale.status)}\n"
         f"Создано: {_timestamp(sale.created_at)}"
     )
@@ -247,7 +254,7 @@ class GuideShopUIService:
         lines = [
             f"💵 Сумма: {_safe(sale.amount)} {_safe(sale.currency)}",
             f"Категория: {_safe(sale.category_name)}",
-            f"Оплата: {_safe(sale.payment_method)}",
+            _sale_payment_line(sale),
             f"Статус: {_safe(sale.status)}",
             f"Создано: {_timestamp(sale.created_at)}",
             f"Обновлено: {_timestamp(sale.updated_at)}",

@@ -63,7 +63,7 @@ def visit(visit_id="visit-01", company_id="company-1"):
     )
 
 
-def sale(sale_id="sale-001", category="Textiles"):
+def sale(sale_id="sale-001", category="Textiles", payment_method="card"):
     payload = {
         "sale_id": sale_id,
         "visit_id": "visit-01",
@@ -71,7 +71,7 @@ def sale(sale_id="sale-001", category="Textiles"):
         "amount": "125.40",
         "currency": "USD",
         "status": "active",
-        "payment_method": "card",
+        "payment_method": payment_method,
         "category_id": "category1",
         "category_name": category,
         "created_at": UTC,
@@ -245,7 +245,7 @@ def test_detail_screens_include_required_and_optional_fields_safely():
 
     for label in ["Компания", "Дата визита", "Туристов", "Статус", "Создано", "Обновлено"]:
         assert label in visit_screen.text
-    assert "Оплата" in sale_screen.text
+    assert "Оплата: card" in sale_screen.text
     assert "125.40 USD" in sale_screen.text
     assert "&lt;Textiles&gt;" in sale_screen.text
     assert "Зачислено" in points_screen.text
@@ -257,6 +257,19 @@ def test_detail_screens_include_required_and_optional_fields_safely():
     assert "Аннулировано" not in run(absent_service.sale_detail("sale-001")).text
     absent_points = run(absent_service.points_detail("points-01")).text
     assert "Зачислено" not in absent_points
+
+
+def test_unknown_payment_method_renders_as_unspecified_in_russian():
+    client = InMemoryGuideShopClient(sales=[sale(payment_method="unknown")])
+    service = GuideShopUIService(client)
+    list_screen = run(service.sales())
+    detail_screen = run(service.sale_detail("sale-001"))
+
+    assert "Способ оплаты: не указан" in list_screen.text
+    assert "Способ оплаты: не указан" in detail_screen.text
+    assert "Оплата: unknown" not in list_screen.text
+    assert "Оплата: unknown" not in detail_screen.text
+    assert "Оплата: card" not in list_screen.text
 
 
 @pytest.mark.parametrize(

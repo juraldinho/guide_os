@@ -469,6 +469,33 @@ def test_all_eight_methods_use_exact_paths_get_and_typed_envelopes():
     assert isinstance(results[7].data[0], PointsPayoutDTO)
 
 
+def test_sale_list_and_detail_accept_unknown_payment_method():
+    payload = sale_payload()
+    payload["payment_method"] = "unknown"
+    session = FakeSession(
+        [
+            FakeResponse(payload=list_envelope(payload)),
+            FakeResponse(payload=detail_envelope(payload)),
+        ]
+    )
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+
+    listed = run(client.list_sales())
+    detail = run(client.get_sale("sale-001"))
+
+    assert listed.data[0].payment_method.value == "unknown"
+    assert detail.data.payment_method.value == "unknown"
+
+
+def test_sale_list_rejects_invalid_payment_method():
+    payload = sale_payload()
+    payload["payment_method"] = "crypto"
+    session = FakeSession([FakeResponse(payload=list_envelope(payload))])
+    client = HTTPGuideShopClient(settings(), "guide", TokenProvider(), session=session)
+    with pytest.raises(GuideShopClientError, match="Invalid GuideShop response"):
+        run(client.list_sales())
+
+
 def test_cursor_and_points_status_queries_are_optional_and_strict():
     session = FakeSession(
         [

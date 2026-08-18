@@ -109,6 +109,7 @@ class SalePaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
     TRANSFER = "transfer"
+    UNKNOWN = "unknown"
 
 
 class SaleStatus(str, Enum):
