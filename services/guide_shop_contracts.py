@@ -16,6 +16,8 @@ from pydantic import (
     model_validator,
 )
 
+from utils.guide_os_identity import validate_guide_os_id
+
 
 _OPAQUE_ID_PATTERN = re.compile(r"^(?![0-9]+$)[A-Za-z0-9._:-]+$")
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -60,6 +62,27 @@ def _bounded_name(value: str) -> str:
     return value
 
 
+def _event_id(value: str) -> str:
+    value = _opaque_id(value)
+    if not value.startswith("evt_"):
+        raise ValueError("invalid event id")
+    return value
+
+
+def _visit_subject_id(value: str) -> str:
+    value = _opaque_id(value)
+    if not value.startswith("vis_"):
+        raise ValueError("invalid visit subject id")
+    return value
+
+
+def _points_subject_id(value: str) -> str:
+    value = _opaque_id(value)
+    if not value.startswith("pts_"):
+        raise ValueError("invalid points subject id")
+    return value
+
+
 def _utc_timestamp(value: object) -> datetime:
     if not isinstance(value, str):
         raise ValueError("timestamp must be an ISO 8601 string")
@@ -82,6 +105,10 @@ AmountUsd = Annotated[StrictStr, AfterValidator(_amount_string)]
 AmountPts = Annotated[StrictStr, AfterValidator(_amount_string)]
 BoundedName = Annotated[StrictStr, AfterValidator(_bounded_name)]
 UTCTimestamp = Annotated[datetime, BeforeValidator(_utc_timestamp)]
+EventId = Annotated[StrictStr, AfterValidator(_event_id)]
+VisitSubjectId = Annotated[StrictStr, AfterValidator(_visit_subject_id)]
+PointsSubjectId = Annotated[StrictStr, AfterValidator(_points_subject_id)]
+GuideOsId = Annotated[StrictStr, AfterValidator(validate_guide_os_id)]
 SchemaVersion = Literal["1.0.0"]
 
 
@@ -297,79 +324,45 @@ class APIErrorDTO(StrictDTO):
 
 
 class EventSubjectDTO(StrictDTO):
-    type: Literal["visit", "sale", "points_transaction"]
-    id: NonEmptyString
+    type: Literal["visit", "points_accrual"]
+    id: VisitSubjectId | PointsSubjectId
+
+    @model_validator(mode="after")
+    def validate_typed_id(self) -> "EventSubjectDTO":
+        if self.type == "visit" and not self.id.startswith("vis_"):
+            raise ValueError("visit subject requires visit id")
+        if self.type == "points_accrual" and not self.id.startswith("pts_"):
+            raise ValueError("points subject requires points id")
+        return self
 
 
-class VisitCreatedDataDTO(StrictDTO):
-    visit_id: NonEmptyString
-    company_id: NonEmptyString
-
-
-class SaleCreatedDataDTO(StrictDTO):
-    sale_id: NonEmptyString
-    visit_id: NonEmptyString
-    amount_usd: AmountUsd
-    currency: Literal["USD"]
-
-
-class PointsRecalculatedDataDTO(StrictDTO):
-    points_transaction_id: NonEmptyString
-    old_amount: AmountPts
-    new_amount: AmountPts
-    status: PointsStatus
-
-
-class PointsCreditedDataDTO(StrictDTO):
-    points_transaction_id: NonEmptyString
-    amount: AmountPts
-    status: Literal["credited"]
-
-
-EventDataDTO = (
-    VisitCreatedDataDTO
-    | SaleCreatedDataDTO
-    | PointsRecalculatedDataDTO
-    | PointsCreditedDataDTO
-)
+class EventDataDTO(StrictDTO):
+    pass
 
 
 class EventEnvelopeDTO(StrictDTO):
-    event_id: NonEmptyString
+    event_id: EventId
     event_type: Literal[
-        "visit.created.v1",
-        "sale.created.v1",
-        "points.recalculated.v1",
-        "points.credited.v1",
+        "visit.created",
+        "visit.updated",
+        "visit.completed",
+        "points.accrual_updated",
+        "points.credited",
     ]
+    event_version: Literal["v1"]
+    schema_version: SchemaVersion
     occurred_at: UTCTimestamp
     producer: Literal["guideshop"]
     subject: EventSubjectDTO
-    guide_os_id: NonEmptyString
+    guide_os_id: GuideOsId
+    aggregate_version: Annotated[StrictInt, Field(ge=1)]
     data: EventDataDTO
-    schema_version: SchemaVersion
 
     @model_validator(mode="after")
     def validate_event_shape(self) -> "EventEnvelopeDTO":
-        expected = {
-            "visit.created.v1": ("visit", VisitCreatedDataDTO, "visit_id"),
-            "sale.created.v1": ("sale", SaleCreatedDataDTO, "sale_id"),
-            "points.recalculated.v1": (
-                "points_transaction",
-                PointsRecalculatedDataDTO,
-                "points_transaction_id",
-            ),
-            "points.credited.v1": (
-                "points_transaction",
-                PointsCreditedDataDTO,
-                "points_transaction_id",
-            ),
-        }
-        subject_type, data_type, data_id_field = expected[self.event_type]
-        if self.subject.type != subject_type:
+        expected_subject = (
+            "visit" if self.event_type.startswith("visit.") else "points_accrual"
+        )
+        if self.subject.type != expected_subject:
             raise ValueError("event subject does not match event_type")
-        if not isinstance(self.data, data_type):
-            raise ValueError("event data does not match event_type")
-        if self.subject.id != getattr(self.data, data_id_field):
-            raise ValueError("event subject id does not match event data id")
         return self

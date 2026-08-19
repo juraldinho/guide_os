@@ -137,48 +137,19 @@ def list_envelope(item) -> dict:
 
 
 def event_payload(event_type: str) -> dict:
-    variants = {
-        "visit.created.v1": (
-            {"type": "visit", "id": "visit-1"},
-            {"visit_id": "visit-1", "company_id": "company-1"},
-        ),
-        "sale.created.v1": (
-            {"type": "sale", "id": "sale-1"},
-            {
-                "sale_id": "sale-1",
-                "visit_id": "visit-1",
-                "amount_usd": "125.40",
-                "currency": "USD",
-            },
-        ),
-        "points.recalculated.v1": (
-            {"type": "points_transaction", "id": "points-1"},
-            {
-                "points_transaction_id": "points-1",
-                "old_amount": "12.00",
-                "new_amount": "16.00",
-                "status": "pending",
-            },
-        ),
-        "points.credited.v1": (
-            {"type": "points_transaction", "id": "points-1"},
-            {
-                "points_transaction_id": "points-1",
-                "amount": "16.00",
-                "status": "credited",
-            },
-        ),
-    }
-    subject, data = variants[event_type]
+    subject_type = "visit" if event_type.startswith("visit.") else "points_accrual"
+    subject_id = "vis_8f32ab10" if subject_type == "visit" else "pts_8f32ab10"
     return {
-        "event_id": "event-1",
+        "event_id": "evt_8f32ab10",
         "event_type": event_type,
+        "event_version": "v1",
+        "schema_version": "1.0.0",
         "occurred_at": UTC_Z,
         "producer": "guideshop",
-        "subject": subject,
-        "guide_os_id": "guide-1",
-        "data": data,
-        "schema_version": "1.0.0",
+        "subject": {"type": subject_type, "id": subject_id},
+        "guide_os_id": "123e4567-e89b-42d3-a456-426614174000",
+        "aggregate_version": 1,
+        "data": {},
     }
 
 
@@ -546,60 +517,53 @@ def test_api_error_code_and_retry_after_invariants():
             APIErrorDTO.model_validate(payload)
 
 
-@pytest.mark.parametrize("event_type", ["visit.created.v1", "sale.created.v1", "points.recalculated.v1", "points.credited.v1"])
-def test_each_required_event_has_typed_valid_data(event_type):
+@pytest.mark.parametrize("event_type", ["visit.created", "visit.updated", "visit.completed", "points.accrual_updated", "points.credited"])
+def test_each_authorized_v1_2_event_has_strict_empty_data(event_type):
     parsed = EventEnvelopeDTO.model_validate(event_payload(event_type))
     assert parsed.event_type == event_type
+    assert parsed.event_version == "v1"
     assert parsed.schema_version == "1.0.0"
     assert not isinstance(parsed.data, dict)
-    id_field = {
-        "visit.created.v1": "visit_id",
-        "sale.created.v1": "sale_id",
-        "points.recalculated.v1": "points_transaction_id",
-        "points.credited.v1": "points_transaction_id",
-    }[event_type]
-    expected_id = getattr(parsed.data, id_field)
-    assert parsed.subject.id == expected_id
+    assert parsed.data.model_dump() == {}
 
 
 @pytest.mark.parametrize(
     "event_type",
     [
-        "visit.created.v1",
-        "sale.created.v1",
-        "points.recalculated.v1",
-        "points.credited.v1",
+        "visit.created",
+        "visit.updated",
+        "visit.completed",
+        "points.accrual_updated",
+        "points.credited",
     ],
 )
-def test_event_subject_id_must_match_typed_data_id(event_type):
+def test_event_subject_id_prefix_must_match_subject_type(event_type):
     payload = event_payload(event_type)
-    payload["subject"]["id"] = "different-id"
-
-    with pytest.raises(
-        ValidationError,
-        match="event subject id does not match event data id",
-    ):
+    payload["subject"]["id"] = (
+        "pts_8f32ab10" if payload["subject"]["type"] == "visit" else "vis_8f32ab10"
+    )
+    with pytest.raises(ValidationError):
         EventEnvelopeDTO.model_validate(payload)
 
 
 def test_event_type_subject_data_and_version_mismatches_are_rejected():
-    wrong_subject = event_payload("visit.created.v1")
-    wrong_subject["subject"]["type"] = "sale"
+    wrong_subject = event_payload("visit.created")
+    wrong_subject["subject"] = {"type": "points_accrual", "id": "pts_8f32ab10"}
     with pytest.raises(ValidationError):
         EventEnvelopeDTO.model_validate(wrong_subject)
 
-    wrong_data = event_payload("visit.created.v1")
-    wrong_data["data"] = event_payload("sale.created.v1")["data"]
+    wrong_data = event_payload("visit.created")
+    wrong_data["data"] = {"visit_id": "vis_8f32ab10"}
     with pytest.raises(ValidationError):
         EventEnvelopeDTO.model_validate(wrong_data)
 
-    wrong_version = event_payload("visit.created.v1")
-    wrong_version["event_type"] = "visit.created.v2"
+    wrong_version = event_payload("visit.created")
+    wrong_version["event_version"] = "v2"
     with pytest.raises(ValidationError):
         EventEnvelopeDTO.model_validate(wrong_version)
 
-    unknown_data_field = event_payload("sale.created.v1")
-    unknown_data_field["data"]["payment_method"] = "cash"
+    unknown_data_field = event_payload("points.credited")
+    unknown_data_field["unexpected"] = "closed"
     with pytest.raises(ValidationError):
         EventEnvelopeDTO.model_validate(unknown_data_field)
 
@@ -612,4 +576,4 @@ def test_parsing_performs_no_network_or_database_operations(monkeypatch):
     monkeypatch.setattr(sqlite3, "connect", unexpected_operation)
 
     assert CompanyDTO.model_validate(copy.deepcopy(company_payload())).company_id == "cmp_8f32ab10"
-    assert EventEnvelopeDTO.model_validate(event_payload("sale.created.v1")).producer == "guideshop"
+    assert EventEnvelopeDTO.model_validate(event_payload("points.credited")).producer == "guideshop"

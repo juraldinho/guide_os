@@ -464,6 +464,81 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_event_inbox (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        event_version TEXT NOT NULL,
+        schema_version TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        producer TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        subject_type TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        aggregate_version INTEGER NOT NULL CHECK(aggregate_version >= 1),
+        state TEXT NOT NULL CHECK(state IN (
+            'pending', 'processing', 'delivered', 'stale', 'dead_letter'
+        )),
+        received_at TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+        max_attempts INTEGER NOT NULL DEFAULT 5 CHECK(
+            max_attempts >= 1 AND max_attempts <= 20
+        ),
+        next_attempt_at TEXT,
+        last_attempt_at TEXT,
+        terminal_at TEXT,
+        CHECK(attempt_count <= max_attempts)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_guide_shop_event_inbox_pending
+    ON guide_shop_event_inbox(state, received_at, occurred_at, event_id)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_guide_shop_event_inbox_aggregate
+    ON guide_shop_event_inbox(
+        guide_os_id, subject_type, subject_id, aggregate_version
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_event_watermarks (
+        guide_os_id TEXT NOT NULL,
+        subject_type TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        highest_aggregate_version INTEGER NOT NULL CHECK(
+            highest_aggregate_version >= 1
+        ),
+        event_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(guide_os_id, subject_type, subject_id),
+        FOREIGN KEY(event_id) REFERENCES guide_shop_event_inbox(event_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_guide_shop_event_inbox_content_immutable
+    BEFORE UPDATE ON guide_shop_event_inbox
+    FOR EACH ROW
+    WHEN
+        NEW.event_id IS NOT OLD.event_id
+        OR NEW.event_type IS NOT OLD.event_type
+        OR NEW.event_version IS NOT OLD.event_version
+        OR NEW.schema_version IS NOT OLD.schema_version
+        OR NEW.occurred_at IS NOT OLD.occurred_at
+        OR NEW.producer IS NOT OLD.producer
+        OR NEW.guide_os_id IS NOT OLD.guide_os_id
+        OR NEW.subject_type IS NOT OLD.subject_type
+        OR NEW.subject_id IS NOT OLD.subject_id
+        OR NEW.aggregate_version IS NOT OLD.aggregate_version
+        OR NEW.received_at IS NOT OLD.received_at
+    BEGIN
+        SELECT RAISE(ABORT, 'event inbox content is immutable');
+    END
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
