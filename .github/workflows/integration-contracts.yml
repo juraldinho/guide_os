@@ -20,9 +20,9 @@ jobs:
 
     env:
       CONTRACT_REPOSITORY: juraldinho/guide-os-integration-contracts
-      CONTRACT_TAG: v1.1.0
-      CONTRACT_COMMIT: c071fd45d4ec684f5ac32e8e9e71bc26d4014283
-      CONTRACT_VERSION: "1.1.0"
+      CONTRACT_TAG: v1.2.0
+      CONTRACT_COMMIT: 28eeec371208c4d58dea008e4890f6b69f651c75
+      CONTRACT_VERSION: "1.2.0"
 
     steps:
       - name: Checkout application repository
