@@ -51,10 +51,29 @@ from services.guide_shop_settings import (
 )
 from services.guide_shop_ui import GuideShopUIService
 from services.guide_shop_link_provider import start_guide_shop_link_provider
+from services.guide_shop_event_worker import (
+    build_guide_shop_event_worker,
+    validate_guide_shop_event_flags,
+)
 
 from utils.logger import setup_logging
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+
+async def start_guide_shop_event_worker(bot, values=None):
+    worker = await build_guide_shop_event_worker(bot, values)
+    return asyncio.create_task(worker.run()) if worker is not None else None
+
+
+async def stop_guide_shop_event_worker(task) -> None:
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 def configure_guide_shop_runtime(values=None) -> None:
@@ -128,13 +147,16 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     configure_guide_shop_runtime()
+    validate_guide_shop_event_flags()
 
     bot = Bot(token=BOT_TOKEN)
     await setup_bot_commands(bot)
     
     init_db()
     link_provider_runner = None
+    event_worker_task = None
     try:
+        event_worker_task = await start_guide_shop_event_worker(bot)
         link_provider_runner = await start_guide_shop_link_provider()
         logger.info("Bot started")
         logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
@@ -161,8 +183,11 @@ async def main() -> None:
 
         await dp.start_polling(bot, skip_updates=True)
     finally:
-        if link_provider_runner is not None:
-            await link_provider_runner.cleanup()
+        try:
+            await stop_guide_shop_event_worker(event_worker_task)
+        finally:
+            if link_provider_runner is not None:
+                await link_provider_runner.cleanup()
 
 
 if __name__ == "__main__":

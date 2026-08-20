@@ -616,6 +616,23 @@ def get_guide_os_id(user_id: int) -> str | None:
     return row["guide_os_id"] if row else None
 
 
+def get_active_guide_shop_guide_os_ids() -> list[str]:
+    ensure_db_ready()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT guide_os_id
+            FROM guide_shop_link_exchanges
+            WHERE status = 'active'
+            ORDER BY guide_os_id
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    return [validate_guide_os_id(row["guide_os_id"]) for row in rows]
+
+
 def create_guide_shop_link_request(
     guide_os_id: str,
     token_hash: str,
