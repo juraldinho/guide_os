@@ -84,7 +84,15 @@ class FakeClient:
         self.close_calls += 1
 
 
-def worker(identities, factory, *, notifications=False, sender=None, sleep=asyncio.sleep):
+def worker(
+    identities,
+    factory,
+    *,
+    notifications=False,
+    sender=None,
+    sleep=asyncio.sleep,
+    **kwargs,
+):
     return GuideShopEventWorker(
         http_settings=http_settings(),
         signing_settings=signing_settings(),
@@ -95,6 +103,7 @@ def worker(identities, factory, *, notifications=False, sender=None, sleep=async
         sleep=sleep,
         identity_loader=lambda: list(identities),
         client_factory=factory,
+        **kwargs,
     )
 
 
@@ -251,7 +260,9 @@ def test_event_only_mode_never_builds_notification_service(monkeypatch):
 
 def test_abandoned_recovery_runs_only_with_notifications_enabled(monkeypatch):
     inbox = SimpleNamespace(
-        recover_abandoned=Mock(),
+        recover_abandoned=Mock(
+            return_value=SimpleNamespace(pending_count=0, dead_letter_count=0)
+        ),
         claim_due=Mock(return_value=None),
     )
     inbox_factory = Mock(return_value=inbox)
