@@ -70,6 +70,24 @@ class FailureTransition:
     transitioned: bool
 
 
+@dataclass(frozen=True)
+class AbandonedRecoveryResult:
+    selected_count: int
+    pending_count: int
+    dead_letter_count: int
+
+
+@dataclass(frozen=True)
+class DeadLetterReplayResult:
+    selected_count: int
+    replayed_count: int
+
+
+PROCESSING_LEASE_TIMEOUT = timedelta(minutes=5)
+MAX_RECOVERY_BATCH_SIZE = 100
+MAX_INBOX_ATTEMPTS = 20
+
+
 def _utc_iso(value: datetime) -> str:
     if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
         raise ValueError("clock must return an aware UTC datetime")
@@ -314,6 +332,170 @@ class GuideShopEventInboxService:
                 (next_attempt_at, claim.event.event_id, claim.claim_attempt),
             )
             return FailureTransition("pending", updated.rowcount == 1)
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def recover_abandoned(
+        self, *, limit: int = MAX_RECOVERY_BATCH_SIZE, apply: bool
+    ) -> AbandonedRecoveryResult:
+        if isinstance(limit, bool) or not 1 <= limit <= MAX_RECOVERY_BATCH_SIZE:
+            raise ValueError("recovery limit is invalid")
+        if not isinstance(apply, bool):
+            raise ValueError("recovery mode is invalid")
+        recovered_at = self._clock()
+        recovered_at_iso = _utc_iso(recovered_at)
+        lease_cutoff = _utc_iso(recovered_at - PROCESSING_LEASE_TIMEOUT)
+
+        def select_rows(conn):
+            return conn.execute(
+                """
+                SELECT event_id, attempt_count, max_attempts, last_attempt_at
+                FROM guide_shop_event_inbox
+                WHERE state = 'processing'
+                  AND last_attempt_at IS NOT NULL
+                  AND last_attempt_at < ?
+                ORDER BY last_attempt_at, received_at, occurred_at, event_id
+                LIMIT ?
+                """,
+                (lease_cutoff, limit),
+            ).fetchall()
+
+        if not apply:
+            ensure_db_ready()
+            with get_db_connection() as conn:
+                rows = select_rows(conn)
+            exhausted = sum(
+                row["attempt_count"] >= row["max_attempts"] for row in rows
+            )
+            return AbandonedRecoveryResult(
+                selected_count=len(rows),
+                pending_count=len(rows) - exhausted,
+                dead_letter_count=exhausted,
+            )
+
+        def operation(conn):
+            rows = select_rows(conn)
+            pending_count = 0
+            dead_letter_count = 0
+            for row in rows:
+                exhausted = row["attempt_count"] >= row["max_attempts"]
+                if exhausted:
+                    updated = conn.execute(
+                        """
+                        UPDATE guide_shop_event_inbox
+                        SET state = 'dead_letter', terminal_at = ?,
+                            next_attempt_at = NULL
+                        WHERE event_id = ?
+                          AND state = 'processing'
+                          AND attempt_count = ?
+                          AND max_attempts = ?
+                          AND last_attempt_at = ?
+                          AND last_attempt_at < ?
+                        """,
+                        (
+                            recovered_at_iso,
+                            row["event_id"],
+                            row["attempt_count"],
+                            row["max_attempts"],
+                            row["last_attempt_at"],
+                            lease_cutoff,
+                        ),
+                    )
+                    dead_letter_count += updated.rowcount
+                else:
+                    updated = conn.execute(
+                        """
+                        UPDATE guide_shop_event_inbox
+                        SET state = 'pending', next_attempt_at = ?,
+                            terminal_at = NULL
+                        WHERE event_id = ?
+                          AND state = 'processing'
+                          AND attempt_count = ?
+                          AND max_attempts = ?
+                          AND last_attempt_at = ?
+                          AND last_attempt_at < ?
+                        """,
+                        (
+                            recovered_at_iso,
+                            row["event_id"],
+                            row["attempt_count"],
+                            row["max_attempts"],
+                            row["last_attempt_at"],
+                            lease_cutoff,
+                        ),
+                    )
+                    pending_count += updated.rowcount
+            return AbandonedRecoveryResult(
+                selected_count=len(rows),
+                pending_count=pending_count,
+                dead_letter_count=dead_letter_count,
+            )
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def replay_dead_letters(
+        self, *, limit: int = MAX_RECOVERY_BATCH_SIZE, apply: bool
+    ) -> DeadLetterReplayResult:
+        if isinstance(limit, bool) or not 1 <= limit <= MAX_RECOVERY_BATCH_SIZE:
+            raise ValueError("replay limit is invalid")
+        if not isinstance(apply, bool):
+            raise ValueError("replay mode is invalid")
+        replayed_at = _utc_iso(self._clock())
+
+        def select_rows(conn):
+            return conn.execute(
+                """
+                SELECT event_id, attempt_count, max_attempts, terminal_at
+                FROM guide_shop_event_inbox
+                WHERE state = 'dead_letter'
+                  AND attempt_count < ?
+                ORDER BY terminal_at, received_at, occurred_at, event_id
+                LIMIT ?
+                """,
+                (MAX_INBOX_ATTEMPTS, limit),
+            ).fetchall()
+
+        if not apply:
+            ensure_db_ready()
+            with get_db_connection() as conn:
+                rows = select_rows(conn)
+            return DeadLetterReplayResult(
+                selected_count=len(rows), replayed_count=0
+            )
+
+        def operation(conn):
+            rows = select_rows(conn)
+            replayed_count = 0
+            for row in rows:
+                next_max_attempts = row["attempt_count"] + 1
+                updated = conn.execute(
+                    """
+                    UPDATE guide_shop_event_inbox
+                    SET state = 'pending', max_attempts = ?,
+                        next_attempt_at = ?, terminal_at = NULL
+                    WHERE event_id = ?
+                      AND state = 'dead_letter'
+                      AND attempt_count = ?
+                      AND max_attempts = ?
+                      AND terminal_at IS ?
+                      AND attempt_count < ?
+                    """,
+                    (
+                        next_max_attempts,
+                        replayed_at,
+                        row["event_id"],
+                        row["attempt_count"],
+                        row["max_attempts"],
+                        row["terminal_at"],
+                        MAX_INBOX_ATTEMPTS,
+                    ),
+                )
+                replayed_count += updated.rowcount
+            return DeadLetterReplayResult(
+                selected_count=len(rows), replayed_count=replayed_count
+            )
 
         ensure_db_ready()
         return run_write_with_retry(operation)

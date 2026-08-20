@@ -27,6 +27,7 @@ from services.guide_shop_settings import (
 
 EVENT_PAGE_LIMIT = 20
 NOTIFICATION_BATCH_LIMIT = 20
+RECOVERY_BATCH_LIMIT = 100
 POLL_INTERVAL_SECONDS = 30
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,7 @@ class GuideShopEventWorker:
         if not self._notifications_enabled:
             return
         inbox = GuideShopEventInboxService(clock=self._clock)
+        inbox.recover_abandoned(limit=RECOVERY_BATCH_LIMIT, apply=True)
         notifications = GuideShopEventNotificationService(
             inbox=inbox,
             sender=self._sender,

@@ -18,6 +18,7 @@ from services.guide_shop_event_worker import (
     EVENT_PAGE_LIMIT,
     NOTIFICATION_BATCH_LIMIT,
     POLL_INTERVAL_SECONDS,
+    RECOVERY_BATCH_LIMIT,
     GuideShopEventRuntimeConfigurationError,
     GuideShopEventWorker,
     AiogramGuideShopEventNotificationSender,
@@ -246,6 +247,34 @@ def test_event_only_mode_never_builds_notification_service(monkeypatch):
     monkeypatch.setattr(worker_module, "GuideShopEventNotificationService", notifications)
     run(worker([], Mock(), notifications=False).run_cycle())
     notifications.assert_not_called()
+
+
+def test_abandoned_recovery_runs_only_with_notifications_enabled(monkeypatch):
+    inbox = SimpleNamespace(
+        recover_abandoned=Mock(),
+        claim_due=Mock(return_value=None),
+    )
+    inbox_factory = Mock(return_value=inbox)
+    monkeypatch.setattr(worker_module, "GuideShopEventInboxService", inbox_factory)
+    monkeypatch.setattr(
+        worker_module,
+        "GuideShopEventNotificationService",
+        Mock(
+            return_value=SimpleNamespace(
+                process_one=AsyncMock(
+                    return_value=SimpleNamespace(outcome="idle")
+                )
+            )
+        ),
+    )
+
+    run(worker([], Mock(), notifications=False).run_cycle())
+    inbox_factory.assert_not_called()
+
+    run(worker([], Mock(), notifications=True, sender=AsyncMock()).run_cycle())
+    inbox.recover_abandoned.assert_called_once_with(
+        limit=RECOVERY_BATCH_LIMIT, apply=True
+    )
 
 
 def test_notification_mode_processes_at_most_twenty(monkeypatch):
