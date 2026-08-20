@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Callable
 
@@ -56,6 +56,18 @@ class AggregateWatermark:
     highest_aggregate_version: int
     event_id: str
     updated_at: str
+
+
+@dataclass(frozen=True)
+class ClaimedInboxEvent:
+    event: InboxEvent
+    claim_attempt: int
+
+
+@dataclass(frozen=True)
+class FailureTransition:
+    state: str
+    transitioned: bool
 
 
 def _utc_iso(value: datetime) -> str:
@@ -194,6 +206,114 @@ class GuideShopEventInboxService:
                     ),
                 )
             return IngestionResult(IngestionOutcome.INSERTED, state)
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def claim_due(self) -> ClaimedInboxEvent | None:
+        claimed_at = _utc_iso(self._clock())
+
+        def operation(conn):
+            row = conn.execute(
+                """
+                SELECT * FROM guide_shop_event_inbox
+                WHERE state = 'pending'
+                  AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                ORDER BY received_at, occurred_at, event_id
+                LIMIT 1
+                """,
+                (claimed_at,),
+            ).fetchone()
+            if row is None:
+                return None
+            updated = conn.execute(
+                """
+                UPDATE guide_shop_event_inbox
+                SET state = 'processing',
+                    attempt_count = attempt_count + 1,
+                    last_attempt_at = ?,
+                    next_attempt_at = NULL,
+                    terminal_at = NULL
+                WHERE event_id = ?
+                  AND state = 'pending'
+                  AND attempt_count = ?
+                  AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                """,
+                (claimed_at, row["event_id"], row["attempt_count"], claimed_at),
+            )
+            if updated.rowcount != 1:
+                return None
+            claimed = conn.execute(
+                "SELECT * FROM guide_shop_event_inbox WHERE event_id = ?",
+                (row["event_id"],),
+            ).fetchone()
+            event = InboxEvent(**dict(claimed))
+            return ClaimedInboxEvent(event=event, claim_attempt=event.attempt_count)
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def mark_delivered(self, claim: ClaimedInboxEvent) -> bool:
+        delivered_at = _utc_iso(self._clock())
+
+        def operation(conn):
+            updated = conn.execute(
+                """
+                UPDATE guide_shop_event_inbox
+                SET state = 'delivered', terminal_at = ?, next_attempt_at = NULL
+                WHERE event_id = ? AND state = 'processing' AND attempt_count = ?
+                """,
+                (delivered_at, claim.event.event_id, claim.claim_attempt),
+            )
+            return updated.rowcount == 1
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def mark_dead_letter(self, claim: ClaimedInboxEvent) -> bool:
+        terminal_at = _utc_iso(self._clock())
+
+        def operation(conn):
+            updated = conn.execute(
+                """
+                UPDATE guide_shop_event_inbox
+                SET state = 'dead_letter', terminal_at = ?, next_attempt_at = NULL
+                WHERE event_id = ? AND state = 'processing' AND attempt_count = ?
+                """,
+                (terminal_at, claim.event.event_id, claim.claim_attempt),
+            )
+            return updated.rowcount == 1
+
+        ensure_db_ready()
+        return run_write_with_retry(operation)
+
+    def mark_failed(self, claim: ClaimedInboxEvent) -> FailureTransition:
+        failed_at = self._clock()
+        failed_at_iso = _utc_iso(failed_at)
+        exhausted = claim.claim_attempt >= claim.event.max_attempts
+        delay_seconds = min(5 * (2 ** max(claim.claim_attempt - 1, 0)), 300)
+        next_attempt_at = _utc_iso(failed_at + timedelta(seconds=delay_seconds))
+
+        def operation(conn):
+            if exhausted:
+                updated = conn.execute(
+                    """
+                    UPDATE guide_shop_event_inbox
+                    SET state = 'dead_letter', terminal_at = ?, next_attempt_at = NULL
+                    WHERE event_id = ? AND state = 'processing' AND attempt_count = ?
+                    """,
+                    (failed_at_iso, claim.event.event_id, claim.claim_attempt),
+                )
+                return FailureTransition("dead_letter", updated.rowcount == 1)
+            updated = conn.execute(
+                """
+                UPDATE guide_shop_event_inbox
+                SET state = 'pending', next_attempt_at = ?, terminal_at = NULL
+                WHERE event_id = ? AND state = 'processing' AND attempt_count = ?
+                """,
+                (next_attempt_at, claim.event.event_id, claim.claim_attempt),
+            )
+            return FailureTransition("pending", updated.rowcount == 1)
 
         ensure_db_ready()
         return run_write_with_retry(operation)
