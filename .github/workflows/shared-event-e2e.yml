@@ -1,0 +1,71 @@
+name: Shared GuideShop Event E2E
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-event-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shared-event-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GUIDESHOP_SHARED_E2E_REQUIRED: "true"
+
+    steps:
+      - name: Checkout Guide OS
+        uses: actions/checkout@v6
+        with:
+          path: guide_os
+          persist-credentials: false
+
+      - name: Checkout immutable GuideShop
+        uses: actions/checkout@v6
+        with:
+          repository: juraldinho/guideshop
+          ref: 4cf1c10b76303af6c5b1e95a26175a7ede1a3fc7
+          token: ${{ secrets.CONTRACTS_READ_TOKEN }}
+          path: guideshop
+          persist-credentials: false
+
+      - name: Verify immutable GuideShop identity
+        working-directory: guideshop
+        run: |
+          set -euo pipefail
+          actual_commit="$(git rev-parse HEAD)"
+          expected_commit="4cf1c10b76303af6c5b1e95a26175a7ede1a3fc7"
+          if [ "$actual_commit" != "$expected_commit" ]; then
+            echo "GuideShop commit mismatch"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13.14"
+          cache: pip
+          cache-dependency-path: |
+            guide_os/requirements.txt
+            guideshop/requirements.txt
+
+      - name: Install isolated test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            -r guide_os/requirements.txt \
+            -r guideshop/requirements.txt
+          python -m pip check
+
+      - name: Run shared event E2E
+        working-directory: guide_os
+        run: python -m pytest -q tests/test_guide_shop_event_shared_e2e.py
+
+      - name: Verify Guide OS whitespace
+        working-directory: guide_os
+        run: git diff --check
