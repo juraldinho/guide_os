@@ -15,6 +15,7 @@ from services.guide_shop_auth import (
     ISSUER,
     GuideShopAuthenticationConfigurationError,
     GuideShopJWTAccessTokenProvider,
+    GuideShopJWTEventAccessTokenProvider,
     GuideShopTokenSigningError,
 )
 from services.guide_shop_client import GuideShopAccessTokenProvider
@@ -210,6 +211,31 @@ def test_repeated_calls_create_unique_jti_and_token(signing_settings, key_pair):
     )
     assert decode(first)["jti"] != decode(second)["jti"]
     assert [called.args for called in random_bytes.call_args_list] == [(16,), (16,)]
+
+
+def test_event_provider_has_exact_separate_scope_and_unique_jti(signing_settings):
+    random_bytes = Mock(side_effect=[b"e" * 16, b"f" * 16])
+    now = datetime(2026, 8, 19, tzinfo=timezone.utc)
+    events = GuideShopJWTEventAccessTokenProvider(
+        signing_settings, clock=lambda: now, random_bytes=random_bytes
+    )
+    read = GuideShopJWTAccessTokenProvider(
+        signing_settings, clock=lambda: now, random_bytes=lambda size: b"r" * size
+    )
+    first = jwt.decode(
+        run(events.get_access_token(GUIDE_ID)), options={"verify_signature": False}
+    )
+    second = jwt.decode(
+        run(events.get_access_token(GUIDE_ID)), options={"verify_signature": False}
+    )
+    read_claims = jwt.decode(
+        run(read.get_access_token(GUIDE_ID)), options={"verify_signature": False}
+    )
+    assert first["scope"] == second["scope"] == "guideshop:events"
+    assert read_claims["scope"] == "guideshop:read"
+    assert first["jti"] != second["jti"]
+    for name in ("iss", "aud", "sub", "guide_os_id", "iat", "nbf", "exp"):
+        assert first[name] == read_claims[name]
 
 
 def test_verification_security_boundaries(signing_settings, key_pair):

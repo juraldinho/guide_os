@@ -366,3 +366,24 @@ class EventEnvelopeDTO(StrictDTO):
         if self.subject.type != expected_subject:
             raise ValueError("event subject does not match event_type")
         return self
+
+
+class EventPageDTO(StrictDTO):
+    next_cursor: CursorString | None
+    has_more: StrictBool
+
+
+class EventListResponseDTO(StrictDTO):
+    schema_version: SchemaVersion
+    request_id: RequestId
+    data: list[EventEnvelopeDTO]
+    page: EventPageDTO
+
+    @model_validator(mode="after")
+    def validate_page(self) -> "EventListResponseDTO":
+        if self.data:
+            if self.page.next_cursor is None:
+                raise ValueError("non-empty event page requires next cursor")
+        elif self.page.next_cursor is not None or self.page.has_more:
+            raise ValueError("empty event page must be terminal")
+        return self

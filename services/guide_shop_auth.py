@@ -16,6 +16,7 @@ TOKEN_TYPE = "guideshop-service+jwt"
 ISSUER = "guide-os"
 AUDIENCE = "guideshop-integration"
 SCOPE = "guideshop:read"
+EVENTS_SCOPE = "guideshop:events"
 TOKEN_TTL_SECONDS = 60
 
 
@@ -28,6 +29,8 @@ class GuideShopTokenSigningError(RuntimeError):
 
 
 class GuideShopJWTAccessTokenProvider:
+    TOKEN_SCOPE = SCOPE
+
     def __init__(
         self,
         settings: GuideShopJWTSigningSettings,
@@ -63,6 +66,11 @@ class GuideShopJWTAccessTokenProvider:
         self._private_key = private_key
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._random_bytes = random_bytes
+        if self.TOKEN_SCOPE not in {SCOPE, EVENTS_SCOPE}:
+            raise GuideShopAuthenticationConfigurationError(
+                "Invalid GuideShop authentication configuration"
+            )
+        self._scope = self.TOKEN_SCOPE
 
     @staticmethod
     def _validate_identity(guide_os_id: object) -> str:
@@ -109,7 +117,7 @@ class GuideShopJWTAccessTokenProvider:
             "aud": AUDIENCE,
             "sub": f"guide_os:{identity}",
             "guide_os_id": identity,
-            "scope": SCOPE,
+            "scope": self._scope,
             "iat": issued_at,
             "nbf": issued_at,
             "exp": issued_at + TOKEN_TTL_SECONDS,
@@ -127,3 +135,20 @@ class GuideShopJWTAccessTokenProvider:
         if not isinstance(token, str) or not token:
             raise GuideShopTokenSigningError("GuideShop token signing failed")
         return token
+
+
+class GuideShopJWTEventAccessTokenProvider(GuideShopJWTAccessTokenProvider):
+    TOKEN_SCOPE = EVENTS_SCOPE
+
+    def __init__(
+        self,
+        settings: GuideShopJWTSigningSettings,
+        *,
+        clock: Callable[[], datetime] | None = None,
+        random_bytes: Callable[[int], bytes] = secrets.token_bytes,
+    ) -> None:
+        super().__init__(
+            settings,
+            clock=clock,
+            random_bytes=random_bytes,
+        )

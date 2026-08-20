@@ -539,6 +539,15 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_shop_event_checkpoints (
+        guide_os_id TEXT PRIMARY KEY,
+        cursor TEXT NOT NULL,
+        generation INTEGER NOT NULL CHECK(generation >= 1),
+        updated_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
