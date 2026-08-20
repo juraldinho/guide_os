@@ -15,6 +15,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from services.guide_shop_event_inbox import GuideShopEventInboxService
 
 
+class _SanitizedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        print("action=EXECUTION_FAILURE", file=sys.stderr)
+        raise SystemExit(2)
+
+
 def _limit(value: str) -> int:
     try:
         parsed = int(value)
@@ -26,7 +32,7 @@ def _limit(value: str) -> int:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _SanitizedArgumentParser(
         description="GuideShop event inbox recovery"
     )
     parser.add_argument(
