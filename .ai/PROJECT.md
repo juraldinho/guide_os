@@ -1,12 +1,16 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-16
+> Обновлено: 2026-08-22
+
+> **Канонический roadmap:** `integration_foundation.md`, раздел 18. Историческая декомпозиция ниже сохранена только как архитектурная справка.
 
 ## Текущий статус
 
-Guide OS работает как отдельный Telegram-инструмент гида. Общий integration baseline 0–4, Guide OS Stage 5D provider, isolated Railway staging readiness и GuideShop staging E2E завершены. Identity, contract `v1.1.0`, link lifecycle/evidence, inbound EdDSA verification, JTI replay protection и staging HTTPS provider готовы. Production activation отсутствует. Текущая задача — подготовка точного release-candidate diff при выключенных production integration flags.
+Интеграционные Stages 0–18 завершены с PASS; открытых implementation gates нет. Финальная production-архитектура: GuideShop transactional outbox и authenticated event feed → Guide OS durable inbox, identity isolation и deduplication → bounded Telegram notification delivery с существующим safe deep link.
 
-GuideShop должен оставаться источником истины для официальных компаний, подтверждённых Visits/Sales и points. Guide OS является источником истины для будущих личных мест гида и самостоятельно внесённых внешних продаж. Guide OS не должен получать прямой доступ к базе данных GuideShop. Целевая модель MVP: read-only API GuideShop для чтения официальных данных и события GuideShop для уведомлений.
+GuideShop остаётся источником истины для официальных Visits и points. GuideShop производит и публикует domain events, но не доставляет Telegram-уведомления: GuideShop events включены, а его notifications выключены. Guide OS потребляет события, хранит inbox/checkpoint/watermark и выполняет Telegram-доставку; Guide OS events и notifications включены.
+
+GuideShop остаётся источником истины для официальных компаний, Visits/Sales и points. Guide OS является источником истины для будущих личных мест гида и самостоятельно внесённых внешних продаж. Guide OS не получает прямой доступ к базе GuideShop: актуальное business state читается через read-only API, а события используются только как сигнал для inbox и уведомления.
 
 ## Цель интеграции
 
@@ -26,7 +30,9 @@ GuideShop должен оставаться источником истины д
 - Интеграция должна отключаться feature flag без нарушения основных функций Guide OS.
 - Изменения выполняются по принципу Minimal Change, без несвязанного рефакторинга.
 
-## Этапы интеграции
+## Историческая декомпозиция Guide OS
+
+Раздел ниже сохраняется как техническая история реализации Guide OS и не определяет актуальную нумерацию следующих Stages. Для планирования использовать только master roadmap Stages 0–20.
 
 ### Stage 0 — Readiness и владельцы данных
 
@@ -162,6 +168,11 @@ GuideShop должен оставаться источником истины д
 
 ## Реализованная основа интеграции
 
+- Production read-only UI обновлён: company details показывают optional public contacts, Visit details показывают связанные points, Sales скрыт из guide-facing menu.
+- GuideShop API commit `94e8761` и Guide OS UI commit `4549938` успешно выпущены; owner smoke `Company Visit UI smoke PASS`.
+- Final points summary выпущен: GuideShop commit `cd3895d` предоставляет complete-scope totals, Guide OS commit `0d67289` показывает pending/credited totals и per-company breakdown без opaque IDs.
+- Final owner smoke: `Final points UX smoke PASS`.
+
 - Stage 1A: каждому пользователю назначается стабильный уникальный UUID4 `guide_os_id`.
 - Существующие пользователи получают ID через additive idempotent migration.
 - Stage 1B: реализованы временные одноразовые GuideShop linking requests.
@@ -192,23 +203,27 @@ GuideShop должен оставаться источником истины д
 - Staging HTTPS base URL: `https://guide-os-staging-api-staging.up.railway.app`; `GET /health` независимо подтверждён с HTTP 200 и безопасным JSON payload.
 - Staging-only mise bypass удалён; deployment `a79abd94…` успешно verified GitHub artifact attestations для Python `3.13.14`.
 - GuideShop staging E2E закрыт: Gate 4A lifecycle `44/44 PASS`, Gate 4B reads `PASS`, auth/query/cursor `26/26`, FA/IC `0 FAIL`, contract `v1.1.0`.
-- GuideShop production `v1.3.0` выпущен с выключенными integration flags; Guide OS production activation по-прежнему запрещена.
+- Исторический default-off production gate был успешно закрыт последующими Stages 12–18.
 - Production lifecycle absence audit PASS: staging lifecycle variables, integration flags и mise bypass отсутствуют во всех production-effective scopes.
 - Candidate `b895622` прошёл full suite `632`, GitHub CI и Integration Contracts; production-safe staging proof завершён без attestation bypass.
 - Fresh production SQLite backup PASS: age-encrypted off-platform artifact verified by restore; production unchanged. Railway native snapshot отсутствует, но owner отдельно утвердил local-only recovery copy.
 
-## Readiness checklist перед production-интеграцией
+## Финальный integration closure
 
-- [x] Phase 2 подтверждена на repository level; live production-safety остаётся activation gate.
+- [x] Phase 2 и production-safety подтверждены.
 - [x] Определены владельцы данных по каждой сущности.
 - [x] Guide OS выдаёт стабильный `guide_os_id`.
 - [x] Утверждён linking contract и реализована Guide OS-side token foundation.
-- [ ] Guide OS contract baseline реализован; требуется формальное сопоставление и согласование с GuideShop.
+- [x] Contracts обеих систем закреплены и совместимы на `v1.2.0`.
 - [x] Готовы внутренние маршруты, callbacks и Telegram `/start` deep-link entry.
-- [ ] Настроены staging-окружения обеих систем.
-- [ ] Есть тестовые Guides, Visits, Sales и разные статусы points.
-- [ ] Реализованы авторизация, аудит, идемпотентность и мониторинг.
-- [ ] Описаны reconciliation и восстановление после пропущенных событий.
+- [x] Staging и production окружения обеих систем проверены.
+- [x] Авторизация, isolation, идемпотентность, recovery и monitoring проверены.
+- [x] Reconciliation, backup/restore, security и load gates завершены.
+- [x] Owner notification/deep-link и Visit back-navigation smoke — PASS.
+
+Guide OS production работает на commit `930759340a867113c6a78da64552936f5428597d`, deployment `9da4811d-8987-467d-bcd8-8f667f6fd081`, events/notifications ON. GuideShop production работает на commit `c6cbbf48a7d0c0a6d133e724db2c39ce28a5ab3b`, deployment `cfd82638-bc76-4a87-b7db-dd0f6886a593`, events ON и notifications OFF.
+
+Финальное состояние: одна active link; GuideShop outbox `2`, один aggregate subject version `2`; Guide OS inbox stale `1`, delivered `1`, pending/processing/dead-letter `0`; checkpoint generation `2`; watermark version `2`; notification attempts/successes `1/1`; duplicates `0`; reconciliation `CLEAN`. Stage 17 observation завершён за `10m11s`: `22` cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`. Stage 18 runtime/data/security/operations closure — PASS. Реализационных gates не осталось; текущая деятельность — только routine monitoring и incident response.
 
 ## Отдельный будущий workstream — личные места и внешние продажи
 

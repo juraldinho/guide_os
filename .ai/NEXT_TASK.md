@@ -1,45 +1,23 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-16
+> Обновлено: 2026-08-22
+
+## Завершённое состояние
+
+Интеграционные Stages 0–18 завершены. Production pipeline работает по схеме GuideShop outbox/feed → Guide OS inbox/deduplication → Telegram notification/deep link. GuideShop остаётся источником истины для Visits и points; Guide OS отвечает за безопасную доставку Telegram-уведомлений и read-only переход к актуальному состоянию.
+
+Финальное production-состояние:
+
+- Guide OS commit `930759340a867113c6a78da64552936f5428597d`, deployment `9da4811d-8987-467d-bcd8-8f667f6fd081`, events/notifications ON;
+- GuideShop commit `c6cbbf48a7d0c0a6d133e724db2c39ce28a5ab3b`, deployment `cfd82638-bc76-4a87-b7db-dd0f6886a593`, events ON и GuideShop notifications OFF;
+- одна active link; outbox `2`; один aggregate subject version `2`;
+- inbox: stale `1`, delivered `1`, pending/processing/dead-letter `0`;
+- checkpoint generation `2`, watermark version `2`;
+- notification attempts/successes `1/1`, duplicates `0`, reconciliation `CLEAN`;
+- owner notification/deep-link smoke и Visit back-navigation smoke — PASS;
+- Stage 17: `10m11s`, `22` worker cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`;
+- Stage 18 runtime/data/security/operations closure — PASS.
 
 ## Единственная следующая задача
 
-Провести финальный read-only exact release-candidate diff review перед production release window.
-
-## Цель
-
-Доказать точный состав `origin/main..staging-guide-user-lifecycle-api`, отсутствие неожиданных изменений и готовность к fast-forward release с одновременной ротацией production `BOT_TOKEN`.
-
-## Требуемый результат
-
-- зафиксированы exact base/head SHA и merge-base;
-- подтверждена возможность fast-forward `main` к candidate head;
-- каждый changed runtime/config/test/docs file классифицирован;
-- повторены full suite, diff checks и sensitive/artifact scans;
-- staging active deployment и production baseline сопоставлены с candidate/base;
-- подготовлен один атомарный release plan: BotFather revoke/new token → Railway variable set without implicit deploy → fast-forward main → single production deploy → Telegram smoke.
-
-## Ограничения
-
-- Gate строго read-only: не merge/push/deploy и не ротировать token.
-- Не читать production secret values.
-- Не менять Railway, production или GuideShop.
-- Не включать integration flags; они остаются off/default-off.
-- Не включать secrets, production data или backup paths/passwords в repository docs.
-- Не менять runtime source/tests/config.
-- Не merge/tag/release.
-- Не затрагивать GuideShop или integration flags.
-
-## Definition of Done
-
-- Verdict `READY FOR CONTROLLED RELEASE` либо точный blocker.
-- Exact merge diff, tests и release/rollback procedure проверены.
-- Production, repositories и GuideShop неизменны.
-- Runtime candidate и infrastructure неизменны.
-- Production и GuideShop не затронуты.
-
-## Зафиксировано для последующей работы
-
-После PASS выполнить единое controlled release window с обязательной ротацией `BOT_TOKEN`. Production integration flags обеих систем остаются выключенными.
-
-Production backup PASS: encrypted artifact существует вне repositories с mode `600`; integrity и restore reconciliation прошли. Railway native snapshot отсутствует из-за permission limitation и не является release blocker после owner-approved off-platform backup.
+Выполнять routine post-launch monitoring и incident response: периодически проверять health обеих систем, inbox/outbox и checkpoint/watermark, duplicate и dead-letter counters, а также reconciliation verdict. Новая product-разработка начинается только после выбора владельцем нового roadmap item.

@@ -1,9 +1,16 @@
 # Guide OS Integration Foundation
 
-**Статус:** Stage 0 closed; Stage 1 authorized; production activation gated  
-**Назначение:** единый документ подготовки Phase 3 — Guide OS Integration MVP  
-**Правило запуска:** разработку на mock/staging можно начинать до закрытия Stage 0; подключение production запрещено до подтверждения Phase 2 и production-safety.
-**Владелец и утверждающий:** Отабек Джураев  
+> **Архивный Guide OS foundation:** этот файл сохраняет раннюю техническую и архитектурную историю. Канонический актуальный roadmap находится в `integration_foundation.md`, раздел 18. Исторические readiness-gates ниже описывают состояние на дату соответствующей записи и не являются текущими блокерами.
+
+**Актуальный статус:** Stages 0–18 complete; production events active в GuideShop и Guide OS, Guide OS Telegram notifications active, GuideShop notifications disabled. Runtime/data/security/operations closure — PASS; implementation gates отсутствуют.
+
+**Финальная production-архитектура:** GuideShop, как источник истины для Visits и points, атомарно создаёт события в outbox и публикует их через authenticated feed. Guide OS валидирует principal и contract `v1.2.0`, выполняет durable inbox/deduplication, поддерживает checkpoint/watermark и доставляет bounded Telegram notification с server-side deep link к актуальному read-only состоянию.
+
+**Финальное sanitized evidence:** одна active link; GuideShop outbox `2`, один aggregate subject version `2`; Guide OS inbox stale `1`, delivered `1`, pending/processing/dead-letter `0`; checkpoint generation `2`; watermark version `2`; notification attempts/successes `1/1`; duplicates `0`; reconciliation `CLEAN`. Owner notification/deep-link smoke и Visit back-navigation smoke — PASS. Stage 17: `10m11s`, `22` completed cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`.
+
+**Назначение:** единый документ подготовки Phase 3 — Guide OS Integration MVP
+**Текущая следующая деятельность:** routine post-launch monitoring и incident response; новая product-разработка начинается только после выбора нового roadmap item владельцем.
+**Владелец и утверждающий:** Product Owner
 **Дата утверждения:** 2026-08-07  
 **Область утверждения:** архитектура, data ownership, минимальный состав данных, linking, API/events, Telegram UX, план тестирования и начало implementation preparation.
 
@@ -11,15 +18,14 @@
 
 ## 1. Цель MVP
 
-Guide OS показывает авторизованному гиду его данные из GuideShop:
+Guide OS показывает авторизованному гиду его данные из GuideShop. В текущем production UX:
 
 - компании;
 - Visits;
-- Sales в USD;
 - начисленные, ожидающие и зачисленные баллы;
 - историю операций.
 
-Guide получает Telegram-уведомления о создании Visit, добавлении Sale, пересчёте и зачислении баллов. Каждое уведомление открывает соответствующий сценарий в Telegram-интерфейсе Guide OS.
+Sales остаются внутренними данными GuideShop и скрыты из guide-facing меню. Event notifications относятся к будущим Stages 11–12 и пока не включены.
 
 Интеграция read-only со стороны гида: Guide OS не изменяет Visits, Sales и points в GuideShop.
 
@@ -51,16 +57,16 @@ Guide получает Telegram-уведомления о создании Visit
 
 ## 4. Stage 0 — readiness checklist
 
-**Текущий вывод:** Stage 0 закрыт решением Product Owner Отабека Джураева 2026-08-07, переход к Stage 1 разрешён. Архитектурная, repository-level и организационная части утверждены. Локальный Guide OS development staging candidate на текущем Mac подтверждён. GuideShop development staging candidate и Phase 2 integration baseline dataset подтверждены отдельно на Mac Neo в разделах 4.3–4.4. Shared staging, end-to-end, recovery и live production-safety evidence остаются обязательными условиями production activation, но не блокируют Stage 1.
+**Текущий вывод:** Stage 0 закрыт решением Product Owner Product Owner 2026-08-07, переход к Stage 1 разрешён. Архитектурная, repository-level и организационная части утверждены. Локальный Guide OS development staging candidate in the local development environment подтверждён. GuideShop development staging candidate и Phase 2 integration baseline dataset подтверждены отдельно in that development environment в разделах 4.3–4.4. Shared staging, end-to-end, recovery и live production-safety evidence остаются обязательными условиями production activation, но не блокируют Stage 1.
 
 | Проверка | Текущий статус | Условие закрытия |
 |---|---|---|
-| Phase 2 завершена | Подтверждено на уровне репозитория | Реализация Phase 2.1–2.8 присутствует; 1191 тест прошёл 2026-08-07; product approval: Отабек Джураев |
+| Phase 2 завершена | Подтверждено на уровне репозитория | Реализация Phase 2.1–2.8 присутствует; 1191 тест прошёл 2026-08-07; product approval: Product Owner |
 | Production-safety пройдена | Частично подтверждено | Repository-level controls и тесты подтверждены; live Railway/DR/smoke evidence остаётся production gate |
-| Владельцы сущностей назначены | Подтверждено | Отабек Джураев назначен владельцем всех направлений до делегирования |
-| Источники истины | Утверждены | Утверждены Отабеком Джураевым 2026-08-07 |
+| Владельцы сущностей назначены | Подтверждено | Product Owner назначен владельцем всех направлений до делегирования |
+| Источники истины | Утверждены | Утверждены Product Owner 2026-08-07 |
 | Минимальный набор данных | Утверждён с ограничением | Утверждён; `payment_method` по умолчанию не передаётся до отдельного включения |
-| Staging Guide OS | Local development staging candidate и отдельный local bot подтверждены | Репозиторий на текущем Mac доступен по `/Users/otabekdjuraev/guide_os`; Python 3.13.1, зависимости и импорт приложения проверены; `32 passed`; локальный `.env` указывает на `@Guideosbot`, identity подтверждён через `getMe`; отдельный shared staging deployment ещё требуется |
+| Staging Guide OS | Local development staging candidate и отдельный local bot подтверждены | Репозиторий in the local development environment доступен по `Guide OS repository checkout`; Python 3.13.1, зависимости и импорт приложения проверены; `32 passed`; локальный `.env` указывает на `local development bot`, identity подтверждён через `getMe`; отдельный shared staging deployment ещё требуется |
 | Staging GuideShop | Development staging candidate подтверждён | Тестовый бот и локальная development DB доступны; отдельный Railway staging ещё не привязан/не проверен |
 | Тестовые данные | Phase 2 baseline загружен и проверен | Dataset v1.0.0 загружен локально; linking/outbox extension добавляется после соответствующих миграций |
 | API/event contract | Утверждён как implementation baseline | Формальные OpenAPI/JSON Schema и контрактные тесты должны проходить в CI |
@@ -70,14 +76,14 @@ Guide получает Telegram-уведомления о создании Visit
 
 | Направление | Ответственный | Статус |
 |---|---|---|
-| Product acceptance | Отабек Джураев | Назначен 2026-08-07 |
-| Guide identity | Отабек Джураев | Назначен 2026-08-07 |
-| GuideShop API | Отабек Джураев | Назначен 2026-08-07 |
-| Events/outbox | Отабек Джураев | Назначен 2026-08-07 |
-| Guide OS Telegram UX | Отабек Джураев | Назначен 2026-08-07 |
-| Security/privacy | Отабек Джураев | Назначен 2026-08-07; техническая проверка обязательна перед production |
-| Monitoring | Отабек Джураев | Назначен 2026-08-07 |
-| Reconciliation/recovery | Отабек Джураев | Назначен 2026-08-07 |
+| Product acceptance | Product Owner | Назначен 2026-08-07 |
+| Guide identity | Product Owner | Назначен 2026-08-07 |
+| GuideShop API | Product Owner | Назначен 2026-08-07 |
+| Events/outbox | Product Owner | Назначен 2026-08-07 |
+| Guide OS Telegram UX | Product Owner | Назначен 2026-08-07 |
+| Security/privacy | Product Owner | Назначен 2026-08-07; техническая проверка обязательна перед production |
+| Monitoring | Product Owner | Назначен 2026-08-07 |
+| Reconciliation/recovery | Product Owner | Назначен 2026-08-07 |
 
 ### 4.1 Evidence, проверенное 2026-08-07
 
@@ -90,21 +96,21 @@ Guide получает Telegram-уведомления о создании Visit
 | Deployment foundation | `railway.json`, production configuration и Railway runbook в `README.md` | Конфигурация существует; живое окружение не проверялось |
 | Backup foundation | Full DB и company-scoped backup services/tests | Код и тесты подтверждены; фактический off-box backup/restore drill не подтверждён |
 | Audit | Audit log для критических CRM-операций | Реализован; linking/outbox audit добавляется в Phase 3 |
-| Guide OS repository/staging | Проверено на текущем Mac в `/Users/otabekdjuraev/guide_os`: Python 3.13.1, зависимости исправны, импорт приложения успешен, `32 passed`; локальный bot identity `@Guideosbot` подтверждён через Telegram `getMe` | Local development staging candidate подтверждён; GitHub/Railway bot `@Guide_os_bot` зафиксирован со слов владельца и требует deployment evidence |
+| Guide OS repository/staging | Проверено in the local development environment в `Guide OS repository checkout`: Python 3.13.1, зависимости исправны, импорт приложения успешен, `32 passed`; локальный bot identity `local development bot` подтверждён через Telegram `getMe` | Local development staging candidate подтверждён; GitHub/Railway bot `Railway Guide OS bot` зафиксирован со слов владельца и требует deployment evidence |
 
 ### 4.1.1 Границы окружений evidence
 
-- Guide OS в текущем рабочем окружении находится на этом Mac по пути `/Users/otabekdjuraev/guide_os`.
+- Guide OS в текущем рабочем окружении находится in the local development environment по пути `Guide OS repository checkout`.
 - Evidence Guide OS (`32 passed`, Python 3.13.1 и проверка импорта) относится к текущему Mac.
-- Локальный `.env` текущего Mac содержит token отдельного бота `@Guideosbot`; 2026-08-07 его identity подтверждён через Telegram `getMe` без вывода token и без запуска polling.
-- `@Guide_os_bot` является ботом Guide OS, который, по подтверждению владельца, запускается через GitHub deployment в Railway. Его Railway runtime и commit в текущем окружении ещё не проверены.
-- GuideShop разрабатывается и проверяется на другом Mac — Mac Neo. Пути репозиториев на Mac Neo отличаются от пути текущего workspace и не должны использоваться как доказательство отсутствия Guide OS на этом Mac.
-- Evidence GuideShop, включая `1191 passed`, development database, Telegram test bot и integration dataset, относится к проверке на Mac Neo.
+- Локальный `.env` local development environment содержит token отдельного бота `local development bot`; 2026-08-07 его identity подтверждён через Telegram `getMe` без вывода token и без запуска polling.
+- `Railway Guide OS bot` является ботом Guide OS, который, по подтверждению владельца, запускается через GitHub deployment в Railway. Его Railway runtime и commit в текущем окружении ещё не проверены.
+- GuideShop разрабатывается и проверяется на a separate development environment. Пути репозиториев in that development environment отличаются от пути текущего workspace и не должны использоваться как доказательство отсутствия Guide OS in the local development environment.
+- Evidence GuideShop, включая `1191 passed`, development database, Telegram test bot и integration dataset, относится к проверке in that development environment.
 - Наличие локальных development staging candidates на двух разных Mac не заменяет shared staging deployment и end-to-end проверку связи между системами.
 
 ### 4.2 Решение о начале работ
 
-Отабек Джураев официально утверждает решения этого документа и разрешает начать Track A и подготовительные работы Track B. Это утверждение не заменяет live production-safety evidence. До появления staging разрешены mock API, схемы, миграции, feature flags и автоматические тесты. Production activation остаётся запрещённой до выполнения production gate из раздела 14.1.
+Product Owner официально утверждает решения этого документа и разрешает начать Track A и подготовительные работы Track B. Это утверждение не заменяет live production-safety evidence. До появления staging разрешены mock API, схемы, миграции, feature flags и автоматические тесты. Production activation остаётся запрещённой до выполнения production gate из раздела 14.1.
 
 ### 4.3 Актуальный GuideShop development staging candidate
 
@@ -112,12 +118,11 @@ Guide получает Telegram-уведомления о создании Visit
 
 | Параметр | Актуальное значение / статус |
 |---|---|
-| Repository | `git@github.com:juraldinho/guideshop.git` |
+| Repository | GuideShop repository |
 | Рабочая ветка | `develop` |
 | Commit | `f3c25c762bf70a8794f8cf44274cf45acfa4298b` |
 | Commit date | `2026-08-07T13:23:46+05:00` |
-| Telegram test bot | `@Guide_storebot` (`Guidestore`) |
-| Telegram bot ID | `8845113446` |
+| Telegram test bot | `local GuideShop development bot`  |
 | Bot identity check | Успешно через Telegram `getMe` 2026-08-07; token не сохраняется в документе |
 | Environment mode | `development` |
 | Runtime | Telegram long polling, `python -m app.bot.main` |
@@ -155,7 +160,7 @@ Guide получает Telegram-уведомления о создании Visit
 | Initial load | 26 synthetic records inserted; `Validation: PASSED` |
 | Idempotency check | Повторный запуск: 0 inserted во всех таблицах; `Validation: PASSED` |
 | Automated tests | 7 dataset safety/validation tests; входят в `1191 passed` |
-| Owner | Отабек Джураев |
+| Owner | Product Owner |
 
 Команды воспроизведения:
 
@@ -178,7 +183,7 @@ Safety guarantees:
 
 ### 4.5 Проверенный Guide OS local staging candidate
 
-Проверено на текущем Mac 2026-08-07 в `/Users/otabekdjuraev/guide_os`:
+Проверено in the local development environment 2026-08-07 в `Guide OS repository checkout`:
 
 | Проверка | Результат |
 |---|---|
@@ -193,9 +198,9 @@ Safety guarantees:
 | Secret file | `.env` присутствует; содержимое и значения не читались и не фиксировались |
 | Deployment files | `railway.json`, `Procfile` и `Dockerfile` отсутствуют |
 | Telegram polling | Не запускался: назначение текущего token как staging не подтверждено, риск второго poller исключён |
-| Local Telegram bot | `@Guideosbot`, bot ID `8546334725`; identity подтверждён через `getMe` без запуска polling |
-| Railway Telegram bot | `@Guide_os_bot`; назначение и GitHub → Railway deployment подтверждены владельцем, но runtime evidence из текущего окружения не получено |
-| Classification | `@Guideosbot` пригоден для локальной staging-проверки после подтверждения отсутствия другого poller; `@Guide_os_bot` рассматривается как Railway-deployed Guide OS bot, но не заменяет отдельный shared staging без проверки среды |
+| Local Telegram bot | `local development bot`; identity подтверждён через `getMe` без запуска polling |
+| Railway Telegram bot | `Railway Guide OS bot`; назначение и GitHub → Railway deployment подтверждены владельцем, но runtime evidence из текущего окружения не получено |
+| Classification | `local development bot` пригоден для локальной staging-проверки после подтверждения отсутствия другого poller; `Railway Guide OS bot` рассматривается как Railway-deployed Guide OS bot, но не заменяет отдельный shared staging без проверки среды |
 
 Проверка не подтверждает доступность Telegram staging bot, Railway deployment, persistent volume, отдельный staging token или end-to-end связь с GuideShop.
 
@@ -205,7 +210,7 @@ Safety guarantees:
 
 Владелец должен предоставить без записи секретов в этот документ:
 
-1. Подтвердить, что локальный `@Guideosbot` предназначен только для Guide OS staging и не используется другим окружением.
+1. Подтвердить, что локальный `local development bot` предназначен только для Guide OS staging и не используется другим окружением.
 2. Использовать его существующий `BOT_TOKEN` только из локального `.env`; не переносить значение в документ, логи или Git.
 3. Staging deployment target и доступ к его runtime logs.
 4. Отдельный staging `DATABASE_PATH` на persistent volume.
@@ -260,11 +265,11 @@ Production token запрещено использовать для staging. З�
 | Условие | Кто может выполнить | Текущий статус |
 |---|---|---|
 | Guide OS local repository validation | Этот чат | Выполнено, раздел 4.5 |
-| Guide OS local staging bot identity | Этот чат | Выполнено: `@Guideosbot`, bot ID `8546334725`, `getMe` successful |
-| Guide OS shared staging deployment | Владелец Railway / Cursor по отдельной задаче | `@Guide_os_bot` и GitHub → Railway flow заявлены владельцем; требуются commit/runtime/persistence evidence |
-| GuideShop local development candidate | Mac Neo | Выполнено по evidence раздела 4.3 |
-| GuideShop Railway staging | Владелец Railway на Mac Neo | Не подтверждено |
-| Phase 2 baseline dataset | Mac Neo | Выполнено, раздел 4.4 |
+| Guide OS local staging bot identity | Этот чат | Выполнено: `local development bot`, `getMe` successful |
+| Guide OS shared staging deployment | Владелец Railway / Cursor по отдельной задаче | `Railway Guide OS bot` и GitHub → Railway flow заявлены владельцем; требуются commit/runtime/persistence evidence |
+| GuideShop local development candidate | separate development environment | Выполнено по evidence раздела 4.3 |
+| GuideShop Railway staging | Владелец Railway in that development environment | Не подтверждено |
+| Phase 2 baseline dataset | separate development environment | Выполнено, раздел 4.4 |
 | Linking/outbox dataset extension | Cursor после реализации соответствующих моделей | Не начато в рамках Stage 0 |
 | Guide OS ↔ GuideShop end-to-end | Обе staging-системы | Заблокировано shared staging и credentials |
 | Recovery/reconciliation drill | Обе staging-системы | Заблокировано реализацией и shared staging |
@@ -672,7 +677,7 @@ Token одноразовый или короткоживущий, привяза
 
 ### 14.1 Production activation gate
 
-Repository-level approval не разрешает production rollout. Перед включением production Отабек Джураев должен приложить к Approval Record следующие фактические evidence:
+Repository-level approval не разрешает production rollout. Перед включением production Product Owner должен приложить к Approval Record следующие фактические evidence:
 
 - успешный staging end-to-end run Guide OS ↔ GuideShop;
 - результаты cross-guide и cross-company isolation tests;
@@ -852,7 +857,7 @@ Runbook должен описывать:
 - GuideShop router зарегистрирован до global errors router.
 - Environment-sensitive test изолирован от локального `.env`.
 - Проверка: Stage 3C2 suite `40 passed`; full suite `220 passed`; `git diff --check` clean.
-- Локальный `@Guideosbot` показывает feature-gated GuideShop entry при explicit development flags.
+- Локальный `local development bot` показывает feature-gated GuideShop entry при explicit development flags.
 
 Остаточный риск: navigation token consumes до Telegram message edit; при неожиданной ошибке edit пользователь должен заново открыть GuideShop.
 
@@ -867,7 +872,7 @@ Runbook должен описывать:
 - Plain `/start` и unrelated payload сохраняют прежний flow.
 - Development-only helper создаёт локальную тестовую ссылку и недоступен через Telegram или вне development.
 - Проверка: deep-link/helper regression `58 passed`; full suite `278 passed`; `git diff --check` clean.
-- Ручной smoke test в `@Guideosbot`: первое открытие показало Visits, повторное открытие той же ссылки показало stale-link state.
+- Ручной smoke test в `local development bot`: первое открытие показало Visits, повторное открытие той же ссылки показало stale-link state.
 
 Остаточный риск: navigation token consumes до отправки Telegram screen; при ошибке доставки требуется выпустить новую ссылку или заново открыть GuideShop.
 
@@ -902,7 +907,7 @@ Runbook должен описывать:
 - Invalid client/provider configuration fail-closed и не оставляет предыдущий provider активным.
 - Existing development fake сохраняет backward-compatible static composition.
 - Проверка: runtime/handler/deep-link regression `124 passed`; full suite `420 passed`; `git diff --check` clean.
-- Ручной smoke test в `@Guideosbot`: entry, Visits и возврат работают без изменений.
+- Ручной smoke test в `local development bot`: entry, Visits и возврат работают без изменений.
 
 Открытая зависимость: service-auth contract и реальный access-token provider должны быть утверждены до staging/production composition.
 
@@ -920,7 +925,7 @@ Runbook должен описывать:
 
 Следующая внутренняя реализационная задача Guide OS: EdDSA access-token provider с injectable clock/randomness и без runtime activation.
 
-Будущая задача GuideShop на Mac Neo: verifier middleware для того же profile, public-key allowlist, active-link resolution и negative security tests.
+Будущая задача GuideShop in that development environment: verifier middleware для того же profile, public-key allowlist, active-link resolution и negative security tests.
 
 ### Stage 4A — internal subtask: Guide OS EdDSA access-token provider
 
@@ -943,7 +948,7 @@ Runbook должен описывать:
 
 - Stage 4A закрывается только после default-off real runtime composition в Guide OS.
 - Stage 4B означает только read-only подключение к реальному GuideShop staging API: Companies, Visits, Sales, balance и points history.
-- Stage 4B не начат и заблокирован до реализации GuideShop API/verifier на Mac Neo.
+- Stage 4B не начат и заблокирован до реализации GuideShop API/verifier in that development environment.
 
 ### Stage 4A — final status
 
@@ -955,7 +960,7 @@ Runbook должен описывать:
 - Каждый real request получает отдельный identity-bound HTTP client.
 - Проверка: GuideShop regression `232 passed`; full suite `470 passed`; `git diff --check` clean.
 - Локальный fake smoke test ранее подтверждён владельцем; повторная ручная проверка не требуется.
-- Замечание аудита о broken `venv` относится к отдельному checkout Guide OS на Mac Neo, а не к текущему Mac; текущий `venv` работоспособен.
+- Замечание аудита о broken `venv` относится к отдельному checkout Guide OS in that development environment, а не к текущему Mac; текущий `venv` работоспособен.
 
 ### Guide OS Stage 5D provider — final status
 
@@ -981,7 +986,7 @@ Runbook должен описывать:
 
 - Добавлены sanitized `.env.example`, `.python-version` (`3.13.1`) и fresh setup instructions.
 - Все GuideShop flags default-off; реальные BOT/JWT/API secrets отсутствуют.
-- Current Mac, Mac Neo и Railway рассматриваются как независимые environments с отдельными paths, venv и secrets.
+- local development environment, separate development environment и Railway рассматриваются как независимые environments с отдельными paths, venv и secrets.
 - Documentation test защищает variable completeness, safe defaults и отсутствие key/token/path leakage.
 - Проверка: focused `1 passed`; full suite `471 passed`; `git diff --check` clean.
 
@@ -1110,16 +1115,16 @@ Verification:
 
 | Решение | Имя | Дата | Результат |
 |---|---|---|---|
-| Product scope | Отабек Джураев | 2026-08-07 | Approved |
-| Data ownership | Отабек Джураев | 2026-08-07 | Approved согласно разделу 2 |
-| API/event contract | Отабек Джураев | 2026-08-07 | Approved as implementation baseline; изменения версионируются |
-| Security/privacy | Отабек Джураев | 2026-08-07 | Approved for preparation; payment method excluded by default; production review pending |
-| Staging readiness | Отабек Джураев | 2026-08-07 | Guide OS local candidate and `@Guideosbot` identity confirmed on current Mac; `@Guide_os_bot` GitHub/Railway role confirmed by owner, runtime evidence pending; GuideShop candidate confirmed on Mac Neo |
-| Phase 2 evidence | Отабек Джураев | 2026-08-07 | Approved at repository level; 1191 tests passed |
-| Production-safety | Отабек Джураев | 2026-08-07 | Repository controls accepted; live operational checks pending |
-| Stage 0 closure | Отабек Джураев | 2026-08-07 | Approved; Stage 1 authorized; unresolved shared-staging evidence transferred to production activation gate |
-| Production rollout | Отабек Джураев | 2026-08-07 | Not approved; blocked by section 14.1 gate |
+| Product scope | Product Owner | 2026-08-07 | Approved |
+| Data ownership | Product Owner | 2026-08-07 | Approved согласно разделу 2 |
+| API/event contract | Product Owner | 2026-08-07 | Approved as implementation baseline; изменения версионируются |
+| Security/privacy | Product Owner | 2026-08-07 | Approved for preparation; payment method excluded by default; production review pending |
+| Staging readiness | Product Owner | 2026-08-07 | Guide OS local candidate and `local development bot` identity confirmed on local development environment; `Railway Guide OS bot` GitHub/Railway role confirmed by owner, runtime evidence pending; GuideShop candidate confirmed on separate development environment |
+| Phase 2 evidence | Product Owner | 2026-08-07 | Approved at repository level; 1191 tests passed |
+| Production-safety | Product Owner | 2026-08-07 | Repository controls accepted; live operational checks pending |
+| Stage 0 closure | Product Owner | 2026-08-07 | Approved; Stage 1 authorized; unresolved shared-staging evidence transferred to production activation gate |
+| Production rollout | Product Owner | 2026-08-07 | Not approved; blocked by section 14.1 gate |
 
 ### Sign-off statement
 
-Я, Отабек Джураев, подтверждаю предложенные в этом документе product и architecture решения, принимаю ответственность по перечисленным направлениям и разрешаю начать подготовку и реализацию интеграции Guide OS ↔ GuideShop в пределах Track A и доступной части Track B. Это подтверждение не разрешает production activation до получения и фиксации evidence из раздела 14.1.
+Я, Product Owner, подтверждаю предложенные в этом документе product и architecture решения, принимаю ответственность по перечисленным направлениям и разрешаю начать подготовку и реализацию интеграции Guide OS ↔ GuideShop в пределах Track A и доступной части Track B. Это подтверждение не разрешает production activation до получения и фиксации evidence из раздела 14.1.

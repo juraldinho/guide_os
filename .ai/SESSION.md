@@ -1,12 +1,46 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-16
+> Обновлено: 2026-08-22
 
 ## Текущий фокус
 
-Guide OS staging/E2E, production lifecycle absence audit, production-safe Railpack proof и fresh production backup завершены. Production release candidate ожидает docs separation, raw-dump containment resolution и exact merge-diff review.
+Stages 0–18 завершены. Runtime/data/security/operations closure — PASS; открытых implementation gates нет. Текущая работа — только documentation closure, после неё routine monitoring и incident response.
+
+Финальная production-схема: GuideShop outbox/feed → Guide OS inbox/deduplication → Telegram notification/deep link. GuideShop остаётся источником истины для Visits и points; event production в GuideShop отделён от Telegram notification delivery в Guide OS.
 
 ## Завершённые этапы
+
+- Master roadmap Stages 0–9C — PASS;
+- Stage 10A GuideShop production release — PASS;
+- Stage 10B Guide OS production release — PASS;
+- Stage 10C production linking, reads and final UX — PASS;
+- owner smoke: `Final points UX smoke PASS`;
+- Stage 11A contracts `v1.2.0` — PASS;
+- Stage 11B GuideShop outbox `3e8a760` — PASS;
+- Stage 11C GuideShop event feed `a6299c7` — PASS;
+- Stage 12A contracts pin `v1.2.0` commit `f09b0d2` — PASS;
+- Stage 12B durable inbox/deduplication commit `f55e2ae` — PASS;
+- Stage 12C event feed client/checkpoint commit `494df56` — PASS; CI и Integration Contracts successful;
+- Stage 12D notification processing — PASS; atomic claim, bounded retry/dead-letter и safe GuideShop deep links проверены;
+- Stage 12E default-off runtime composition — PASS; bounded worker, flag matrix и clean shutdown проверены (`803 passed`);
+- Stage 12 production release commit `66ecfe5`, deployment `6e9c5fb8…` — PASS; owner smoke PASS; events/notifications OFF;
+- Stage 13A abandoned-processing recovery и bounded dead-letter replay — PASS (`819 passed`);
+- Stage 13B read-only reconciliation/gap report — PASS (`834 passed`);
+- Stage 13C isolated recovery/restore drill — PASS; initial/restored NEEDS_ATTENTION, recovered CLEAN, quick_check ok;
+- Stage 13 production deployment `0e714525…` — PASS; owner smoke PASS; events/notifications OFF;
+- Stage 14A sanitized operational metrics — PASS (`847 passed`);
+- Stage 14B security matrix — PASS (`52` matrix cases; full suite `899 passed`);
+- Stage 14C commit `0ef25af` — PASS (`18` module tests; full suite `917 passed`); CI/contracts green; runtime defect не найден;
+- Stage 14 production deployment `dc898131…` — PASS; owner smoke PASS; events/notifications OFF;
+- Stage 15A shared E2E — PASS: local required test `1 passed`, focused `311 passed`, full Guide OS `919 passed, 1 skipped`, GuideShop event suites `51 passed`;
+- shared CI workflow закрепляет GuideShop commit `4cf1c10b…`, required mode и sibling checkout без secrets;
+- amended Stage 15 commit `9307593`; CI/contracts/shared E2E green, test executed and did not skip;
+- Stage 15 production deployment `918f7eb5…` — PASS; owner smoke PASS; events/notifications OFF;
+- Stage 16 notification canary — PASS; owner notification/deep-link и Visit back-navigation smoke — PASS;
+- Stage 17 observation — PASS: `10m11s`, `22` cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`;
+- Stage 18 final closure audit — PASS для runtime, data, security и operations;
+- Stage 16A audit: GuideShop production `cd3895d…` не содержит `3e8a760`, `a6299c7` или `4cf1c10b…`; canary не готов;
+- Stage 11 candidate: events OFF блокирует outbox/version writes через единый shared boundary; migrations unconditional;
 
 - Stage 0;
 - Stage 1A/1B — identity и linking requests;
@@ -79,7 +113,7 @@ Guide OS staging/E2E, production lifecycle absence audit, production-safe Railpa
 
 ## Следующее действие
 
-Согласно `.ai/NEXT_TASK.md`, провести финальный read-only exact merge-diff review. `BOT_TOKEN` ротировать только в последующем controlled release window; merge/deploy production и tag пока запрещены.
+Согласно `.ai/NEXT_TASK.md`, выполнять routine post-launch monitoring и incident response. Новая product-разработка начинается только после выбора нового roadmap item владельцем.
 
 ## Зафиксированное будущее требование
 
@@ -88,9 +122,14 @@ Guide OS staging/E2E, production lifecycle absence audit, production-safe Railpa
 - GuideShop остаётся владельцем официального points balance и позже может принимать минимальные идемпотентные claims по `external_sale_id`.
 - Это отдельный post-MVP write workstream после базовой read-only интеграции; налоговая, redemption и anti-fraud модель ещё требует решения.
 
-## Production gate
+## Финальное production-состояние
 
-GuideShop API, shared staging, E2E, recovery и live production-safety evidence обязательны до production activation.
+- Guide OS: commit `930759340a867113c6a78da64552936f5428597d`, deployment `9da4811d-8987-467d-bcd8-8f667f6fd081`, events/notifications ON;
+- GuideShop: commit `c6cbbf48a7d0c0a6d133e724db2c39ce28a5ab3b`, deployment `cfd82638-bc76-4a87-b7db-dd0f6886a593`, events ON, notifications OFF;
+- одна active link; outbox `2`; один aggregate subject version `2`;
+- inbox stale `1`, delivered `1`, pending/processing/dead-letter `0`;
+- checkpoint generation `2`, watermark version `2`;
+- notification attempts/successes `1/1`, duplicates `0`, reconciliation `CLEAN`.
 
 ## Ограничения сессии
 
