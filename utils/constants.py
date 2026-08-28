@@ -12,8 +12,16 @@ PAYMENT_UNPAID = "unpaid"
 ENTRY_TYPE_TOUR = "tour"
 ENTRY_TYPE_DAY_OFF = "day_off"
 
+SOURCE_GUIDE_OS_BOT = "guide_os_bot"
+SOURCE_MINI_APP = "mini_app"
+SOURCE_DISPLAY = {
+    SOURCE_GUIDE_OS_BOT: "Guide OS bot",
+    SOURCE_MINI_APP: "Mini App",
+}
+
 FREE_LABEL = "свободно"
 DAY_OFF_LABEL = "У меня выходной"
+DAY_OFF_TITLE = "Выходной"
 MULTIPLE_TOURS_LABEL = "несколько туров"
 
 MONTH_NAMES_RU = {
@@ -44,6 +52,21 @@ MONTH_NAMES_RU_GENITIVE = {
     10: "октября",
     11: "ноября",
     12: "декабря",
+}
+
+MONTH_NAMES_IN_RU = {
+    1: "январе",
+    2: "феврале",
+    3: "марте",
+    4: "апреле",
+    5: "мае",
+    6: "июне",
+    7: "июле",
+    8: "августе",
+    9: "сентябре",
+    10: "октябре",
+    11: "ноябре",
+    12: "декабре",
 }
 
 MONTH_SHORT_RU = {

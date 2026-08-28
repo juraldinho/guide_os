@@ -1,7 +1,10 @@
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
+import json
 import re
+from dataclasses import dataclass
+from typing import Any, Literal, Optional, TypedDict
 
 from utils.constants import (
     ENTRY_TYPE_TOUR,
@@ -11,6 +14,10 @@ from utils.constants import (
     PAYMENT_PAID,
     PAYMENT_UNPAID,
     DAY_OFF_LABEL,
+    DAY_OFF_TITLE,
+    SOURCE_GUIDE_OS_BOT,
+    SOURCE_MINI_APP,
+    SOURCE_DISPLAY,
 )
 
 from database.queries import (
@@ -33,6 +40,9 @@ from database.queries import (
     update_tour_payment_status_by_group,
     update_tour_dates,
     get_tours_in_range,
+    get_tours_by_group_id,
+    update_tour_extended,
+    update_tour_extended_by_group,
 )
 
 from services.date_parser import parse_date_input
@@ -273,3 +283,382 @@ def edit_tour_dates(user_id: int, tour_id: int, date_text: str) -> bool:
         start_date=interval["start_date"],
         end_date=interval["end_date"],
     )
+
+
+class ConflictWarn(TypedDict):
+    warn: Literal[True]
+    date: str
+    existing: dict[str, Any]
+
+
+class ConflictBlock(TypedDict):
+    block: Literal[True]
+    date: str
+    existing: dict[str, Any]
+    reason: str
+
+
+ConflictResult = Optional[ConflictWarn | ConflictBlock]
+
+
+@dataclass
+class TourEntryDraft:
+    title: str
+    company: str
+    location: str
+    start_date: str
+    end_date: str
+    start_time: str | None = None
+    end_time: str | None = None
+    status: str = STATUS_RESERVED
+    payment: str = PAYMENT_UNPAID
+    income: int = 0
+    note: str = ""
+    source: str = SOURCE_MINI_APP
+    entry_type: str = ENTRY_TYPE_TOUR
+
+
+def days_in_range(start: str, end: str) -> list[str]:
+    start_dt = datetime.strptime(start, "%Y-%m-%d").date()
+    end_dt = datetime.strptime(end, "%Y-%m-%d").date()
+    out: list[str] = []
+    current = start_dt
+    while current <= end_dt:
+        out.append(current.isoformat())
+        current += timedelta(days=1)
+    return out
+
+
+def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
+    entry_type = row.get("entry_type", ENTRY_TYPE_TOUR)
+    source_key = row.get("source") or SOURCE_GUIDE_OS_BOT
+    source_display = SOURCE_DISPLAY.get(source_key, source_key)
+
+    day_locations: dict[str, str] | None = None
+    raw_locations = row.get("day_locations_json")
+    if raw_locations:
+        try:
+            parsed = json.loads(raw_locations)
+            if isinstance(parsed, dict):
+                day_locations = {str(k): str(v) for k, v in parsed.items()}
+        except json.JSONDecodeError:
+            day_locations = None
+
+    if entry_type == ENTRY_TYPE_DAY_OFF:
+        title = DAY_OFF_TITLE
+    else:
+        title = row.get("title") or row.get("company") or ""
+
+    return {
+        "id": str(row["id"]),
+        "type": entry_type,
+        "title": title,
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "start_time": row.get("start_time"),
+        "end_time": row.get("end_time"),
+        "status": row.get("status"),
+        "payment": row.get("payment_status"),
+        "income": row.get("income") or 0,
+        "company": row.get("company"),
+        "location": row.get("city"),
+        "note": row.get("note"),
+        "source": source_display,
+        "day_locations": day_locations,
+        "group_id": row.get("tour_group_id"),
+    }
+
+
+def collapse_rows_to_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    singles: list[dict[str, Any]] = []
+
+    for row in rows:
+        group_id = row.get("tour_group_id")
+        if group_id:
+            groups.setdefault(group_id, []).append(row)
+        else:
+            singles.append(row)
+
+    collapsed: list[dict[str, Any]] = []
+    for group_rows in groups.values():
+        collapsed.append(_merge_group_rows(group_rows))
+    for row in singles:
+        collapsed.append(row_to_entry_dict(row))
+
+    collapsed.sort(key=lambda e: (e["start_date"], e["id"]))
+    return collapsed
+
+
+def _merge_group_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ordered = sorted(rows, key=lambda r: (r["start_date"], r["id"]))
+    merged = dict(ordered[0])
+    merged["start_date"] = min(r["start_date"] for r in ordered)
+    merged["end_date"] = max(r["end_date"] for r in ordered)
+
+    locations: dict[str, str] = {}
+    for row in ordered:
+        raw = row.get("day_locations_json")
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    locations.update({str(k): str(v) for k, v in parsed.items()})
+            except json.JSONDecodeError:
+                continue
+    if locations:
+        merged["day_locations_json"] = json.dumps(locations, ensure_ascii=False)
+
+    return row_to_entry_dict(merged)
+
+
+def list_entries(user_id: int, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    rows = get_tours_in_range(user_id, from_date, to_date)
+    return collapse_rows_to_entries([dict(row) for row in rows])
+
+
+def get_entry(user_id: int, entry_id: str) -> dict[str, Any] | None:
+    tour = get_tour_by_id(user_id, int(entry_id))
+    if not tour:
+        return None
+
+    group_id = tour.get("tour_group_id")
+    if group_id:
+        rows = get_tours_by_group_id(user_id, group_id)
+        entries = collapse_rows_to_entries([dict(row) for row in rows])
+        return entries[0] if entries else None
+
+    return row_to_entry_dict(dict(tour))
+
+
+def _validate_times(start_time: str | None, end_time: str | None) -> None:
+    if start_time is None and end_time is None:
+        return
+    if start_time is None or end_time is None:
+        raise ValueError("invalid time pair")
+    if start_time >= end_time:
+        raise ValueError("end time must be after start time")
+
+
+def _is_full_day_entry(entry: dict[str, Any]) -> bool:
+    return entry.get("type") == ENTRY_TYPE_DAY_OFF or not entry.get("start_time") or not entry.get("end_time")
+
+
+def _date_in_entry(date: str, entry: dict[str, Any]) -> bool:
+    return entry["start_date"] <= date <= entry["end_date"]
+
+
+def _times_overlap(
+    a_start: str,
+    a_end: str,
+    b_start: str,
+    b_end: str,
+    a_full: bool,
+    b_full: bool,
+) -> bool:
+    if a_full or b_full:
+        return True
+    return a_start < b_end and b_start < a_end
+
+
+def check_entry_conflicts(
+    user_id: int,
+    draft: TourEntryDraft,
+    exclude_id: str | None = None,
+) -> ConflictResult:
+    if not draft.start_date or not draft.end_date:
+        return None
+
+    exclude_group_id: str | None = None
+    if exclude_id is not None:
+        existing = get_tour_by_id(user_id, int(exclude_id))
+        if existing:
+            exclude_group_id = existing.get("tour_group_id")
+
+    entries = list_entries(user_id, draft.start_date, draft.end_date)
+    probe: dict[str, Any] = {
+        "type": draft.entry_type,
+        "title": draft.title,
+        "start_date": draft.start_date,
+        "end_date": draft.end_date,
+        "start_time": draft.start_time,
+        "end_time": draft.end_time,
+        "status": draft.status,
+    }
+
+    warning: ConflictResult = None
+    for date in days_in_range(draft.start_date, draft.end_date):
+        for ex in entries:
+            if exclude_id is not None and ex["id"] == exclude_id:
+                continue
+            if exclude_group_id and ex.get("group_id") == exclude_group_id:
+                continue
+            if not _date_in_entry(date, ex):
+                continue
+
+            if ex["type"] == ENTRY_TYPE_DAY_OFF:
+                return {
+                    "block": True,
+                    "date": date,
+                    "existing": ex,
+                    "reason": "На этой дате уже отмечен выходной. Измените дату.",
+                }
+
+            entry_full = _is_full_day_entry(probe)
+            ex_full = _is_full_day_entry(ex)
+            overlap = _times_overlap(
+                probe.get("start_time") or "00:00",
+                probe.get("end_time") or "24:00",
+                ex.get("start_time") or "00:00",
+                ex.get("end_time") or "24:00",
+                entry_full,
+                ex_full,
+            )
+
+            if overlap:
+                time_label = "Весь день" if ex_full else f"{ex['start_time']}–{ex['end_time']}"
+                title = ex.get("title") or ex.get("company") or ""
+                return {
+                    "block": True,
+                    "date": date,
+                    "existing": ex,
+                    "reason": (
+                        f"Время нового тура пересекается с туром «{title}» {time_label}. "
+                        "Измените время или дату."
+                    ),
+                }
+
+            if warning is None:
+                warning = {"warn": True, "date": date, "existing": ex}
+
+    return warning
+
+
+def create_tour_entry(user_id: int, draft: TourEntryDraft) -> dict[str, Any]:
+    _validate_times(draft.start_time, draft.end_time)
+
+    if draft.entry_type == ENTRY_TYPE_TOUR and not draft.title.strip():
+        raise ValueError("title required")
+
+    if draft.end_date < draft.start_date:
+        raise ValueError("end date before start date")
+
+    title = draft.title.strip() if draft.entry_type == ENTRY_TYPE_TOUR else DAY_OFF_TITLE
+    company = draft.company.strip() if draft.entry_type == ENTRY_TYPE_TOUR else DAY_OFF_LABEL
+    city = draft.location.strip() if draft.entry_type == ENTRY_TYPE_TOUR else "—"
+    note = draft.note.strip() or None
+    tour_group_id = str(uuid4())
+
+    tour_id = create_tour(
+        user_id=user_id,
+        company=company,
+        city=city,
+        start_date=draft.start_date,
+        end_date=draft.end_date,
+        status=draft.status if draft.entry_type == ENTRY_TYPE_TOUR else STATUS_CONFIRMED,
+        income=draft.income,
+        payment_status=draft.payment,
+        note=note,
+        entry_type=draft.entry_type,
+        tour_group_id=tour_group_id,
+        title=title,
+        start_time=draft.start_time,
+        end_time=draft.end_time,
+        source=draft.source,
+    )
+    return get_entry(user_id, str(tour_id))
+
+
+def update_tour_entry(user_id: int, entry_id: str, draft: TourEntryDraft) -> dict[str, Any] | None:
+    tour = get_tour_by_id(user_id, int(entry_id))
+    if not tour:
+        return None
+
+    _validate_times(draft.start_time, draft.end_time)
+    if draft.end_date < draft.start_date:
+        raise ValueError("end date before start date")
+
+    updates = {
+        "title": draft.title.strip(),
+        "company": draft.company.strip(),
+        "city": draft.location.strip(),
+        "start_date": draft.start_date,
+        "end_date": draft.end_date,
+        "status": draft.status,
+        "income": draft.income,
+        "payment_status": draft.payment,
+        "note": draft.note.strip() or None,
+        "start_time": draft.start_time,
+        "end_time": draft.end_time,
+        "source": draft.source,
+    }
+
+    group_id = tour.get("tour_group_id")
+    if group_id:
+        update_tour_extended_by_group(user_id, group_id, **updates)
+    else:
+        update_tour_extended(user_id, int(entry_id), **updates)
+
+    return get_entry(user_id, entry_id)
+
+
+def create_day_off_entry(user_id: int, start_date: str, end_date: str) -> dict[str, Any]:
+    draft = TourEntryDraft(
+        title=DAY_OFF_TITLE,
+        company=DAY_OFF_LABEL,
+        location="—",
+        start_date=start_date,
+        end_date=end_date,
+        status=STATUS_CONFIRMED,
+        payment=PAYMENT_UNPAID,
+        income=0,
+        entry_type=ENTRY_TYPE_DAY_OFF,
+        source=SOURCE_MINI_APP,
+    )
+    return create_tour_entry(user_id, draft)
+
+
+def update_day_locations(
+    user_id: int,
+    entry_id: str,
+    locations: dict[str, str],
+) -> dict[str, Any] | None:
+    tour = get_tour_by_id(user_id, int(entry_id))
+    if not tour:
+        return None
+
+    json_str = json.dumps(locations, ensure_ascii=False)
+    group_id = tour.get("tour_group_id")
+    if group_id:
+        update_tour_extended_by_group(user_id, group_id, day_locations_json=json_str)
+    else:
+        update_tour_extended(user_id, int(entry_id), day_locations_json=json_str)
+
+    return get_entry(user_id, entry_id)
+
+
+def copy_tour_entry(
+    user_id: int,
+    entry_id: str,
+    new_start: str,
+    new_end: str,
+) -> dict[str, Any] | None:
+    source_entry = get_entry(user_id, entry_id)
+    if not source_entry or source_entry["type"] == ENTRY_TYPE_DAY_OFF:
+        return None
+
+    draft = TourEntryDraft(
+        title=source_entry["title"],
+        company=source_entry.get("company") or "",
+        location=source_entry.get("location") or "",
+        start_date=new_start,
+        end_date=new_end,
+        start_time=source_entry.get("start_time"),
+        end_time=source_entry.get("end_time"),
+        status=source_entry.get("status") or STATUS_RESERVED,
+        payment=source_entry.get("payment") or PAYMENT_UNPAID,
+        income=source_entry.get("income") or 0,
+        note=source_entry.get("note") or "",
+        source=SOURCE_MINI_APP,
+    )
+    return create_tour_entry(user_id, draft)

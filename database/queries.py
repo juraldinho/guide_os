@@ -14,6 +14,7 @@ from utils.constants import (
     ENTRY_TYPE_DAY_OFF,
     STATUS_RESERVED,
     STATUS_CONFIRMED,
+    SOURCE_GUIDE_OS_BOT,
 )
 
 def create_tour(
@@ -28,7 +29,12 @@ def create_tour(
     note: str | None = None,
     entry_type: str = ENTRY_TYPE_TOUR,
     tour_group_id: str | None = None,
-) -> None:
+    title: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    source: str = SOURCE_GUIDE_OS_BOT,
+    day_locations_json: str | None = None,
+) -> int:
     def operation(conn):
         cursor = conn.cursor()
 
@@ -45,9 +51,14 @@ def create_tour(
                 payment_status,
                 note,
                 entry_type,
-                tour_group_id
+                tour_group_id,
+                title,
+                start_time,
+                end_time,
+                source,
+                day_locations_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -61,10 +72,16 @@ def create_tour(
                 note,
                 entry_type,
                 tour_group_id,
+                title,
+                start_time,
+                end_time,
+                source,
+                day_locations_json,
             ),
         )
+        return cursor.lastrowid
 
-    run_write_with_retry(operation)
+    return run_write_with_retry(operation)
 
 def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[dict]:
     conn = get_connection()
@@ -472,6 +489,124 @@ def get_tours_by_group_id(user_id: int, tour_group_id: str) -> list[sqlite3.Row]
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def update_tour_extended_by_group(
+    user_id: int,
+    tour_group_id: str,
+    company: str | None = None,
+    city: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    status: str | None = None,
+    income: int | None = None,
+    payment_status: str | None = None,
+    note: str | None = None,
+    title: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    source: str | None = None,
+    day_locations_json: str | None = None,
+) -> bool:
+    fields: list[str] = []
+    values: list[object] = []
+
+    mapping = {
+        "company": company,
+        "city": city,
+        "start_date": start_date,
+        "end_date": end_date,
+        "status": status,
+        "income": income,
+        "payment_status": payment_status,
+        "note": note,
+        "title": title,
+        "start_time": start_time,
+        "end_time": end_time,
+        "source": source,
+        "day_locations_json": day_locations_json,
+    }
+
+    for column, value in mapping.items():
+        if value is not None:
+            fields.append(f"{column} = ?")
+            values.append(value)
+
+    if not fields:
+        return False
+
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            UPDATE tours
+            SET {", ".join(fields)}
+            WHERE user_id = ? AND tour_group_id = ?
+            """,
+            (*values, user_id, tour_group_id),
+        )
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+
+def update_tour_extended(
+    user_id: int,
+    tour_id: int,
+    company: str | None = None,
+    city: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    status: str | None = None,
+    income: int | None = None,
+    payment_status: str | None = None,
+    note: str | None = None,
+    title: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    source: str | None = None,
+    day_locations_json: str | None = None,
+) -> bool:
+    fields: list[str] = []
+    values: list[object] = []
+
+    mapping = {
+        "company": company,
+        "city": city,
+        "start_date": start_date,
+        "end_date": end_date,
+        "status": status,
+        "income": income,
+        "payment_status": payment_status,
+        "note": note,
+        "title": title,
+        "start_time": start_time,
+        "end_time": end_time,
+        "source": source,
+        "day_locations_json": day_locations_json,
+    }
+
+    for column, value in mapping.items():
+        if value is not None:
+            fields.append(f"{column} = ?")
+            values.append(value)
+
+    if not fields:
+        return False
+
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            UPDATE tours
+            SET {", ".join(fields)}
+            WHERE user_id = ? AND id = ?
+            """,
+            (*values, user_id, tour_id),
+        )
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
 
 def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
     conn = get_connection()

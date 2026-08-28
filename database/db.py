@@ -259,6 +259,27 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
             "ALTER TABLE tours ADD COLUMN tour_group_id TEXT"
         )
 
+    if "title" not in columns:
+        cursor.execute("ALTER TABLE tours ADD COLUMN title TEXT")
+
+    if "start_time" not in columns:
+        cursor.execute("ALTER TABLE tours ADD COLUMN start_time TEXT")
+
+    if "end_time" not in columns:
+        cursor.execute("ALTER TABLE tours ADD COLUMN end_time TEXT")
+
+    if "source" not in columns:
+        cursor.execute(
+            "ALTER TABLE tours ADD COLUMN source TEXT NOT NULL DEFAULT 'guide_os_bot'"
+        )
+
+    if "day_locations_json" not in columns:
+        cursor.execute("ALTER TABLE tours ADD COLUMN day_locations_json TEXT")
+
+    cursor.execute(
+        "UPDATE tours SET title = company WHERE title IS NULL AND entry_type = 'tour'"
+    )
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_tours_user_dates
     ON tours(user_id, start_date, end_date)
@@ -679,6 +700,19 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_events_name_created_at
     ON events(event_name, created_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS miniapp_idempotency (
+        user_id INTEGER NOT NULL,
+        endpoint TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        body_hash TEXT NOT NULL,
+        status_code INTEGER NOT NULL,
+        response_body TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, endpoint, idempotency_key)
+    )
     """)
     cursor.execute(
         """
