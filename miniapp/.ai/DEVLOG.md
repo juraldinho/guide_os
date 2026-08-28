@@ -116,10 +116,23 @@
 - `reports_service`, `availability_service` — MA3 parity with summary.ts / availability.ts;
 - Pytest extended; bot handlers untouched; next MA5 (web_api).
 
+## 2026-08-28 — MA2 owner visual review approved
+
+- header: logo optical size (viewBox crop), symmetric toolbar with gear;
+- «Итоги» и free-dates flows approved;
+- MA2 closed; MA3 scaffold started.
+
+## 2026-08-29 — MA3 build fixes + free-dates overlay fix
+
+- TypeScript build errors fixed (imports, fmtDateShort, duplicate i18n keys, vite prototype exclude);
+- Free-dates overlay: local state for custom range — preview updates on date change;
+- `npm test` + `npm run build` pass locally.
+
 ## 2026-08-29 — MA5 Web API transport layer
 
 - `web_api/` aiohttp app: entries CRUD, profile, reports summary, availability preview, session stub;
 - `guide_os_miniapp_api.py` standalone entrypoint (no bot polling);
 - Dev auth stub: `X-Dev-User-Id` / `Bearer dev:<user_id>` when `MINI_APP_API_DEV_AUTH=true`;
 - Idempotency store (`miniapp_idempotency` table); camelCase DTO mapping; Russian error envelope;
+- `tests/test_miniapp_api.py` (16 tests); full suite 1005 passed;
 - `MINI_APP_API_ENABLED=false` by default; React client still on mocks; next MA6 (initData auth).

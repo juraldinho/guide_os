@@ -2,13 +2,14 @@
 
 > Версия: 1.0  
 > Дата: 2026-08-28  
-> Статус: целевая архитектура; реализация ещё не начата
+> Обновлено: 2026-08-29
+> Статус: **MA4–MA5 реализованы** (shared services + `web_api/` transport). Auth: dev stub (MA6 — initData). Frontend: mocks (MA7).
 
 ## 1. Цель
 
 Определить безопасную техническую границу между Telegram Mini App, Guide OS Web API, существующей бизнес-логикой Guide OS и read-only GuideShop integration.
 
-Документ не разрешает production activation и не является готовым API contract. Конкретные schemas фиксируются отдельным versioned contract перед реализацией MA5.
+Конкретные HTTP schemas: [`docs/mini_app/API_CONTRACT_v1.md`](../docs/mini_app/API_CONTRACT_v1.md). Реализация routes: `web_api/` (MA5). Production activation **не разрешена** до staging gate.
 
 ## 2. System context
 

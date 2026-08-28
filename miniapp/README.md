@@ -1,12 +1,21 @@
-# Guide OS Mini App — Frontend (MA3 complete)
+# Guide OS Mini App
 
-React + TypeScript + Vite scaffold with mock data. All approved MA2 MVP flows ported to React.
+React frontend + disposable MA2 prototype + Web API backend (MA0–MA5 complete). Telegram-бот не изменён; production rollout не включён.
 
-## Status
+## Status (2026-08-29)
 
-**MA3 complete** — Calendar, Reports («Итоги»), Settings, free-dates overlay, and demo system states on mocks. Next: **MA4** (Web API + shared services).
+| Этап | Статус | Описание |
+|------|--------|----------|
+| MA0 | ✅ | Product docs, DECISIONS, AGENTS |
+| MA1 | ✅ | Low-fi UX prototype |
+| MA2 | ✅ | High-fi prototype (owner approved) |
+| MA3 | ✅ | React + Vite, all MVP screens on **mocks** |
+| MA4 | ✅ | Shared services + DB migrations + API contract docs |
+| MA5 | ✅ | `web_api/` transport (`guide_os_miniapp_api.py`, dev auth stub) |
+| **MA6** | ⏳ | Telegram initData session auth |
+| **MA7** | ⏳ | React HTTP client → API |
 
-## Quick start
+## Quick start — React UI (mocks)
 
 ```sh
 cd miniapp
@@ -14,18 +23,29 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/`.
+Open `http://localhost:5173/` (or next free port if 5173 is busy).
 
-## Scripts
+```sh
+npm test
+npm run build
+```
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Vite dev server |
-| `npm run build` | Typecheck + production build |
-| `npm run preview` | Preview production build |
-| `npm test` | Vitest unit/component tests |
+## Quick start — Web API (optional, dev auth)
 
-## MVP flows in React (mock-only)
+```sh
+# from repo root
+MINI_APP_API_ENABLED=true MINI_APP_API_DEV_AUTH=true python guide_os_miniapp_api.py
+```
+
+```sh
+curl -X POST http://127.0.0.1:8083/app/v1/session \
+  -H 'Content-Type: application/json' \
+  -d '{"dev_user_id":123}'
+```
+
+Feature flag **`MINI_APP_API_ENABLED=false`** in `.env.example` by default.
+
+## MVP flows in React (mock-only until MA7)
 
 ### Calendar
 
@@ -40,64 +60,62 @@ Open `http://localhost:5173/`.
 - Current year ends at `MOCK_TODAY` (2026-08-28); no future years
 - Filter chips: status (Все/Бронь/Занято), payment (Все/Оплачено/Не оплачено)
 - Five metrics: туров, рабочих дней, доход ($), оплаченных/неоплаченных туров
-- Income = overlapping days × daily rate; unique working days
 - «Поделиться свободными датами» → shared free-dates overlay
 
-### Free-dates overlay (Calendar + Reports)
+### Settings, free-dates, demo states
 
-- Context from opener: calendar month or reports period (snapshotted `availOpenFrom`)
-- Modes: automatic context vs custom date range
-- Only fully free dates; preview + copy + empty state
+- Profile, Telegram ID copy, types/geography (mock), notifications, theme demo
+- Free-dates overlay: context snapshot + custom range (local state, live preview)
+- Demo loading / error / offline screens (dev QA only)
 
-### Settings (gear icon)
+## Architecture
 
-- Profile name, Telegram ID + copy
-- Guide types + geography (read-only cards from mock profile)
-- Notifications toggle + reminder time
-- Theme demo: Как в Telegram / Светлая / Тёмная (`sessionStorage` + `mockAdapter`)
-- Link to demo UI states; language/about stubs
+```text
+Telegram Mini App (miniapp/src/)     [mocks until MA7]
+        |
+        |  future: HTTPS + session
+        v
+Guide OS Web API (web_api/)          [MA5, flag off]
+        |
+        v
+shared services (MA4)
+  tour_service, reports_service, availability_service
+        |
+        v
+Guide OS SQLite
+```
 
-### Demo system states (Settings → dev section)
+```text
+miniapp/
+├── src/              # React app (MA3)
+├── prototype/        # MA2 disposable HTML reference
+├── tests/            # Vitest
+├── public/           # logo.svg
+└── package.json
 
-- Loading (auto-clear 2s), error, offline screens for manual QA
-- Dev-only; not enabled in production paths
+web_api/              # aiohttp /app/v1 (MA5)
+guide_os_miniapp_api.py
+```
 
 ## Mock scenario
 
 - Today: **28 August 2026** (`MOCK_TODAY` in `src/config.ts`)
 - Existing tour: **Обзорный Самарканд** 09:00–14:00
-- Add tour on same day with **12:00–16:00** to trigger blocking time conflict
+- Add tour same day **12:00–16:00** → blocking time conflict
 
-## Architecture
+## Documentation
 
-```text
-src/
-├── app/              # AppShell, GlobalOverlays, DemoScreens
-├── features/
-│   ├── calendar/     # Calendar UI + lib
-│   └── reports/      # ReportsPage, free-dates, lib (summary, periods, availability)
-├── features/settings/# SettingsOverlay, DemoStatesOverlay
-├── components/       # Shared layout + UI (Chip, OverlaySheet, Toast)
-├── api/              # Types, mock client/store
-├── telegram/         # Mock theme adapter
-├── i18n/             # RU strings
-└── styles/           # tokens.css + global.css
-```
-
-- **No network** — `api/mock/store.ts` in-memory data
-- **No Telegram SDK** — `telegram/mockAdapter.ts` stubs theme
-- **prototype/** left unchanged as disposable MA2 reference
-
-## Tests
-
-```sh
-npm test
-```
-
-Covers conflicts, feed smoke, `calcSummary`/report ranges, `buildFreeDatesText` headings, Reports metric labels.
+- [AGENTS.md](AGENTS.md) — правила для AI-агентов
+- [GuideOS_miniapp_Development_Operating_System.md](GuideOS_miniapp_Development_Operating_System.md) — продукт и roadmap
+- [GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md](GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md) — интеграция и auth
+- [docs/mini_app/API_CONTRACT_v1.md](../docs/mini_app/API_CONTRACT_v1.md) — HTTP contract
+- [docs/mini_app/SERVICE_GAP_ANALYSIS_MA4.md](../docs/mini_app/SERVICE_GAP_ANALYSIS_MA4.md) — service mapping
+- [.ai/NEXT_TASK.md](.ai/NEXT_TASK.md) — следующая задача (MA6)
+- [prototype/README.md](prototype/README.md) — MA2 HTML prototype
 
 ## Constraints
 
 - Russian UI, USD only
-- Do not use for production until Web API integration (MA4)
-- Official logo: `public/assets/logo.svg`
+- Bot handlers unchanged; parallel development
+- No production Mini App until staging gate (MA10+)
+- Official logo: `public/assets/logo.svg` (viewBox cropped for header)

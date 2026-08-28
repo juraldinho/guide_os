@@ -1,32 +1,58 @@
 # Guide OS Mini App — продуктовая и архитектурная документация
 
-Эта папка предназначена для подробного проектирования Guide OS Mini App до начала разработки.
+> **Статус: MA0–MA5 complete** (2026-08-29). Следующий этап: **MA6** (Telegram initData auth).
 
-Основной комплект архитектуры и будущий корень frontend теперь находится в [`../../miniapp/`](../../miniapp/README.md). В этой папке сохраняются исходный опрос и канонический журнал утверждённых владельцем решений.
+Канонический корень Mini App: [`../../miniapp/`](../../miniapp/README.md).
 
-Здесь фиксируются:
+## Что реализовано
 
-- пользователи и задачи продукта;
-- границы MVP и последующих версий;
-- карта экранов и навигация;
-- функции, кнопки, формы и состояния каждого экрана;
-- правила данных и интеграции с Guide OS и GuideShop;
-- роли и права доступа;
-- уведомления, ошибки и нестандартные сценарии;
-- визуальные принципы;
-- API-контракты и требования безопасности;
-- принятые решения и открытые вопросы.
+| Слой | Статус | Где |
+|------|--------|-----|
+| Product docs + DECISIONS | ✅ | эта папка + `miniapp/` |
+| MA2 HTML prototype | ✅ | `miniapp/prototype/` |
+| React UI (mocks) | ✅ | `miniapp/src/` |
+| Shared services | ✅ | `services/tour_service.py`, `reports_service.py`, `availability_service.py` |
+| Web API `/app/v1` | ✅ | `web_api/`, `guide_os_miniapp_api.py` |
+| Real Telegram auth | ⏳ | MA6 |
+| React → API | ⏳ | MA7 |
 
-## Предлагаемая структура
+Telegram-бот (handlers) **не изменён**. Production rollout **выключен**.
 
-1. `00-questionnaire.md` — завершённый стартовый опросник.
-2. `DECISIONS.md` — канонический журнал утверждённых продуктовых и архитектурных решений.
-3. `../../miniapp/GuideOS_miniapp_Development_Operating_System.md` — полная продуктовая архитектура, экраны и roadmap.
-4. `../../miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md` — интеграционная и техническая архитектура.
-5. `../../miniapp/AGENTS.md` — постоянные правила работы AI-агентов внутри Mini App.
+## Файлы в этой папке
 
-Документы создаются и заполняются постепенно. Предварительный план разработки из исходного черновика используется как отправная точка, а не как окончательная спецификация.
+| Файл | Назначение |
+|------|------------|
+| [`00-questionnaire.md`](00-questionnaire.md) | Завершённый стартовый опросник |
+| [`DECISIONS.md`](DECISIONS.md) | Канонический журнал решений D-001… |
+| [`API_CONTRACT_v1.md`](API_CONTRACT_v1.md) | HTTP contract `/app/v1` (MA5 implemented) |
+| [`SERVICE_GAP_ANALYSIS_MA4.md`](SERVICE_GAP_ANALYSIS_MA4.md) | Mapping mock → services (Step 2 closed) |
+
+## Связанные документы
+
+1. [`../../miniapp/GuideOS_miniapp_Development_Operating_System.md`](../../miniapp/GuideOS_miniapp_Development_Operating_System.md) — экраны и roadmap MA0–MA15
+2. [`../../miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md`](../../miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md) — auth, runtime, data ownership
+3. [`../../miniapp/AGENTS.md`](../../miniapp/AGENTS.md) — правила для AI-агентов
+4. [`../../miniapp/.ai/NEXT_TASK.md`](../../miniapp/.ai/NEXT_TASK.md) — текущая задача
 
 ## Граница с кодом
 
-Эта папка содержит только документацию. Код действующего Telegram-бота здесь не меняется. Кликабельный прототип и frontend Mini App рекомендуется создавать в отдельном репозитории после утверждения продуктовой архитектуры.
+- **Документация** — здесь и в `miniapp/*.md`
+- **Frontend** — `miniapp/src/` (React, mocks до MA7)
+- **Backend API** — `web_api/` в root repo (feature flag off)
+- **Бот** — без изменений; общие services используются API, handlers пока на прежних вызовах
+
+## Локальный запуск
+
+**React UI:**
+
+```sh
+cd miniapp && npm install && npm run dev
+```
+
+**Web API (dev auth):**
+
+```sh
+MINI_APP_API_ENABLED=true MINI_APP_API_DEV_AUTH=true python guide_os_miniapp_api.py
+```
+
+См. [`../../miniapp/README.md`](../../miniapp/README.md) для деталей.

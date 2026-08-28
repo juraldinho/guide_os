@@ -1,9 +1,18 @@
 # Guide OS Mini App — API Contract v1
 
-> Version: **v1** (draft for MA4 Step 2 implementation)  
-> Base path: `/app/v1`  
-> Status: **documentation only** — no `web_api/` implementation in MA4 Step 1  
+> Version: **v1**
+> Base path: `/app/v1`
+> Status: **implemented (MA5)** — routes in `web_api/`; auth **dev stub** until MA6
 > Last updated: 2026-08-29
+
+## Implementation notes (MA5)
+
+- Entrypoint: `guide_os_miniapp_api.py` (standalone, no bot polling)
+- Feature flag: `MINI_APP_API_ENABLED=false` by default (see `.env.example`)
+- Dev auth: `MINI_APP_API_DEV_AUTH=true` + `POST /app/v1/session` with `dev_user_id` or `Bearer dev:<id>`
+- Business logic: `services/tour_service.py`, `reports_service.py`, `availability_service.py`
+- Frontend: still on mocks in `miniapp/src/` until MA7
+- Real Telegram initData: **MA6**
 
 ## 1. Scope
 

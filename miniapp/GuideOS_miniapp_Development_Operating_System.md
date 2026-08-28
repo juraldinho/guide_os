@@ -2,13 +2,29 @@
 
 > Версия: 1.0  
 > Дата: 2026-08-28  
-> Статус: утверждённая архитектура до начала реализации
+> Статус: утверждённая архитектура; **implementation progress через MA5** (см. §1.1)
 
 ## 1. Назначение документа
 
 Документ является основной спецификацией продукта, экранов и последовательности разработки Guide OS Mini App. Он переводит утверждённые решения владельца в проверяемую архитектуру и roadmap.
 
 При конфликте приоритет имеют текущий код и тесты Guide OS, затем `miniapp/AGENTS.md`, затем журнал решений `docs/mini_app/DECISIONS.md`.
+
+### 1.1 Implementation progress (2026-08-29)
+
+| Этап | Статус | Реализовано |
+|------|--------|-------------|
+| MA0 | ✅ | Docs, DECISIONS, AGENTS |
+| MA1 | ✅ | `miniapp/prototype/` low-fi |
+| MA2 | ✅ | High-fi prototype (approved) |
+| MA3 | ✅ | React app on mocks (`miniapp/src/`) |
+| MA4 | ✅ | Services, migrations, contract docs |
+| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` (dev auth) |
+| MA6 | ⏳ | Telegram initData session |
+| MA7 | ⏳ | React HTTP client |
+| MA8–MA15 | ⏳ | Integration, staging, production |
+
+Telegram-бот (handlers) **не изменён**. Production Mini App **выключен** (`MINI_APP_API_ENABLED=false`).
 
 ## 2. Продуктовая формулировка
 

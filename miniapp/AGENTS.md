@@ -6,9 +6,22 @@
 
 ## Текущее состояние
 
-Mini App находится на стадии архитектуры. В `miniapp/` пока нет production frontend или backend-кода. Не описывай планируемые компоненты как уже реализованные.
+> Обновлено: 2026-08-29. Этапы **MA0–MA5 complete**. Следующий: **MA6** (Telegram initData auth).
 
-Главная следующая задача указана только в `.ai/NEXT_TASK.md`.
+| Этап | Статус | Артефакт |
+|------|--------|----------|
+| MA0 | ✅ | docs, DECISIONS, AGENTS |
+| MA1 | ✅ | `prototype/index.html` (low-fi) |
+| MA2 | ✅ | high-fi prototype (owner approved) |
+| MA3 | ✅ | React + Vite в `miniapp/src/` (mocks) |
+| MA4 | ✅ | contract + shared services + migrations |
+| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` (dev auth stub) |
+| MA6 | ⏳ | real initData session — не начато |
+| MA7 | ⏳ | React HTTP client — после MA6 |
+
+**Frontend** (`miniapp/src/`) работает на **mock store** до MA7. **Web API** реализован, feature flag **`MINI_APP_API_ENABLED=false`** по умолчанию. **Telegram-бот** (handlers) не изменён.
+
+Главная следующая задача — только в `.ai/NEXT_TASK.md`.
 
 ## Цель и приоритет
 
@@ -78,22 +91,24 @@ miniapp/
 ├── public/
 └── package.json
 
-web_api/              # в root Guide OS; transport/auth only
-services/             # existing shared business logic
-database/             # existing schema and SQL boundary
+web_api/              # MA5: transport/auth in root Guide OS
+services/             # MA4: shared business logic
+database/             # schema + SQL boundary
 ```
 
-Не создавай `web_api/`, schema или dependencies без отдельной задачи.
+Не расширяй `web_api/`, schema и dependencies без задачи в `NEXT_TASK.md`.
 
 ## PROJECT MAP — текущее расположение источников
 
 | Нужно понять или изменить | Где смотреть сначала |
 |---|---|
 | Утверждённый продукт и экраны | `miniapp/GuideOS_miniapp_Development_Operating_System.md` |
-| API, auth, data ownership | `miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md` |
-| Принятые решения владельца | `docs/mini_app/DECISIONS.md` |
-| Следующая задача | `miniapp/.ai/NEXT_TASK.md` |
-| Текущее состояние Mini App | `miniapp/.ai/PROJECT.md`, `miniapp/.ai/SESSION.md` |
+| API contract v1 | `docs/mini_app/API_CONTRACT_v1.md` |
+| Service gap / MA4 mapping | `docs/mini_app/SERVICE_GAP_ANALYSIS_MA4.md` |
+| Web API routes | `web_api/`, `guide_os_miniapp_api.py` |
+| Shared services (MA4) | `services/tour_service.py`, `reports_service.py`, `availability_service.py` |
+| React frontend (mocks) | `miniapp/src/`, `miniapp/src/api/client.ts` |
+| MA2 disposable reference | `miniapp/prototype/` |
 | Туры и конфликты бота | `services/tour_service.py`, `handlers/add_tour.py` |
 | Календарь и карточки дня | `services/calendar_service.py`, `services/day_view_service.py`, `services/day_card_service.py` |
 | Доход и статистика | `services/income_service.py`, `services/stats_service.py` |
@@ -183,16 +198,28 @@ database/             # existing schema and SQL boundary
 
 ## Testing strategy
 
-Пока frontend manifest не создан, frontend-команды не придумывать. При scaffold-задаче сначала зафиксировать реальные scripts, затем обновить этот раздел.
-
-Для текущего Guide OS backend использовать команды из root `AGENTS.md`:
+### Frontend (`miniapp/`)
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_tour_service.py::test_save_tour_creates_group
-.venv/bin/python -m pytest -q tests/test_tour_service.py
-.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_stats_service.py
+cd miniapp
+npm install
+npm test
+npm run build
+npm run dev
+```
+
+### Backend / Web API (root Guide OS)
+
+```sh
+.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_reports_service.py tests/test_availability_service.py tests/test_miniapp_api.py
 .venv/bin/python -m pytest -q
 git diff --check
+```
+
+Локальный Web API (dev auth):
+
+```sh
+MINI_APP_API_ENABLED=true MINI_APP_API_DEV_AUTH=true python guide_os_miniapp_api.py
 ```
 
 Правила:

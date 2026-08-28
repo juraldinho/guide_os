@@ -1,5 +1,7 @@
 # Guide OS Mini App — журнал решений
 
+> **Implementation progress (2026-08-29):** MA0–MA5 complete. Решения ниже остаются каноном; код: `miniapp/src/` (UI mocks), `web_api/` (API), shared `services/`. Следующий этап: **MA6** auth. См. [`../../miniapp/.ai/NEXT_TASK.md`](../../miniapp/.ai/NEXT_TASK.md).
+
 ## D-001. Целевая аудитория
 
 **Статус:** принято

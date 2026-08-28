@@ -4,7 +4,7 @@
 
 ## Статус
 
-Этап **MA3 complete** на mocks. **MA4 complete** (contract docs + shared services). **MA5 complete** — `web_api/` transport + standalone `guide_os_miniapp_api.py` (dev auth stub). **MA6** Telegram initData auth — не начато.
+Этап **MA3 complete** на mocks. **MA4 complete** (contract + shared services). **MA5 complete** (`web_api/` transport). **MA6 complete** (initData auth + session tokens). **MA7** React HTTP client — не начато.
 
 Не описывать планируемую архитектуру как существующий код.
 
@@ -27,7 +27,7 @@
 - status `reserved/confirmed`;
 - payment `paid/unpaid`;
 - USD и русский язык;
-- reports, filters, workload calendar;
+- reports, filters, free-date client text;
 - copy text with fully free dates only;
 - guide types/geography and visible Telegram ID;
 - Telegram-driven theme;
@@ -77,7 +77,7 @@ GuideShop remains optional read-only through existing Guide OS client.
 - Wireframes/Figma: not started.
 - Frontend manifest/source/tests: present in `miniapp/` (mocks only).
 - Web API: present (`web_api/`, `guide_os_miniapp_api.py`; feature flag off by default).
-- Telegram Mini App auth: dev stub only (MA6).
+- Telegram Mini App auth: initData validation + SQLite sessions (MA6); dev stub gated by flag.
 - Time/daily-location schema: present (MA4 migrations).
 - Staging Mini App bot/deployment: absent.
 

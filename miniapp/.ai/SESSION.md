@@ -1,52 +1,39 @@
 # Guide OS Mini App — Session
 
-> Дата: 2026-08-28
+> Обновлено: 2026-08-29
 
-## Выполнено в текущей сессии
+## Текущий статус: MA0–MA5 complete
 
-- прочитан общий контекст Tourism OS / Guide OS Mini App;
-- завершён короткий product questionnaire;
-- зафиксированы решения D-001…D-051;
-- выбран isolated directory `miniapp/` внутри Guide OS repo;
-- создан Mini App-specific `AGENTS.md`;
-- создана полная product/screen/development architecture;
-- создан integration/auth/data foundation;
-- создан operational `.ai` context;
-- официальный SVG признан единственным logo source;
-- создан MA1 disposable UX prototype в `miniapp/prototype/` (autonomous `index.html` + README);
-- MA1 утверждён владельцем;
-- MA2 high-fidelity prototype: semantic design tokens, official logo copy, theme demo control, visual polish;
-- owner review: вкладка «Итоги» — календарная сетка заменена на компактное распределение по неделям;
-- owner review: недели в «Итогах» — календарные Пн–Вс с диапазонными подписами;
-- owner review: календарь — вертикальная лента 8 дней, раскрываемый месяц, экран дня (без D/W/M);
-- `miniapp/prototype/assets/logo.svg` — точная копия official SVG;
-- проверки MA2: HTML parse, JS syntax, logo cmp, `git diff --check`, без внешних requests;
-- fix: blocking conflict overlay — `returnToTourFormFromConflict()` preserves form values, edit/copy context и `overlayReturn`; удалён unused `.view-tabs` CSS;
-- fix: свободные даты — период из контекста календаря/итогов, без hardcoded август/сентябрь; «Итоги» — bot-style stats (5 метрик), weekly workload удалён;
-- MA3 Phase 1: React scaffold + Calendar tab on mocks (`miniapp/src/`);
-- MA3 Phase 2: Reports, Settings, free-dates overlay, demo states — full MVP UI on mocks; `npm test` + `npm run build`;
-- root Guide OS code, DB, config, CI и production не изменялись.
+| Этап | Результат |
+|------|-----------|
+| MA0 | Docs, DECISIONS D-001…D-051, AGENTS |
+| MA1 | `prototype/index.html` low-fi — approved |
+| MA2 | High-fi prototype — approved (feed, stats, logo, conflicts) |
+| MA3 | React + Vite — Calendar, Reports, Settings, free-dates, demo states on mocks |
+| MA4 Step 1 | `API_CONTRACT_v1.md`, `SERVICE_GAP_ANALYSIS_MA4.md` |
+| MA4 Step 2 | Migrations, `tour_service` / `reports_service` / `availability_service`, pytest |
+| MA5 | `web_api/`, `guide_os_miniapp_api.py`, dev auth stub, 16 API tests |
 
-## Текущее решение
+**Следующий:** MA6 — Telegram initData session auth. **React на mocks** до MA7.
 
-MA3 complete on mocks. Next: MA4 (Web API + shared services) — not started.
+## Ключевые артефакты
+
+- Frontend: `miniapp/src/` (`npm run dev`, `npm test`, `npm run build`)
+- Prototype (reference): `miniapp/prototype/`
+- Web API: `web_api/`, entrypoint `guide_os_miniapp_api.py`
+- Services: `services/tour_service.py`, `reports_service.py`, `availability_service.py`
+- Tests: `tests/test_miniapp_api.py` + full suite **1005 passed**
 
 ## Важные нюансы
 
-- Existing bot date conflicts are warnings; Mini App target time overlap is blocking.
-- Time and daily multi-day location are target model extensions, not current implementation.
-- Bot-created records without time are full-day.
-- Client availability includes fully free dates only.
-- GuideShop is not a first-MVP module.
-
-## Working tree caution
-
-Root `.ai/*` and root `AGENTS.md` already contained user changes before Mini App documentation work. Do not overwrite or revert them. Mini App operational files live only in `miniapp/.ai/`.
+- Bot handlers **не изменены**; date conflicts в боте — warning, в Mini App time overlap — blocking (shared service MA4).
+- Legacy tours без времени = full-day.
+- Web API: `MINI_APP_API_ENABLED=false` по умолчанию; dev auth только с `MINI_APP_API_DEV_AUTH=true`.
+- GuideShop не входит в MVP Mini App.
 
 ## Resume instructions
 
-1. Read `../AGENTS.md`.
-2. Read `NEXT_TASK.md`.
-3. Use Operating System sections 6–17 for screens.
-4. Do not rescan the full root repo.
-5. Stop after the approved MA1 artifact.
+1. Read `../AGENTS.md` and `NEXT_TASK.md`.
+2. MA6 scope: `web_api/auth.py`, initData HMAC, session store.
+3. Do not wire `miniapp/src` HTTP client until MA7 approved.
+4. Bot/production unchanged without explicit release scope.

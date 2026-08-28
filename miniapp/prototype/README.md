@@ -1,10 +1,10 @@
 # Guide OS Mini App — UX Prototype (MA2)
 
-High-fidelity disposable clickable prototype on mock data. Not production frontend.
+High-fidelity **disposable** clickable prototype on mock data. **Not** the production frontend — use `miniapp/src/` (MA3 React app) for active development.
 
 ## Status
 
-**MA2 high-fidelity prototype** — pending owner visual review.
+**MA2 approved** (2026-08-28). Superseded for day-to-day work by **MA3 React scaffold**; kept as visual/behavior reference. Backend: **MA5 Web API** exists separately in `web_api/`.
 
 ## Open locally
 
@@ -12,7 +12,7 @@ High-fidelity disposable clickable prototype on mock data. Not production fronte
 open miniapp/prototype/index.html
 ```
 
-Or serve statically (no build required):
+Or serve statically:
 
 ```sh
 python3 -m http.server 8765 --directory miniapp/prototype
@@ -22,44 +22,26 @@ Then open `http://localhost:8765/`.
 
 ## Theme demo
 
-Prototype includes a **demonstration-only** theme control in Settings → **Тема (демо)**:
+Settings → **Тема (демо)**: Как в Telegram / Светлая / Тёмная (`sessionStorage`). Production will use `Telegram.WebApp.colorScheme`.
 
-- **Как в Telegram** — follows OS `prefers-color-scheme` (default)
-- **Светлая** / **Тёмная** — force light or dark semantic tokens
+## Scope
 
-Selection is stored in `sessionStorage` for the current browser tab only.
-
-Production Mini App will use `Telegram.WebApp.colorScheme` and `Telegram.WebApp.themeParams`. Telegram SDK is **not** connected in this prototype.
-
-## Viewports to check manually
-
-- 320 px (narrow iPhone)
-- 390 px (iPhone)
-- 430 px (wider Android)
-- Telegram Desktop width (~480 px max content)
-
-Verify: no horizontal scroll, readable light/dark, touch targets ~44×44 px, bottom nav does not hide primary actions.
+- Calendar: 8-day feed, expandable month picker, day detail, add tour/day off, forms, conflicts
+- Tour card: edit / copy / delete
+- Reports: bot-style period stats (5 metrics), filters, free dates overlay + copy
+- Settings: profile, Telegram ID, types/geography, notifications
+- Loading, empty, error, offline demo states
 
 ## Logo
 
-`assets/logo.svg` is an exact copy of the official Tourism OS marketing file (`marketing tourism os/logo/logo.svg`). Geometry, colors and text are unchanged.
-
-## Scope (unchanged from MA1)
-
-- Calendar: 8-day vertical feed, expandable month picker, day detail, add tour/day off, forms, conflicts
-- Tour card: edit / copy / delete
-- Reports: bot-style period stats (month/year/all-time), filters, free dates overlay + copy
-- Settings: profile, Telegram ID, types/geography, notifications
-- Loading, empty, error, offline demo states
+`assets/logo.svg` — official Tourism OS SVG; viewBox cropped for header optical size (paths unchanged).
 
 ## Mock scenario
 
 - Today: **28 August 2026**
-- Existing tour: **Обзорный Самарканд**, Silk Road Travel, 09:00–14:00, Бронь, $100, Не оплачено
-- Add tour on the same day with **12:00–16:00** to see blocking time conflict
+- Tour: **Обзорный Самарканд** 09:00–14:00; demo overlap **12:00–16:00**
 
 ## Constraints
 
-- No dependencies, no network requests, no backend/API/auth
-- Russian UI, USD only
-- Prototype-only — do not scaffold production frontend until MA2 is approved
+- No dependencies, no network, no backend
+- Do not edit for new features — port changes to `miniapp/src/` instead

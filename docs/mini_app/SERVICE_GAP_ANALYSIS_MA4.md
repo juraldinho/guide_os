@@ -1,21 +1,24 @@
 # Guide OS Mini App — MA4 Service Gap Analysis
 
-> Step 1 documentation only. Maps MA3 mock client → API Contract v1 → existing Python services.  
+> Maps MA3 mock client → API Contract v1 → Python services.
+> **MA4 Step 2 closed** (services + migrations). **MA5 closed** (`web_api/` routes).
 > Last updated: 2026-08-29
 
-## 1. Summary
+## 1. Summary (post MA5)
 
-| Area | Ready | Extend | Missing |
-|------|-------|--------|---------|
-| Calendar reads | partial | yes | group collapse mapper |
-| Tour CRUD | partial | yes | unified write, title, times |
-| Day off | ready | minor | — |
-| Day locations | — | — | **missing** |
-| Profile | partial | yes | guide types |
-| Reports summary | partial | yes | year/range, unique work days, filters |
-| Availability text | partial | yes | shared formatter |
-| Time conflicts | — | **extend** | time overlap service |
-| Auth/session | — | — | **missing** (MA5/MA6) |
+| Area | Step 1 gap | After MA4 Step 2 | After MA5 |
+|------|------------|------------------|-----------|
+| Calendar reads | extend | ✅ `list_entries` / mapper | ✅ GET `/entries` |
+| Tour CRUD | extend | ✅ unified entry CRUD | ✅ REST routes |
+| Day off | ready | ✅ | ✅ |
+| Day locations | missing | ✅ `update_day_locations` | ✅ PATCH day-locations |
+| Profile | extend | ✅ read/update partial | ✅ GET/PATCH profile |
+| Reports summary | extend | ✅ `reports_service` | ✅ GET `/reports/summary` |
+| Availability text | extend | ✅ `availability_service` | ✅ POST `/availability/preview` |
+| Time conflicts | extend | ✅ `check_entry_conflicts` | ✅ 409 envelope |
+| Auth/session | missing | — | ⏳ dev stub; **MA6** initData |
+| Copy tour | missing | ✅ `copy_tour_entry` | ✅ POST `.../copy` |
+| Idempotency | missing | — | ✅ `miniapp_idempotency` table |
 
 ## 2. Mock client → endpoint → service mapping
 
@@ -123,7 +126,7 @@ Constraint: `(start_time IS NULL AND end_time IS NULL) OR (start_time IS NOT NUL
 
 ### 5.3 Idempotency store (MA5)
 
-Not in SQLite today — new table or external store for `Idempotency-Key` replay.
+✅ Implemented: `miniapp_idempotency` table in `database/db.py`; used by `web_api/` write routes.
 
 ## 6. Conflict rules delta
 
@@ -178,12 +181,13 @@ Mini App Vitest (keep in sync):
 
 Contract conformance (MA5): API route tests against golden JSON fixtures from `API_CONTRACT_v1.md`.
 
-## 9. Parallel development sequence (post Step 1)
+## 9. Parallel development sequence (post MA5)
 
-1. **Step 2 (this repo):** migrations + service extensions + pytest — bot handlers unchanged or minimal adapter calls only if approved.
-2. **MA5:** `web_api/` routes implementing contract; no frontend wiring.
-3. **MA6:** session auth.
+1. ~~**Step 2:** migrations + service extensions + pytest~~ ✅
+2. ~~**MA5:** `web_api/` routes~~ ✅
+3. **MA6:** real initData session auth (replace dev stub).
 4. **MA7:** replace `api/mock/store` with HTTP client in Mini App.
+5. **MA8–MA10:** reports/availability parity E2E, staging bot, allowlist.
 
 ## 10. Risks accepted for Step 2
 
