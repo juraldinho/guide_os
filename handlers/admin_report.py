@@ -1,13 +1,12 @@
 
 import asyncio
 import logging
+from pathlib import Path
 
 from datetime import datetime, timedelta
 
-import shutil
-
 from aiogram.types import FSInputFile
-from database.db import DB_PATH
+from database.db import DB_PATH, create_sqlite_backup
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Router
@@ -143,13 +142,14 @@ async def backup_database(message: Message) -> None:
         await message.answer("Нет доступа")
         return
 
+    backup_path: str | None = None
     try:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
         backup_name = f"guide_os_backup_{timestamp}.db"
         backup_path = f"/tmp/{backup_name}"
 
-        shutil.copy(DB_PATH, backup_path)
+        create_sqlite_backup(DB_PATH, backup_path)
 
         file = FSInputFile(backup_path)
 
@@ -158,5 +158,11 @@ async def backup_database(message: Message) -> None:
             caption="📦 SQLite backup"
         )
 
-    except Exception as e:
-        await message.answer(f"❌ Backup error: {e}")
+    except Exception:
+        await message.answer("❌ Не удалось создать или отправить резервную копию.")
+    finally:
+        if backup_path is not None:
+            try:
+                Path(backup_path).unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Temporary backup cleanup failed")

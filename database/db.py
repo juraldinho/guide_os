@@ -328,6 +328,116 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS personal_places (
+        public_id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 100),
+        category TEXT CHECK(category IS NULL OR length(category) <= 100),
+        general_location TEXT CHECK(
+            general_location IS NULL OR length(general_location) <= 200
+        ),
+        landmark TEXT CHECK(landmark IS NULL OR length(landmark) <= 200),
+        note TEXT CHECK(note IS NULL OR length(note) <= 500),
+        status TEXT NOT NULL CHECK(status IN ('active', 'inactive')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(
+            length(public_id) = 38
+            AND substr(public_id, 1, 6) = 'place_'
+            AND substr(public_id, 7) NOT GLOB '*[^0-9a-f]*'
+        ),
+        UNIQUE(public_id, user_id),
+        FOREIGN KEY(user_id) REFERENCES users(user_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_personal_places_owner_status
+    ON personal_places(user_id, status, created_at, public_id)
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_personal_places_no_delete
+    BEFORE DELETE ON personal_places
+    FOR EACH ROW
+    BEGIN
+        SELECT RAISE(ABORT, 'personal places use deactivation');
+    END
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS personal_place_entries (
+        public_id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        personal_place_id TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        purchase_amount_minor INTEGER CHECK(
+            purchase_amount_minor IS NULL OR purchase_amount_minor >= 0
+        ),
+        received_income_minor INTEGER CHECK(
+            received_income_minor IS NULL OR received_income_minor >= 0
+        ),
+        received_points INTEGER CHECK(
+            received_points IS NULL OR received_points > 0
+        ),
+        currency TEXT CHECK(
+            currency IS NULL OR (
+                length(currency) = 3 AND currency = upper(currency)
+            )
+        ),
+        note TEXT CHECK(note IS NULL OR length(note) <= 500),
+        status TEXT NOT NULL CHECK(status IN ('active', 'inactive')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(
+            length(public_id) = 38
+            AND substr(public_id, 1, 6) = 'entry_'
+            AND substr(public_id, 7) NOT GLOB '*[^0-9a-f]*'
+        ),
+        CHECK(
+            COALESCE(purchase_amount_minor, 0) > 0
+            OR COALESCE(received_income_minor, 0) > 0
+            OR COALESCE(received_points, 0) > 0
+        ),
+        CHECK(
+            (
+                purchase_amount_minor IS NULL
+                AND received_income_minor IS NULL
+                AND currency IS NULL
+            )
+            OR (
+                (purchase_amount_minor IS NOT NULL OR received_income_minor IS NOT NULL)
+                AND currency IS NOT NULL
+            )
+        ),
+        FOREIGN KEY(user_id) REFERENCES users(user_id),
+        FOREIGN KEY(personal_place_id, user_id)
+            REFERENCES personal_places(public_id, user_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_personal_place_entries_owner_status
+    ON personal_place_entries(user_id, status, occurred_at, public_id)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_personal_place_entries_place
+    ON personal_place_entries(
+        user_id, personal_place_id, status, occurred_at, public_id
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_personal_place_entries_no_delete
+    BEFORE DELETE ON personal_place_entries
+    FOR EACH ROW
+    BEGIN
+        SELECT RAISE(ABORT, 'personal place entries use deactivation');
+    END
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS guide_shop_link_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guide_os_id TEXT NOT NULL,
@@ -645,3 +755,22 @@ def init_db() -> None:
 def ensure_db_ready() -> None:
     """Deterministic readiness before operations that require migrated schema."""
     init_db()
+
+
+def create_sqlite_backup(source_path: str, destination_path: str) -> None:
+    """Create and verify an online SQLite backup, including committed WAL data."""
+    source = sqlite3.connect(source_path, timeout=SQLITE_TIMEOUT_SECONDS)
+    destination = sqlite3.connect(
+        destination_path,
+        timeout=SQLITE_TIMEOUT_SECONDS,
+    )
+    try:
+        source.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+        destination.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+        source.backup(destination)
+        result = destination.execute("PRAGMA quick_check").fetchone()
+        if result is None or result[0] != "ok":
+            raise RuntimeError("SQLite backup verification failed")
+    finally:
+        destination.close()
+        source.close()

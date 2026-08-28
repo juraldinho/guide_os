@@ -1,6 +1,11 @@
 import sqlite3
 
-from database.db import ensure_db_ready, get_connection, run_write_with_retry
+from database.db import (
+    ensure_db_ready,
+    get_connection,
+    get_db_connection,
+    run_write_with_retry,
+)
 from utils.guide_os_identity import new_guide_os_id, validate_guide_os_id
 
 from utils.constants import (
@@ -631,6 +636,296 @@ def get_active_guide_shop_guide_os_ids() -> list[str]:
     finally:
         conn.close()
     return [validate_guide_os_id(row["guide_os_id"]) for row in rows]
+
+
+def create_personal_place(
+    *,
+    public_id: str,
+    user_id: int,
+    name: str,
+    category: str | None,
+    general_location: str | None,
+    landmark: str | None,
+    note: str | None,
+    timestamp: str,
+) -> None:
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO personal_places (
+                public_id, user_id, name, category, general_location,
+                landmark, note, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            """,
+            (
+                public_id,
+                user_id,
+                name,
+                category,
+                general_location,
+                landmark,
+                note,
+                timestamp,
+                timestamp,
+            ),
+        )
+
+    run_write_with_retry(operation)
+
+
+def get_personal_place(user_id: int, public_id: str) -> dict | None:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT public_id, user_id, name, category, general_location,
+                   landmark, note, status, created_at, updated_at
+            FROM personal_places
+            WHERE user_id = ? AND public_id = ?
+            LIMIT 1
+            """,
+            (user_id, public_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_personal_places(
+    user_id: int,
+    *,
+    include_inactive: bool = False,
+) -> list[dict]:
+    with get_db_connection() as conn:
+        if include_inactive:
+            rows = conn.execute(
+                """
+                SELECT public_id, user_id, name, category, general_location,
+                       landmark, note, status, created_at, updated_at
+                FROM personal_places
+                WHERE user_id = ?
+                ORDER BY created_at, public_id
+                """,
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT public_id, user_id, name, category, general_location,
+                       landmark, note, status, created_at, updated_at
+                FROM personal_places
+                WHERE user_id = ? AND status = 'active'
+                ORDER BY created_at, public_id
+                """,
+                (user_id,),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def update_personal_place(
+    *,
+    user_id: int,
+    public_id: str,
+    name: str,
+    category: str | None,
+    general_location: str | None,
+    landmark: str | None,
+    note: str | None,
+    timestamp: str,
+) -> bool:
+    def operation(conn):
+        cursor = conn.execute(
+            """
+            UPDATE personal_places
+            SET name = ?, category = ?, general_location = ?, landmark = ?,
+                note = ?, updated_at = ?
+            WHERE user_id = ? AND public_id = ? AND status = 'active'
+            """,
+            (
+                name,
+                category,
+                general_location,
+                landmark,
+                note,
+                timestamp,
+                user_id,
+                public_id,
+            ),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def deactivate_personal_place(
+    user_id: int,
+    public_id: str,
+    timestamp: str,
+) -> bool:
+    def operation(conn):
+        cursor = conn.execute(
+            """
+            UPDATE personal_places
+            SET status = 'inactive', updated_at = ?
+            WHERE user_id = ? AND public_id = ? AND status = 'active'
+            """,
+            (timestamp, user_id, public_id),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def create_personal_place_entry(
+    *,
+    public_id: str,
+    user_id: int,
+    personal_place_id: str,
+    occurred_at: str,
+    purchase_amount_minor: int | None,
+    received_income_minor: int | None,
+    received_points: int | None,
+    currency: str | None,
+    note: str | None,
+    timestamp: str,
+) -> bool:
+    def operation(conn):
+        place = conn.execute(
+            """
+            SELECT 1
+            FROM personal_places
+            WHERE user_id = ? AND public_id = ? AND status = 'active'
+            """,
+            (user_id, personal_place_id),
+        ).fetchone()
+        if place is None:
+            return False
+        conn.execute(
+            """
+            INSERT INTO personal_place_entries (
+                public_id, user_id, personal_place_id, occurred_at,
+                purchase_amount_minor, received_income_minor,
+                received_points, currency, note, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            """,
+            (
+                public_id,
+                user_id,
+                personal_place_id,
+                occurred_at,
+                purchase_amount_minor,
+                received_income_minor,
+                received_points,
+                currency,
+                note,
+                timestamp,
+                timestamp,
+            ),
+        )
+        return True
+
+    return run_write_with_retry(operation)
+
+
+def get_personal_place_entry(user_id: int, public_id: str) -> dict | None:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT public_id, user_id, personal_place_id, occurred_at,
+                   purchase_amount_minor, received_income_minor,
+                   received_points, currency, note, status,
+                   created_at, updated_at
+            FROM personal_place_entries
+            WHERE user_id = ? AND public_id = ?
+            LIMIT 1
+            """,
+            (user_id, public_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_personal_place_entries(
+    user_id: int,
+    *,
+    personal_place_id: str | None = None,
+    include_inactive: bool = False,
+) -> list[dict]:
+    clauses = ["user_id = ?"]
+    parameters: list[object] = [user_id]
+    if personal_place_id is not None:
+        clauses.append("personal_place_id = ?")
+        parameters.append(personal_place_id)
+    if not include_inactive:
+        clauses.append("status = 'active'")
+    where = " AND ".join(clauses)
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT public_id, user_id, personal_place_id, occurred_at,
+                   purchase_amount_minor, received_income_minor,
+                   received_points, currency, note, status,
+                   created_at, updated_at
+            FROM personal_place_entries
+            WHERE {where}
+            ORDER BY occurred_at, created_at, public_id
+            """,
+            parameters,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def update_personal_place_entry(
+    *,
+    user_id: int,
+    public_id: str,
+    occurred_at: str,
+    purchase_amount_minor: int | None,
+    received_income_minor: int | None,
+    received_points: int | None,
+    currency: str | None,
+    note: str | None,
+    timestamp: str,
+) -> bool:
+    def operation(conn):
+        cursor = conn.execute(
+            """
+            UPDATE personal_place_entries
+            SET occurred_at = ?, purchase_amount_minor = ?,
+                received_income_minor = ?, received_points = ?,
+                currency = ?, note = ?, updated_at = ?
+            WHERE user_id = ? AND public_id = ? AND status = 'active'
+            """,
+            (
+                occurred_at,
+                purchase_amount_minor,
+                received_income_minor,
+                received_points,
+                currency,
+                note,
+                timestamp,
+                user_id,
+                public_id,
+            ),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def deactivate_personal_place_entry(
+    user_id: int,
+    public_id: str,
+    timestamp: str,
+) -> bool:
+    def operation(conn):
+        cursor = conn.execute(
+            """
+            UPDATE personal_place_entries
+            SET status = 'inactive', updated_at = ?
+            WHERE user_id = ? AND public_id = ? AND status = 'active'
+            """,
+            (timestamp, user_id, public_id),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
 
 
 def create_guide_shop_link_request(
