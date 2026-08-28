@@ -1,0 +1,243 @@
+# Guide OS Mini App — инструкции для AI-агентов
+
+Этот файл действует для каталога `miniapp/` и всех вложенных файлов. Читай его первым. Не сканируй весь репозиторий без доказанной необходимости.
+
+При конфликте приоритет: текущий код и тесты → этот файл → `miniapp/.ai/*` → остальные Mini App Markdown-документы → root docs.
+
+## Текущее состояние
+
+Mini App находится на стадии архитектуры. В `miniapp/` пока нет production frontend или backend-кода. Не описывай планируемые компоненты как уже реализованные.
+
+Главная следующая задача указана только в `.ai/NEXT_TASK.md`.
+
+## Цель и приоритет
+
+Guide OS Mini App — быстрый профессиональный календарь туристического гида внутри Telegram.
+
+Приоритет:
+
+```text
+скорость ключевого сценария
+> правильность и изоляция данных
+> единая логика с ботом
+> простой MVP
+> визуальные улучшения
+> дополнительные функции
+```
+
+Обязательный порядок: `ANALYZE → PLAN → CODE → TARGETED TEST → STOP`.
+
+Перед нетривиальным кодом кратко показать:
+
+- `ANALYSIS`;
+- `FILES TO CHANGE`;
+- `RISKS`;
+- `PLAN`.
+
+## Неподвижные продуктовые границы
+
+- Пользователь Mini App — только гид.
+- Бот и Mini App — равноценные интерфейсы общих данных.
+- MVP имеет две вкладки: `Календарь` и `Итоги`.
+- Основной сценарий `проверить дату → добавить тур` должен занимать 10–15 секунд.
+- Русский язык и USD — единственные язык и валюта MVP.
+- GuideShop в MVP не является большим отдельным модулем.
+- Official GuideShop data всегда read-only без отдельного approval.
+- Полный список решений: `../docs/mini_app/DECISIONS.md`.
+
+## Целевая архитектура
+
+```text
+miniapp frontend
+  -> Guide OS Web API
+    -> shared Guide OS services
+      -> Guide OS database
+      -> existing read-only GuideShop client
+
+Telegram bot handlers
+  -> те же shared Guide OS services
+```
+
+Нельзя создавать отдельную бизнес-логику календаря во frontend или Web API.
+
+### Планируемая структура
+
+Структура ниже является целевой и создаётся поэтапно, а не заранее пустыми папками:
+
+```text
+miniapp/
+├── src/
+│   ├── app/          # composition, routes, providers
+│   ├── features/     # calendar, tours, reports, settings
+│   ├── components/   # shared UI only
+│   ├── api/          # typed API client
+│   ├── telegram/     # WebApp adapter and theme/safe-area integration
+│   ├── i18n/         # RU now, future UZ/EN-ready
+│   └── styles/       # tokens and global styles
+├── tests/
+├── public/
+└── package.json
+
+web_api/              # в root Guide OS; transport/auth only
+services/             # existing shared business logic
+database/             # existing schema and SQL boundary
+```
+
+Не создавай `web_api/`, schema или dependencies без отдельной задачи.
+
+## PROJECT MAP — текущее расположение источников
+
+| Нужно понять или изменить | Где смотреть сначала |
+|---|---|
+| Утверждённый продукт и экраны | `miniapp/GuideOS_miniapp_Development_Operating_System.md` |
+| API, auth, data ownership | `miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md` |
+| Принятые решения владельца | `docs/mini_app/DECISIONS.md` |
+| Следующая задача | `miniapp/.ai/NEXT_TASK.md` |
+| Текущее состояние Mini App | `miniapp/.ai/PROJECT.md`, `miniapp/.ai/SESSION.md` |
+| Туры и конфликты бота | `services/tour_service.py`, `handlers/add_tour.py` |
+| Календарь и карточки дня | `services/calendar_service.py`, `services/day_view_service.py`, `services/day_card_service.py` |
+| Доход и статистика | `services/income_service.py`, `services/stats_service.py` |
+| Профиль и уведомления | `handlers/profile.py`, `handlers/notifications.py` |
+| SQL и migrations | `database/queries.py`, `database/db.py` |
+| GuideShop reads | `services/guide_shop_runtime.py`, `services/guide_shop_client.py` |
+| Root project rules | `AGENTS.md` |
+
+## Business invariants
+
+### Tours and calendar
+
+- `reserved` и `confirmed` блокируют дату.
+- `paid` и `unpaid` — единственные payment statuses MVP.
+- `income` — дневная ставка; для multi-day расчёт идёт по дням.
+- `day_off` занимает весь день, имеет нулевой доход и не считается рабочим днём.
+- Отмена тура означает подтверждённое удаление; cancelled status не добавлять.
+- Multi-day использует общий `tour_group_id`; общие изменения и удаление применяются ко всей группе.
+- Местоположение допускает daily override внутри multi-day тура.
+- Время Mini App необязательно; если включено, нужны `start_time` и `end_time`.
+- Тур без времени занимает весь день.
+- Непересекающиеся интервалы одного дня допустимы после понятного date warning.
+- Одинаковые или пересекающиеся интервалы Mini App должен блокировать до исправления.
+- Это новое правило времени должно жить в общем service layer, даже если бот не спрашивает время.
+
+### Reports and availability
+
+- Один день с любым количеством туров считается одним рабочим днём.
+- `Бронь` не является свободной датой.
+- В клиентский текст входят только полностью свободные даты.
+- Частично свободный день показывается гиду, но не экспортируется как свободный.
+- Фактический доход — сумма туров со статусом `Оплачено`; отдельной фактической суммы нет.
+- Разные периоды и фильтры не должны менять базовые правила расчёта.
+
+### Identity, auth and isolation
+
+- Frontend отправляет raw `Telegram.WebApp.initData`; сервер валидирует подпись и свежесть.
+- Никогда не доверять `initDataUnsafe` или `user_id` из тела/URL как доказательству личности.
+- Каждый запрос user-scoped; cross-user access fail closed.
+- `guide_os_id` immutable lowercase UUIDv4.
+- Telegram ID показывается только текущему гиду и может быть скопирован.
+- Bot token, service private keys и GuideShop credentials никогда не попадают во frontend.
+
+### Integration and availability
+
+- Frontend не обращается к SQLite или GuideShop напрямую.
+- Core calendar работает при полном отключении GuideShop.
+- GuideShop outage даёт degraded state и не блокирует личный календарь.
+- Нельзя использовать одну SQLite из двух независимых production runtimes.
+- Staging и production имеют разные bot tokens, DB, keys, URLs и volumes.
+
+## Frontend rules
+
+- Mobile-first; проверять iPhone, Android и Telegram Desktop.
+- Следовать Telegram theme variables и safe areas.
+- Professional Minimal foundation + Telegram-native behavior + умеренный tourism accent.
+- Официальный SVG не перерисовывать и не менять геометрию.
+- Состояния нельзя передавать только цветом.
+- Touch targets, контраст, loading, empty, error, disabled и offline states обязательны.
+- Не добавлять тяжёлую state-management библиотеку до реальной необходимости.
+- API types должны происходить из зафиксированного контракта, а не из случайных mock shapes.
+- Не размещать business calculations в React components.
+- Не создавать component abstraction до второго реального использования.
+
+## Context efficiency rules
+
+1. Начинай с этого файла и `.ai/NEXT_TASK.md`.
+2. Определи минимальный scope; обычно 1–3 файла, максимум 5 без явного approval.
+3. Читай только связанные файлы и непосредственные зависимости.
+4. После нахождения нужного pattern прекращай широкое исследование.
+5. Не делай unrelated refactoring, cleanup или переименование.
+6. Не исправляй случайно найденные проблемы, если они не блокируют задачу.
+7. Не меняй UX, API или business behavior вне scope.
+8. Переиспользуй существующие services, helpers, tokens и компоненты.
+9. Не создавай параллельную реализацию существующей логики.
+10. Не добавляй dependency без объяснённой необходимости и approval.
+11. Не форматируй несвязанные файлы.
+12. Не читай большие логи, DB или весь DEVLOG без конкретной причины.
+13. Не запускай полный suite после каждого небольшого изменения.
+14. Routine Git add/commit/push оставляй владельцу; никогда не использовать `git add .`.
+
+## Language rules
+
+- Все готовые промпты, предназначенные для вставки в Cursor или другой coding agent, писать на английском языке.
+- Обычные объяснения, вопросы и отчёты владельцу проекта писать на русском языке, если владелец явно не попросил другой язык.
+- Не дублировать один и тот же Cursor prompt на русском и английском: предоставлять только английскую версию для экономии контекста.
+
+## Testing strategy
+
+Пока frontend manifest не создан, frontend-команды не придумывать. При scaffold-задаче сначала зафиксировать реальные scripts, затем обновить этот раздел.
+
+Для текущего Guide OS backend использовать команды из root `AGENTS.md`:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_tour_service.py::test_save_tour_creates_group
+.venv/bin/python -m pytest -q tests/test_tour_service.py
+.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_stats_service.py
+.venv/bin/python -m pytest -q
+git diff --check
+```
+
+Правила:
+
+- во время разработки — targeted tests изменённого service/API/UI;
+- business logic требует regression test;
+- auth, ownership и isolation требуют positive и negative tests;
+- полный suite — один раз, когда оправдан масштабом/риском;
+- visual UI требует ручной проверки целевых viewport и light/dark themes;
+- E2E не запускает production bot или production GuideShop.
+
+## Default workflow
+
+1. Прочитать `AGENTS.md` и `.ai/NEXT_TASK.md`.
+2. Проверить текущее состояние, не предполагая наличие планируемого кода.
+3. Определить минимальный scope и invariants.
+4. Найти существующий service/pattern.
+5. Показать короткий план.
+6. Сделать минимальное изменение.
+7. Добавить или обновить связанные тесты.
+8. Запустить targeted checks.
+9. При необходимости один раз запустить широкий suite.
+10. Обновить `.ai` только если изменился фактический статус этапа.
+11. Остановиться после выполнения запроса.
+
+## Stop condition
+
+После выполнения требований и необходимых проверок остановись. Без отдельного запроса не делать cleanup, новый экран, refactor, dependency upgrade, deployment, Git commit/push или исправление соседних bugs.
+
+## Security red flags
+
+- raw Telegram initData, JWT, PEM, bot tokens, cookies и session tokens в logs;
+- frontend ownership по Telegram ID из request body;
+- прямой SQL из Web API route;
+- frontend request к GuideShop;
+- shared staging/production secrets или DB;
+- production enablement без отдельного approval;
+- hidden fallback на mock data в production;
+- hardcoded internal/opaque IDs в UI.
+
+## Final response format
+
+1. Summary.
+2. Changed files.
+3. Tests/checks executed.
+4. Result.
+5. Manual checks needed.
+6. Risks/issues — только реальные.

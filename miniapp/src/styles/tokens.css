@@ -1,0 +1,110 @@
+/* Guide OS Mini App — semantic design tokens (from MA2 prototype) */
+:root {
+  --color-bg: #f4f6f6;
+  --color-bg-secondary: #e8ecec;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c6670;
+  --color-border: #dde3e6;
+  --color-action-primary: #4E8482;
+  --color-action-primary-hover: #3d6d6b;
+  --color-action-on-primary: #ffffff;
+  --color-accent: #52B3B7;
+  --color-status-reserved: #c98a0f;
+  --color-status-reserved-bg: #fff8e6;
+  --color-status-confirmed: #52B3B7;
+  --color-status-confirmed-bg: rgba(82, 179, 183, 0.12);
+  --color-status-dayoff: #8a939b;
+  --color-status-dayoff-bg: rgba(138, 147, 155, 0.12);
+  --color-status-free: #5a8f5a;
+  --color-status-error: #c94c4c;
+  --color-status-error-bg: #fdeaea;
+  --color-status-success: #4a8f6a;
+  --color-status-success-bg: rgba(74, 143, 106, 0.12);
+  --color-status-info-bg: rgba(82, 179, 183, 0.12);
+  --color-focus: #52B3B7;
+  --color-disabled: #a8b0b8;
+  --color-overlay: rgba(0, 0, 0, 0.45);
+  --color-primary-subtle: rgba(78, 132, 130, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --safe-top: env(safe-area-inset-top, 0);
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+  --transition-fast: 0.15s ease;
+}
+
+[data-theme="light"] {
+  --color-bg: #f4f6f6;
+  --color-bg-secondary: #e8ecec;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c6670;
+  --color-border: #dde3e6;
+  --color-overlay: rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] {
+  --color-bg: #1c1e21;
+  --color-bg-secondary: #25282c;
+  --color-surface: #2b2f33;
+  --color-surface-elevated: #32373c;
+  --color-text-primary: #f0f2f4;
+  --color-text-secondary: #a8b0b8;
+  --color-border: #3d444c;
+  --color-action-primary-hover: #5e9a98;
+  --color-status-reserved-bg: #3d3520;
+  --color-status-error-bg: #3d2828;
+  --color-status-confirmed-bg: rgba(82, 179, 183, 0.18);
+  --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
+  --color-status-success-bg: rgba(74, 143, 106, 0.18);
+  --color-status-info-bg: rgba(82, 179, 183, 0.18);
+  --color-primary-subtle: rgba(78, 132, 130, 0.22);
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #1c1e21;
+    --color-bg-secondary: #25282c;
+    --color-surface: #2b2f33;
+    --color-surface-elevated: #32373c;
+    --color-text-primary: #f0f2f4;
+    --color-text-secondary: #a8b0b8;
+    --color-border: #3d444c;
+    --color-action-primary-hover: #5e9a98;
+    --color-status-reserved-bg: #3d3520;
+    --color-status-error-bg: #3d2828;
+    --color-status-confirmed-bg: rgba(82, 179, 183, 0.18);
+    --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
+    --color-status-success-bg: rgba(74, 143, 106, 0.18);
+    --color-status-info-bg: rgba(82, 179, 183, 0.18);
+    --color-primary-subtle: rgba(78, 132, 130, 0.22);
+    --color-overlay: rgba(0, 0, 0, 0.55);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

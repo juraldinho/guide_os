@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Guide OS — прототип Mini App (MA2)</title>
+<style>
+/* Guide OS Mini App — semantic design tokens (MA2 prototype) */
+:root {
+  --color-bg: #f4f6f6;
+  --color-bg-secondary: #e8ecec;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c6670;
+  --color-border: #dde3e6;
+  --color-action-primary: #4E8482;
+  --color-action-primary-hover: #3d6d6b;
+  --color-action-on-primary: #ffffff;
+  --color-accent: #52B3B7;
+  --color-status-reserved: #c98a0f;
+  --color-status-reserved-bg: #fff8e6;
+  --color-status-confirmed: #52B3B7;
+  --color-status-confirmed-bg: rgba(82, 179, 183, 0.12);
+  --color-status-dayoff: #8a939b;
+  --color-status-dayoff-bg: rgba(138, 147, 155, 0.12);
+  --color-status-free: #5a8f5a;
+  --color-status-error: #c94c4c;
+  --color-status-error-bg: #fdeaea;
+  --color-status-success: #4a8f6a;
+  --color-status-success-bg: rgba(74, 143, 106, 0.12);
+  --color-status-info-bg: rgba(82, 179, 183, 0.12);
+  --color-focus: #52B3B7;
+  --color-disabled: #a8b0b8;
+  --color-overlay: rgba(0, 0, 0, 0.45);
+  --color-primary-subtle: rgba(78, 132, 130, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --safe-top: env(safe-area-inset-top, 0);
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+  --transition-fast: 0.15s ease;
+}
+
+[data-theme="light"] {
+  --color-bg: #f4f6f6;
+  --color-bg-secondary: #e8ecec;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c6670;
+  --color-border: #dde3e6;
+  --color-overlay: rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] {
+  --color-bg: #1c1e21;
+  --color-bg-secondary: #25282c;
+  --color-surface: #2b2f33;
+  --color-surface-elevated: #32373c;
+  --color-text-primary: #f0f2f4;
+  --color-text-secondary: #a8b0b8;
+  --color-border: #3d444c;
+  --color-action-primary-hover: #5e9a98;
+  --color-status-reserved-bg: #3d3520;
+  --color-status-error-bg: #3d2828;
+  --color-status-confirmed-bg: rgba(82, 179, 183, 0.18);
+  --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
+  --color-status-success-bg: rgba(74, 143, 106, 0.18);
+  --color-status-info-bg: rgba(82, 179, 183, 0.18);
+  --color-primary-subtle: rgba(78, 132, 130, 0.22);
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #1c1e21;
+    --color-bg-secondary: #25282c;
+    --color-surface: #2b2f33;
+    --color-surface-elevated: #32373c;
+    --color-text-primary: #f0f2f4;
+    --color-text-secondary: #a8b0b8;
+    --color-border: #3d444c;
+    --color-action-primary-hover: #5e9a98;
+    --color-status-reserved-bg: #3d3520;
+    --color-status-error-bg: #3d2828;
+    --color-status-confirmed-bg: rgba(82, 179, 183, 0.18);
+    --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
+    --color-status-success-bg: rgba(74, 143, 106, 0.18);
+    --color-status-info-bg: rgba(82, 179, 183, 0.18);
+    --color-primary-subtle: rgba(78, 132, 130, 0.22);
+    --color-overlay: rgba(0, 0, 0, 0.55);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow-x: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  min-height: 44px;
+  min-width: 44px;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.day-cell:focus-visible,
+.week-day:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+a { color: var(--color-action-primary); }
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+}
+.header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-sm) var(--space-md) 10px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-sm);
+}
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  margin-bottom: var(--space-sm);
+}
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.logo-mark {
+  height: 22px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast);
+}
+.icon-btn:active { background: var(--color-bg-secondary); }
+.icon-btn svg { width: 22px; height: 22px; }
+.period-label {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  text-align: center;
+}
+.main {
+  flex: 1;
+  padding: var(--space-md);
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: var(--safe-bottom);
+  z-index: 60;
+  box-shadow: 0 -1px 0 var(--color-border);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-sm);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  min-height: 56px;
+  transition: color var(--transition-fast);
+}
+.nav-item.active { color: var(--color-action-primary); font-weight: 600; }
+.nav-icon { width: 22px; height: 22px; }
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  padding: var(--space-md);
+  margin-bottom: 10px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px var(--space-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  min-height: 44px;
+  border: 1px solid transparent;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+.btn-primary {
+  background: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+}
+.btn-primary:active { opacity: 0.88; }
+.btn-primary:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.btn-secondary {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+.btn-danger {
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+.btn-block { width: 100%; }
+.fab {
+  position: fixed;
+  bottom: calc(72px + var(--safe-bottom));
+  right: var(--space-lg);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-action-on-primary);
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: var(--shadow-md);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast);
+}
+.fab:active { transform: scale(0.96); }
+.fab.hidden { display: none; }
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  font-size: 12px;
+}
+.month-grid .dow {
+  color: var(--color-text-secondary);
+  padding: var(--space-xs) 0;
+  font-weight: 500;
+}
+.day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-height: 40px;
+  gap: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+}
+.day-cell:hover { background: var(--color-bg-secondary); }
+.day-cell.today { font-weight: 700; }
+.day-cell.selected {
+  background: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+}
+.day-cell.other-month { opacity: 0.35; }
+.markers {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+.marker {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.marker-reserved { background: var(--color-status-reserved); }
+.marker-confirmed { background: var(--color-status-confirmed); }
+.marker-dayoff { background: var(--color-status-dayoff); }
+.marker-free { background: var(--color-status-free); }
+.week-row {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+.week-day {
+  flex: 1;
+  text-align: center;
+  padding: var(--space-sm) var(--space-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  min-height: 52px;
+  color: inherit;
+}
+.week-day.selected {
+  border-color: var(--color-action-primary);
+  background: var(--color-primary-subtle);
+}
+.week-day .num { font-weight: 600; font-size: 16px; }
+.week-day .wd { font-size: 11px; color: var(--color-text-secondary); }
+.agenda-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.agenda-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-bottom: var(--space-sm);
+  cursor: pointer;
+  align-items: flex-start;
+  transition: border-color var(--transition-fast);
+}
+.agenda-item:active { opacity: 0.9; }
+.agenda-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 52px;
+  line-height: 1.3;
+}
+.agenda-body { flex: 1; min-width: 0; }
+.agenda-title-tour { font-weight: 600; margin-bottom: 2px; }
+.agenda-meta { font-size: 12px; color: var(--color-text-secondary); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+.badge-reserved {
+  color: var(--color-status-reserved);
+  border-color: var(--color-status-reserved);
+  background: var(--color-status-reserved-bg);
+}
+.badge-confirmed {
+  color: var(--color-status-confirmed);
+  border-color: var(--color-status-confirmed);
+  background: var(--color-status-confirmed-bg);
+}
+.badge-paid {
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}
+.badge-unpaid {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+.badge-dayoff {
+  color: var(--color-status-dayoff);
+  border-color: var(--color-status-dayoff);
+  background: var(--color-status-dayoff-bg);
+}
+.badge-income {
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+  background: var(--color-bg);
+}
+.empty-state {
+  text-align: center;
+  padding: var(--space-xl) var(--space-lg);
+  color: var(--color-text-secondary);
+}
+.empty-state .empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--space-sm);
+  color: var(--color-disabled);
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.summary-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+}
+.summary-item .label { font-size: 11px; color: var(--color-text-secondary); }
+.summary-item .value { font-size: 18px; font-weight: 700; }
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.chip {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  background: var(--color-surface);
+  min-height: 36px;
+  color: inherit;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.chip.active {
+  border-color: var(--color-action-primary);
+  background: var(--color-primary-subtle);
+  color: var(--color-action-primary);
+  font-weight: 600;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-action-primary);
+  font-weight: 600;
+  padding: 0;
+  min-height: auto;
+  min-width: auto;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+.link-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-overlay);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.overlay.center { align-items: center; padding: var(--space-lg); }
+.sheet {
+  background: var(--color-surface-elevated);
+  width: 100%;
+  max-width: 480px;
+  max-height: 92vh;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+}
+.overlay.center .sheet {
+  border-radius: var(--radius-md);
+  max-height: 85vh;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-sm);
+}
+.sheet-title { font-weight: 700; font-size: 17px; flex: 1; }
+.sheet-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  flex: 1;
+}
+.sheet-footer {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--space-sm);
+  background: var(--color-surface);
+}
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--color-text-secondary);
+}
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  min-height: 44px;
+}
+.form-textarea { min-height: 80px; resize: vertical; }
+.form-row { display: flex; gap: var(--space-sm); }
+.form-row .form-group { flex: 1; }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) 0;
+}
+.toggle {
+  width: 48px;
+  height: 28px;
+  background: var(--color-border);
+  border-radius: 14px;
+  position: relative;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--color-action-primary); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: var(--color-action-on-primary);
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+.toggle.on::after { transform: translateX(20px); }
+.alert {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+  font-size: 14px;
+  border: 1px solid;
+  line-height: 1.4;
+}
+.alert-warning {
+  background: var(--color-status-reserved-bg);
+  border-color: var(--color-status-reserved);
+  color: var(--color-text-primary);
+}
+.alert-danger {
+  background: var(--color-status-error-bg);
+  border-color: var(--color-status-error);
+  color: var(--color-text-primary);
+}
+.alert-info {
+  background: var(--color-status-info-bg);
+  border-color: var(--color-accent);
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-md);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--color-text-secondary); font-size: 13px; }
+.detail-value { font-weight: 500; text-align: right; }
+.settings-list .settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 14px var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  min-height: 48px;
+}
+.settings-list .settings-item:active { background: var(--color-bg-secondary); }
+.settings-item .arrow { color: var(--color-text-secondary); }
+.demo-note {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: var(--space-sm) var(--space-lg) 0;
+  line-height: 1.35;
+}
+.toast {
+  position: fixed;
+  bottom: calc(84px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text-primary);
+  color: var(--color-bg);
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90%;
+  text-align: center;
+}
+.toast.show { opacity: 1; }
+.loading-screen, .offline-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+  text-align: center;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-action-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-screen {
+  text-align: center;
+  padding: var(--space-xl) var(--space-lg);
+  max-width: 360px;
+  margin: 0 auto;
+}
+.state-screen .state-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--space-md);
+  color: var(--color-status-error);
+}
+.state-screen .state-icon-muted { color: var(--color-disabled); }
+.state-screen h2 { font-size: 18px; margin-bottom: var(--space-sm); }
+.state-screen p { color: var(--color-text-secondary); margin-bottom: var(--space-lg); }
+.hidden { display: none !important; }
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+.page-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+}
+.preview-box {
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  font-size: 14px;
+  margin-bottom: var(--space-md);
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.text-muted { color: var(--color-text-secondary); font-size: 13px; }
+.text-hint { font-size: 12px; color: var(--color-text-secondary); margin-top: var(--space-sm); }
+.card-pad-sm { padding: var(--space-sm); }
+.day-feed { margin-top: var(--space-sm); }
+.feed-day-row {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  align-items: flex-start;
+  min-height: 44px;
+}
+.feed-day-row:last-child { border-bottom: none; }
+.feed-day-row.today {
+  border-left: 3px solid var(--color-action-primary);
+  padding-left: var(--space-sm);
+  margin-left: -3px;
+}
+.feed-day-row.is-empty { padding: var(--space-sm) 0; }
+.feed-day-meta { flex-shrink: 0; width: 44px; text-align: center; }
+.feed-day-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.feed-day-dow { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); }
+.feed-day-body { flex: 1; min-width: 0; }
+.feed-day-status { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 2px; }
+.feed-tour-line { font-size: 14px; line-height: 1.35; }
+.feed-tour-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+.feed-day-empty { font-size: 13px; color: var(--color-text-secondary); }
+.month-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 21px;
+  font-weight: 700;
+  padding: 6px var(--space-md);
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  width: 100%;
+}
+.month-header-btn:active { background: var(--color-bg-secondary); }
+.calendar-period-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 4px;
+  margin-bottom: var(--space-sm);
+}
+.month-chevron { width: 20px; height: 20px; color: var(--color-text-secondary); }
+.month-picker-panel { margin-bottom: var(--space-md); }
+.month-picker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  gap: var(--space-sm);
+}
+.month-picker-title { font-size: 14px; font-weight: 600; }
+.day-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.day-detail-title { flex: 1; min-width: 0; }
+.day-detail-entry {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.day-detail-entry:active { opacity: 0.92; }
+.day-detail-entry .entry-title { font-weight: 600; margin-bottom: 4px; }
+.day-detail-entry .entry-row { font-size: 13px; color: var(--color-text-secondary); margin-top: 2px; }
+.marker-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+.marker-legend span { display: inline-flex; align-items: center; gap: 4px; }
+@media (min-width: 400px) {
+  .main { padding: var(--space-lg); }
+}
+@media (max-width: 360px) {
+  .logo-mark { max-width: 96px; height: 20px; min-height: 20px; }
+  .main { padding: 10px; }
+  .month-header-btn { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="overlay-root"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const MOCK_TODAY = '2026-08-28';
+  const THEME_SESSION_KEY = 'guide_os_proto_theme';
+  const MONTH_NAMES = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const MONTH_NAMES_CAP = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const MONTH_NAMES_IN = ['январе','феврале','марте','апреле','мае','июне','июле','августе','сентябре','октябре','ноябре','декабре'];
+  const DOW_SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+  const ICON = {
+    calendar: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    reports: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>',
+    today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    emptyCal: '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    error: '<svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>',
+    offline: '<svg class="state-icon state-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 1l22 22"/><path d="M16.56 11.94A5 5 0 0 0 6.5 6.5M5.07 5.07A10 10 0 0 0 12 22a10 10 0 0 0 5.93-1.93"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65M22 15.18a15 15 0 0 1-4.17 2.65"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+    chevronDown: '<svg class="month-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+    chevronUp: '<svg class="month-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>',
+    chevronLeft: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+    chevronRight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>'
+  };
+
+  function applyThemeMode(mode) {
+    const html = document.documentElement;
+    if (mode === 'telegram') html.removeAttribute('data-theme');
+    else html.setAttribute('data-theme', mode);
+    try { sessionStorage.setItem(THEME_SESSION_KEY, mode); } catch (e) { /* ignore */ }
+  }
+
+  let nextId = 10;
+  const tours = [
+    {
+      id: 't1', type: 'tour', title: 'Обзорный Самарканд',
+      company: 'Silk Road Travel', location: 'Самарканд',
+      startDate: '2026-08-28', endDate: '2026-08-28',
+      startTime: '09:00', endTime: '14:00',
+      status: 'reserved', payment: 'unpaid', income: 100,
+      note: 'Группа 8 человек', source: 'Guide OS bot'
+    },
+    {
+      id: 't2', type: 'tour', title: 'Бухара классика',
+      company: 'Asia Travel', location: 'Бухара',
+      startDate: '2026-08-15', endDate: '2026-08-15',
+      startTime: null, endTime: null,
+      status: 'confirmed', payment: 'paid', income: 120,
+      note: '', source: 'Mini App'
+    },
+    {
+      id: 't3', type: 'tour', title: 'Маршрут Узбекистан',
+      company: 'Silk Road Travel', location: 'Ташкент',
+      startDate: '2026-08-22', endDate: '2026-08-24',
+      startTime: '10:00', endTime: '18:00',
+      status: 'confirmed', payment: 'unpaid', income: 90,
+      note: 'Маршрут: Ташкент → Самарканд → Бухара', source: 'Mini App',
+      dayLocations: { '2026-08-22': 'Ташкент', '2026-08-23': 'Самарканд', '2026-08-24': 'Бухара' }
+    },
+    {
+      id: 'd1', type: 'day_off', title: 'Выходной',
+      startDate: '2026-08-10', endDate: '2026-08-10',
+      startTime: null, endTime: null, income: 0, source: 'Mini App'
+    },
+    {
+      id: 't4', type: 'tour', title: 'Вечерний Самарканд',
+      company: 'Local Tours', location: 'Самарканд',
+      startDate: '2026-08-05', endDate: '2026-08-05',
+      startTime: '18:00', endTime: '21:00',
+      status: 'reserved', payment: 'unpaid', income: 80,
+      note: '', source: 'Guide OS bot'
+    }
+  ];
+
+  const profile = {
+    name: 'Алишер Каримов',
+    telegramId: '3847291056',
+    types: [
+      { type: 'local', label: 'Локальный гид', geo: ['Самарканд'] },
+      { type: 'route', label: 'Маршрутный гид', geo: ['Самарканд', 'Бухара'] }
+    ],
+    notifications: { enabled: true, time: '08:00' }
+  };
+
+  const state = {
+    tab: 'calendar',
+    calendarScreen: 'feed',
+    monthExpanded: false,
+    selectedDate: MOCK_TODAY,
+    viewMonth: 7,
+    viewYear: 2026,
+    overlayReturn: null,
+    settingsOpen: false,
+    overlay: null,
+    overlayData: {},
+    reportsPeriod: 'month',
+    reportsMonth: 7,
+    reportsYear: 2026,
+    filterStatus: 'all',
+    filterPayment: 'all',
+    filterCompany: '',
+    filterLocation: '',
+    availOpenFrom: 'calendar',
+    availUseCustom: false,
+    availCustomFrom: '2026-08-01',
+    availCustomTo: '2026-08-31',
+    deleteId: null,
+    dateWarningAck: false,
+    themeMode: 'telegram',
+    demoLoading: false,
+    demoError: false,
+    demoOffline: false
+  };
+
+  function parseDate(s) {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  function fmtDate(s) {
+    const dt = parseDate(s);
+    return dt.getDate() + ' ' + MONTH_NAMES[dt.getMonth()];
+  }
+  function fmtDateShort(s) {
+    const dt = parseDate(s);
+    return dt.getDate() + '.' + String(dt.getMonth() + 1).padStart(2, '0');
+  }
+  function toISO(dt) {
+    return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+  }
+  function daysInRange(start, end) {
+    const out = [];
+    let d = parseDate(start);
+    const e = parseDate(end);
+    while (d <= e) {
+      out.push(toISO(d));
+      d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    }
+    return out;
+  }
+  function dateInEntry(date, e) {
+    return daysInRange(e.startDate, e.endDate).includes(date);
+  }
+  function timeLabel(e) {
+    if (e.type === 'day_off') return 'Весь день';
+    if (!e.startTime || !e.endTime) return 'Весь день';
+    return e.startTime + '–' + e.endTime;
+  }
+  function statusLabel(s) {
+    return s === 'reserved' ? 'Бронь' : s === 'confirmed' ? 'Занято' : '';
+  }
+  function paymentLabel(p) {
+    return p === 'paid' ? 'Оплачено' : 'Не оплачено';
+  }
+  function locationFor(e, date) {
+    if (e.dayLocations && e.dayLocations[date]) return e.dayLocations[date];
+    return e.location || '—';
+  }
+
+  function fmtDateLong(s) {
+    const dt = parseDate(s);
+    return dt.getDate() + ' ' + MONTH_NAMES[dt.getMonth()] + ' ' + dt.getFullYear();
+  }
+  function dowShortUpper(dateStr) {
+    const map = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+    return map[parseDate(dateStr).getDay()];
+  }
+  function getFeedDates() {
+    const start = parseDate(MOCK_TODAY);
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      out.push(toISO(d));
+    }
+    return out;
+  }
+  function dayStatusText(date) {
+    const s = dayStatus(date);
+    if (s === 'free') return 'День свободен';
+    if (s === 'dayoff') return 'Выходной';
+    if (s === 'reserved') return 'Бронь';
+    if (s === 'confirmed') return 'Занято';
+    return '';
+  }
+  function dayAvailabilitySummary(date) {
+    const s = dayStatus(date);
+    if (s === 'free') return 'День полностью свободен';
+    if (s === 'dayoff') return 'Выходной';
+    const partial = getPartialAvailability(date);
+    if (partial) return partial;
+    return 'День занят';
+  }
+
+  function entriesOnDate(date) {
+    return tours.filter(e => dateInEntry(date, e));
+  }
+
+  function dayStatus(date) {
+    const entries = entriesOnDate(date);
+    if (!entries.length) return 'free';
+    if (entries.some(e => e.type === 'day_off')) return 'dayoff';
+    const toursOnly = entries.filter(e => e.type === 'tour');
+    if (toursOnly.some(e => e.status === 'confirmed')) return 'confirmed';
+    if (toursOnly.some(e => e.status === 'reserved')) return 'reserved';
+    return 'free';
+  }
+
+  function markersForDate(date) {
+    const entries = entriesOnDate(date);
+    const markers = [];
+    entries.forEach(e => {
+      if (e.type === 'day_off') markers.push('dayoff');
+      else if (e.status === 'reserved') markers.push('reserved');
+      else if (e.status === 'confirmed') markers.push('confirmed');
+    });
+    return markers.length ? markers : (dayStatus(date) === 'free' ? ['free'] : []);
+  }
+
+  function isFullDay(e) {
+    return e.type === 'day_off' || !e.startTime || !e.endTime;
+  }
+
+  function timesOverlap(aStart, aEnd, bStart, bEnd, aFull, bFull) {
+    if (aFull || bFull) return true;
+    return aStart < bEnd && bStart < aEnd;
+  }
+
+  function checkConflicts(entry, excludeId) {
+    const dates = daysInRange(entry.startDate, entry.endDate);
+    let warning = null;
+    for (const date of dates) {
+      for (const ex of tours) {
+        if (ex.id === excludeId) continue;
+        if (!dateInEntry(date, ex)) continue;
+        if (ex.type === 'day_off') {
+          return { block: true, date, ex, reason: 'На этой дате уже отмечен выходной. Измените дату.' };
+        }
+        const entryFull = isFullDay(entry);
+        const exFull = isFullDay(ex);
+        const overlap = timesOverlap(
+          entry.startTime || '00:00', entry.endTime || '24:00',
+          ex.startTime || '00:00', ex.endTime || '24:00',
+          entryFull, exFull
+        );
+        if (overlap) {
+          return {
+            block: true, date, ex, entry,
+            reason: 'Время нового тура пересекается с туром «' + ex.title + '» ' + timeLabel(ex) + '. Измените время или дату.'
+          };
+        }
+        if (!warning) warning = { date, ex };
+      }
+    }
+    return warning ? { warn: true, ...warning } : null;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast('Скопировано');
+        return;
+      }
+    } catch (e) { /* fallback */ }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('Скопировано');
+    } catch (e) {
+      showToast('Не удалось скопировать');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function render() {
+    if (state.demoLoading) {
+      document.getElementById('app').innerHTML = '<div class="loading-screen"><div class="spinner" aria-hidden="true"></div><p>Загрузка календаря…</p></div>';
+      document.getElementById('overlay-root').innerHTML = '';
+      return;
+    }
+    if (state.demoOffline) {
+      document.getElementById('app').innerHTML = '<div class="offline-screen"><div class="state-screen">' + ICON.offline +
+        '<h2>Нет подключения</h2><p>Календарь недоступен без сети. Проверьте интернет и попробуйте снова.</p>' +
+        '<button class="btn btn-primary" onclick="window._proto.retry()">Повторить</button></div></div>';
+      document.getElementById('overlay-root').innerHTML = '';
+      return;
+    }
+    if (state.demoError) {
+      document.getElementById('app').innerHTML = '<div class="state-screen" style="padding-top:48px">' + ICON.error +
+        '<h2>Не удалось загрузить данные</h2><p class="text-muted">Проверьте подключение и попробуйте снова.</p>' +
+        '<button class="btn btn-primary" onclick="window._proto.retry()">Повторить</button></div>';
+      document.getElementById('overlay-root').innerHTML = '';
+      return;
+    }
+
+    const app = document.getElementById('app');
+    if (state.tab === 'calendar') {
+      app.innerHTML = renderCalendarTab();
+    } else {
+      app.innerHTML = renderReportsTab();
+    }
+    app.innerHTML += renderBottomNav();
+    renderOverlay();
+  }
+
+  function renderAppHeader() {
+    return '<header class="header">' +
+      '<div class="header-row">' +
+      '<div class="logo-wrap"><img src="assets/logo.svg" alt="Guide OS" class="logo-mark"></div>' +
+      '<div class="header-actions">' +
+      '<button type="button" class="icon-btn" onclick="window._proto.goToday()" title="Сегодня" aria-label="Сегодня">' + ICON.today + '</button>' +
+      '<button type="button" class="icon-btn" onclick="window._proto.openSettings()" title="Настройки" aria-label="Настройки">' + ICON.settings + '</button>' +
+      '</div></div></header>';
+  }
+
+  function renderCalendarChrome() {
+    const chevron = state.monthExpanded ? ICON.chevronUp : ICON.chevronDown;
+    return '<div class="calendar-period-row">' +
+      '<button type="button" class="month-header-btn" onclick="window._proto.toggleMonthPicker()" aria-expanded="' + state.monthExpanded + '">' +
+      MONTH_NAMES_CAP[state.viewMonth] + ' ' + state.viewYear + chevron + '</button></div>';
+  }
+
+  function renderCalendarTab() {
+    if (state.calendarScreen === 'day') {
+      return renderAppHeader() + renderDayDetailScreen();
+    }
+    let body = '<main class="main">';
+    body += renderCalendarChrome();
+    if (state.monthExpanded) body += '<div class="month-picker-panel">' + renderMonthGrid(true) + '</div>';
+    body += renderFeed();
+    body += '</main>';
+    return renderAppHeader() + body;
+  }
+
+  function renderFeed() {
+    const dates = getFeedDates();
+    let html = '<div class="day-feed">';
+    dates.forEach(iso => {
+      const entries = entriesOnDate(iso).sort((a, b) => {
+        if (isFullDay(a)) return -1;
+        if (isFullDay(b)) return 1;
+        return (a.startTime || '') < (b.startTime || '') ? -1 : 1;
+      });
+      const today = iso === MOCK_TODAY;
+      const empty = !entries.length;
+      html += '<button type="button" class="feed-day-row' + (today ? ' today' : '') + (empty ? ' is-empty' : '') +
+        '" onclick="window._proto.openDayDetail(\'' + iso + '\')">';
+      html += '<div class="feed-day-meta"><div class="feed-day-num">' + parseDate(iso).getDate() + '</div>' +
+        '<div class="feed-day-dow">' + dowShortUpper(iso) + '</div></div>';
+      html += '<div class="feed-day-body">';
+      html += '<div class="feed-day-status">' + dayStatusText(iso) + '</div>';
+      if (empty) {
+        html += '<div class="feed-day-empty">День свободен</div>';
+      } else if (entries[0].type === 'day_off') {
+        html += '<div class="feed-tour-line">Выходной</div>';
+      } else {
+        const e = entries[0];
+        html += '<div class="feed-tour-line">' + timeLabel(e) + '<br>' + escapeHtml(e.title) + '</div>' +
+          '<div class="feed-tour-meta">' + statusLabel(e.status) + (entries.length > 1 ? ' · ещё ' + (entries.length - 1) : '') + '</div>';
+      }
+      html += '</div></button>';
+    });
+    return html + '</div>';
+  }
+
+  function renderDayDetailScreen() {
+    const date = state.selectedDate;
+    const entries = entriesOnDate(date).sort((a, b) => {
+      if (isFullDay(a)) return -1;
+      if (isFullDay(b)) return 1;
+      return (a.startTime || '') < (b.startTime || '') ? -1 : 1;
+    });
+    let html = '<main class="main">';
+    html += '<div class="day-detail-header">' +
+      '<button type="button" class="icon-btn" onclick="window._proto.openFeed()" aria-label="Назад к ленте">' + ICON.back + '</button>' +
+      '<div class="day-detail-title"><h2 class="page-title" style="margin-bottom:4px">' + fmtDateLong(date) + '</h2>' +
+      '<p class="text-muted">' + dayAvailabilitySummary(date) + '</p></div></div>';
+    const partial = getPartialAvailability(date);
+    if (partial) html += '<div class="alert alert-info">' + partial + '</div>';
+    if (!entries.length) {
+      html += '<p class="text-muted">День полностью свободен</p>';
+    } else {
+      entries.forEach(e => {
+        html += renderDayDetailEntry(e, date);
+      });
+    }
+    html += '<button type="button" class="btn btn-primary btn-block" style="margin-top:16px" onclick="window._proto.openAdd()">Добавить</button>';
+    html += '<button type="button" class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.openFreeDates()">Поделиться свободными датами</button>';
+    html += '</main>';
+    return html;
+  }
+
+  function renderDayDetailEntry(e, date) {
+    if (e.type === 'day_off') {
+      return '<div class="day-detail-entry" onclick="window._proto.openDetail(\'' + e.id + '\')">' +
+        '<div class="entry-title">Выходной</div><div class="entry-row">Весь день</div></div>';
+    }
+    return '<div class="day-detail-entry" onclick="window._proto.openDetail(\'' + e.id + '\')">' +
+      '<div class="entry-title">' + escapeHtml(e.title) + '</div>' +
+      '<div class="entry-row">' + timeLabel(e) + ' · ' + statusLabel(e.status) + ' · ' + paymentLabel(e.payment) + '</div>' +
+      '<div class="entry-row">' + escapeHtml(e.company || '—') + ' · ' + escapeHtml(locationFor(e, date)) + '</div>' +
+      (e.income ? '<div class="entry-row">$' + e.income + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderMonthGrid(withNav) {
+    let html = '';
+    if (withNav) {
+      html += '<div class="month-picker-nav">' +
+        '<button type="button" class="icon-btn" onclick="window._proto.prevMonth()" aria-label="Предыдущий месяц">' + ICON.chevronLeft + '</button>' +
+        '<span class="month-picker-title">' + MONTH_NAMES_CAP[state.viewMonth] + ' ' + state.viewYear + '</span>' +
+        '<button type="button" class="icon-btn" onclick="window._proto.nextMonth()" aria-label="Следующий месяц">' + ICON.chevronRight + '</button></div>';
+      html += '<div class="marker-legend" aria-hidden="true">' +
+        '<span><span class="marker marker-reserved"></span> Бронь</span>' +
+        '<span><span class="marker marker-confirmed"></span> Занято</span>' +
+        '<span><span class="marker marker-dayoff"></span> Выходной</span>' +
+        '<span><span class="marker marker-free"></span> Свободен</span></div>';
+    }
+    const first = new Date(state.viewYear, state.viewMonth, 1);
+    let startDow = first.getDay();
+    startDow = startDow === 0 ? 6 : startDow - 1;
+    const daysInMonth = new Date(state.viewYear, state.viewMonth + 1, 0).getDate();
+    const prevDays = new Date(state.viewYear, state.viewMonth, 0).getDate();
+
+    html += '<div class="card card-pad-sm"><div class="month-grid">';
+    DOW_SHORT.forEach(d => { html += '<div class="dow">' + d + '</div>'; });
+
+    for (let i = 0; i < startDow; i++) {
+      const day = prevDays - startDow + i + 1;
+      const m = state.viewMonth === 0 ? 11 : state.viewMonth - 1;
+      const y = state.viewMonth === 0 ? state.viewYear - 1 : state.viewYear;
+      const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      html += dayCell(day, iso, true);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = state.viewYear + '-' + String(state.viewMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      html += dayCell(d, iso, false);
+    }
+    const total = startDow + daysInMonth;
+    const rem = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let i = 1; i <= rem; i++) {
+      const m = state.viewMonth === 11 ? 0 : state.viewMonth + 1;
+      const y = state.viewMonth === 11 ? state.viewYear + 1 : state.viewYear;
+      const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(i).padStart(2, '0');
+      html += dayCell(i, iso, true);
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function dayCell(num, iso, other) {
+    const today = iso === MOCK_TODAY;
+    const sel = iso === state.selectedDate;
+    const markers = markersForDate(iso);
+    return '<button type="button" class="day-cell' + (today ? ' today' : '') + (sel ? ' selected' : '') + (other ? ' other-month' : '') +
+      '" onclick="window._proto.selectDateFromMonth(\'' + iso + '\')" aria-label="' + num + '">' +
+      '<span>' + num + '</span>' +
+      '<span class="markers">' + markers.map(m => '<span class="marker marker-' + m + '"></span>').join('') + '</span></button>';
+  }
+
+  function getPartialAvailability(date) {
+    const entries = entriesOnDate(date).filter(e => e.type === 'tour' && e.startTime && e.endTime);
+    if (!entries.length) return null;
+    const latest = entries.reduce((max, e) => e.endTime > max ? e.endTime : max, '00:00');
+    if (latest < '23:00') return 'Свободен после ' + latest;
+    return null;
+  }
+
+  function monthStartEnd(year, month) {
+    const from = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const to = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+    return { from, to };
+  }
+
+  function getMockTodayYear() {
+    return parseDate(MOCK_TODAY).getFullYear();
+  }
+
+  function getAllMockDataRange() {
+    let min = MOCK_TODAY;
+    let max = MOCK_TODAY;
+    tours.forEach(e => {
+      if (e.startDate < min) min = e.startDate;
+      if (e.endDate > max) max = e.endDate;
+    });
+    return { from: min, to: max };
+  }
+
+  function getCalendarAvailMonth() {
+    if (state.calendarScreen === 'day') {
+      const d = parseDate(state.selectedDate);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    }
+    return { year: state.viewYear, month: state.viewMonth };
+  }
+
+  function getReportRange() {
+    const maxYear = getMockTodayYear();
+    if (state.reportsPeriod === 'month') {
+      return monthStartEnd(state.reportsYear, state.reportsMonth);
+    }
+    if (state.reportsPeriod === 'year') {
+      const year = state.reportsYear;
+      const from = year + '-01-01';
+      const to = year < maxYear ? year + '-12-31' : MOCK_TODAY;
+      return { from, to };
+    }
+    return getAllMockDataRange();
+  }
+
+  function getAvailContextRange() {
+    const source = state.availOpenFrom || state.tab;
+    if (source === 'calendar') {
+      const { year, month } = getCalendarAvailMonth();
+      return monthStartEnd(year, month);
+    }
+    return getReportRange();
+  }
+
+  function getAvailRange() {
+    if (state.availUseCustom && state.availCustomFrom && state.availCustomTo) {
+      return { from: state.availCustomFrom, to: state.availCustomTo };
+    }
+    return getAvailContextRange();
+  }
+
+  function isFullCalendarMonth(from, to) {
+    const start = parseDate(from);
+    const end = parseDate(to);
+    const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    return start.getDate() === 1 &&
+      end.getDate() === lastDay &&
+      start.getMonth() === end.getMonth() &&
+      start.getFullYear() === end.getFullYear();
+  }
+
+  function buildFreeDatesHeading(from, to) {
+    if (isFullCalendarMonth(from, to)) {
+      return 'Свободные даты в ' + MONTH_NAMES_IN[parseDate(from).getMonth()] + ':';
+    }
+    return 'Свободные даты с ' + fmtDate(from) + ' по ' + fmtDate(to) + ':';
+  }
+
+  function describeAvailContext() {
+    const { from, to } = getAvailRange();
+    if (state.availUseCustom) {
+      return 'Диапазон: ' + fmtDate(from) + ' – ' + fmtDate(to);
+    }
+    const source = state.availOpenFrom || state.tab;
+    if (source === 'calendar') {
+      const { year, month } = getCalendarAvailMonth();
+      return 'Календарь: ' + MONTH_NAMES_CAP[month] + ' ' + year;
+    }
+    if (state.reportsPeriod === 'month') {
+      return 'Итоги: ' + MONTH_NAMES_CAP[state.reportsMonth] + ' ' + state.reportsYear;
+    }
+    if (state.reportsPeriod === 'year') {
+      return 'Итоги: ' + state.reportsYear;
+    }
+    return 'Итоги: за весь период';
+  }
+
+  function renderReportsPeriodNav() {
+    const maxYear = getMockTodayYear();
+    let html = '<div class="filter-row" role="group" aria-label="Период статистики">' +
+      ['month', 'year', 'all'].map(p => {
+        const labels = { month: 'Месяц', year: 'Год', all: 'За весь период' };
+        return '<button type="button" class="chip' + (state.reportsPeriod === p ? ' active' : '') +
+          '" onclick="window._proto.setReportsPeriod(\'' + p + '\')">' + labels[p] + '</button>';
+      }).join('') + '</div>';
+
+    if (state.reportsPeriod === 'month') {
+      html += '<div class="month-picker-nav" style="margin-bottom:12px">' +
+        '<button type="button" class="icon-btn" onclick="window._proto.prevReportsMonth()" aria-label="Предыдущий месяц">' + ICON.chevronLeft + '</button>' +
+        '<span class="month-picker-title">' + MONTH_NAMES_CAP[state.reportsMonth] + ' ' + state.reportsYear + '</span>' +
+        '<button type="button" class="icon-btn" onclick="window._proto.nextReportsMonth()" aria-label="Следующий месяц">' + ICON.chevronRight + '</button></div>';
+    } else if (state.reportsPeriod === 'year') {
+      const atMax = state.reportsYear >= maxYear;
+      html += '<div class="month-picker-nav" style="margin-bottom:12px">' +
+        '<button type="button" class="icon-btn" onclick="window._proto.prevReportsYear()" aria-label="Предыдущий год">' + ICON.chevronLeft + '</button>' +
+        '<span class="month-picker-title">' + state.reportsYear + '</span>' +
+        '<button type="button" class="icon-btn" onclick="window._proto.nextReportsYear()" aria-label="Следующий год"' +
+        (atMax ? ' disabled style="opacity:0.4"' : '') + '>' + ICON.chevronRight + '</button></div>';
+    } else {
+      html += '<p class="text-hint text-muted" style="margin-bottom:12px">Все туры в прототипе</p>';
+    }
+    return html;
+  }
+
+  function renderFreeDatesControls() {
+    let html = '<p class="text-muted" style="margin-bottom:8px">' + escapeHtml(describeAvailContext()) + '</p>';
+    html += '<div class="filter-row">' +
+      '<button type="button" class="chip' + (!state.availUseCustom ? ' active' : '') +
+      '" onclick="window._proto.setAvailContextMode(false)">Автоматически</button>' +
+      '<button type="button" class="chip' + (state.availUseCustom ? ' active' : '') +
+      '" onclick="window._proto.setAvailContextMode(true)">Диапазон</button></div>';
+    if (state.availUseCustom) {
+      html += '<div class="form-row"><div class="form-group"><label class="form-label">С</label>' +
+        '<input type="date" class="form-input" value="' + state.availCustomFrom + '" onchange="window._proto.setAvailCustomFrom(this.value)"></div>' +
+        '<div class="form-group"><label class="form-label">По</label>' +
+        '<input type="date" class="form-input" value="' + state.availCustomTo + '" onchange="window._proto.setAvailCustomTo(this.value)"></div></div>';
+    }
+    const freeText = buildFreeDatesText();
+    if (freeText) {
+      html += '<div class="preview-box">' + escapeHtml(freeText) + '</div>';
+      html += '<button type="button" class="btn btn-primary btn-block" onclick="window._proto.copyFreeDates()">Скопировать</button>';
+    } else {
+      html += '<div class="empty-state card"><p>Нет полностью свободных дат в выбранном периоде</p></div>';
+    }
+    return html;
+  }
+
+  function renderReportsTab() {
+    const summary = calcSummary();
+    let html = renderAppHeader() +
+      '<main class="main"><h2 class="page-title">Итоги</h2>';
+
+    html += renderReportsPeriodNav();
+
+    html += '<div class="filter-row" aria-label="Дополнительные фильтры">' +
+      ['all','reserved','confirmed'].map(s => {
+        const labels = { all: 'Все', reserved: 'Бронь', confirmed: 'Занято' };
+        return '<button type="button" class="chip' + (state.filterStatus === s ? ' active' : '') +
+          '" onclick="window._proto.setFilterStatus(\'' + s + '\')">' + labels[s] + '</button>';
+      }).join('') + '</div>';
+
+    html += '<div class="filter-row">' +
+      ['all','paid','unpaid'].map(p => {
+        const labels = { all: 'Все', paid: 'Оплачено', unpaid: 'Не оплачено' };
+        return '<button type="button" class="chip' + (state.filterPayment === p ? ' active' : '') +
+          '" onclick="window._proto.setFilterPayment(\'' + p + '\')">' + labels[p] + '</button>';
+      }).join('') + '</div>';
+
+    html += '<div class="summary-grid">' +
+      summaryItem('Туров', summary.tourCount) +
+      summaryItem('Рабочих дней', summary.workDays) +
+      summaryItem('Доход', '$' + summary.income) +
+      summaryItem('Оплаченных туров', summary.paidTours) +
+      summaryItem('Неоплаченных туров', summary.unpaidTours) +
+      '</div>';
+
+    html += '<button type="button" class="btn btn-secondary btn-block" onclick="window._proto.openFreeDates()">Поделиться свободными датами</button>';
+
+    html += '</main>';
+    return html;
+  }
+
+  function getAdjacentFreeRange(date) {
+    let start = parseDate(date);
+    let end = parseDate(date);
+    while (dayStatus(toISO(new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1))) === 'free') {
+      start = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+    }
+    while (dayStatus(toISO(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1))) === 'free') {
+      end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+    }
+    if (toISO(start) === date && toISO(end) === date) return null;
+    return fmtDateShort(toISO(start)) + '–' + fmtDateShort(toISO(end));
+  }
+
+  function summaryItem(label, value) {
+    return '<div class="summary-item"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
+  }
+
+  function calcSummary() {
+    const { from, to } = getReportRange();
+    let tourCount = 0;
+    let income = 0;
+    let paidTours = 0;
+    let unpaidTours = 0;
+    const workDaysSet = new Set();
+
+    tours.forEach(e => {
+      if (e.type === 'day_off') return;
+      if (state.filterStatus !== 'all' && e.status !== state.filterStatus) return;
+      if (state.filterPayment !== 'all' && e.payment !== state.filterPayment) return;
+      if (state.filterCompany && (e.company || '').indexOf(state.filterCompany) < 0) return;
+      if (state.filterLocation && (e.location || '').indexOf(state.filterLocation) < 0) return;
+
+      const overlap = daysInRange(e.startDate, e.endDate).filter(d => d >= from && d <= to);
+      if (!overlap.length) return;
+
+      tourCount += 1;
+      overlap.forEach(d => workDaysSet.add(d));
+      income += (e.income || 0) * overlap.length;
+      if (e.payment === 'paid') paidTours += 1;
+      else unpaidTours += 1;
+    });
+
+    return {
+      tourCount,
+      workDays: workDaysSet.size,
+      income,
+      paidTours,
+      unpaidTours
+    };
+  }
+
+  function isFullyFree(date) {
+    return dayStatus(date) === 'free';
+  }
+
+  function buildFreeDatesText() {
+    const { from, to } = getAvailRange();
+    const free = daysInRange(from, to).filter(isFullyFree);
+    if (!free.length) return '';
+    const ranges = compressRanges(free);
+    const parts = ranges.map(r => {
+      if (r.start === r.end) {
+        const d = parseDate(r.start);
+        return d.getDate() + ' ' + MONTH_NAMES[d.getMonth()];
+      }
+      const a = parseDate(r.start);
+      const b = parseDate(r.end);
+      if (a.getMonth() === b.getMonth()) return a.getDate() + '–' + b.getDate() + ' ' + MONTH_NAMES[a.getMonth()];
+      return fmtDateShort(r.start) + '–' + fmtDateShort(r.end);
+    });
+    const joined = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' и ' + parts[parts.length - 1] : parts[0];
+    return buildFreeDatesHeading(from, to) + ' ' + joined + '.';
+  }
+
+  function compressRanges(dates) {
+    if (!dates.length) return [];
+    const sorted = [...dates].sort();
+    const out = [];
+    let start = sorted[0], end = sorted[0];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = parseDate(end);
+      const curr = parseDate(sorted[i]);
+      const next = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1);
+      if (toISO(next) === sorted[i]) end = sorted[i];
+      else { out.push({ start, end }); start = sorted[i]; end = sorted[i]; }
+    }
+    out.push({ start, end });
+    return out;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderBottomNav() {
+    return '<nav class="bottom-nav" aria-label="Основная навигация">' +
+      '<button type="button" class="nav-item' + (state.tab === 'calendar' ? ' active' : '') + '" onclick="window._proto.setTab(\'calendar\')">' +
+      ICON.calendar + 'Календарь</button>' +
+      '<button type="button" class="nav-item' + (state.tab === 'reports' ? ' active' : '') + '" onclick="window._proto.setTab(\'reports\')">' +
+      ICON.reports + 'Итоги</button></nav>';
+  }
+
+  function renderOverlay() {
+    const root = document.getElementById('overlay-root');
+    if (!state.overlay && !state.settingsOpen) {
+      root.innerHTML = '';
+      return;
+    }
+    if (state.settingsOpen) {
+      root.innerHTML = renderSettingsOverlay();
+      return;
+    }
+    const o = state.overlay;
+    const data = state.overlayData;
+    let inner = '';
+
+    if (o === 'add-select') {
+      inner = '<button class="btn btn-secondary btn-block" onclick="window._proto.openTourForm()">Тур</button>' +
+        '<button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.openDayOffForm()">Выходной</button>';
+      root.innerHTML = sheetHtml('Добавить', inner, false);
+    } else if (o === 'tour-form') {
+      inner = renderTourForm(data);
+      root.innerHTML = sheetHtml(data.edit ? 'Изменить тур' : (data.copy ? 'Копировать тур' : 'Новый тур'), inner, true, 'saveTour');
+    } else if (o === 'dayoff-form') {
+      inner = renderDayOffForm(data);
+      root.innerHTML = sheetHtml('Выходной', inner, true, 'saveDayOff', 'Сохранить выходной');
+    } else if (o === 'detail') {
+      inner = renderDetail(data.id);
+      root.innerHTML = sheetHtml('Карточка тура', inner, false);
+    } else if (o === 'delete') {
+      const e = tours.find(t => t.id === data.id);
+      const multi = e && e.startDate !== e.endDate;
+      inner = '<p>' + (multi ? 'Удалить все дни многодневного тура?' : 'Удалить тур?') + '</p>' +
+        '<div style="display:flex;gap:8px;margin-top:16px">' +
+        '<button class="btn btn-danger btn-block" onclick="window._proto.confirmDelete()">Да</button>' +
+        '<button class="btn btn-secondary btn-block" onclick="window._proto.closeOverlay()">Нет</button></div>';
+      root.innerHTML = overlayCenter('Подтверждение', inner);
+    } else if (o === 'conflict') {
+      inner = '<div class="alert alert-danger">' + escapeHtml(data.reason) + '</div>' +
+        '<button class="btn btn-primary btn-block" onclick="window._proto.returnToTourFormFromConflict(\'time\')">Изменить время</button>' +
+        '<button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.returnToTourFormFromConflict(\'date\')">Изменить дату</button>';
+      root.innerHTML = overlayCenter('Пересечение времени', inner);
+    } else if (o === 'warning') {
+      inner = '<div class="alert alert-warning">На ' + fmtDate(data.date) + ' уже есть тур «' + escapeHtml(data.ex.title) + '» (' + timeLabel(data.ex) + '). Время не пересекается — сохранение возможно.</div>' +
+        '<button class="btn btn-primary btn-block" onclick="window._proto.ackWarningAndSave()">Сохранить</button>' +
+        '<button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.closeOverlay()">Отмена</button>';
+      root.innerHTML = overlayCenter('Совпадение даты', inner);
+    } else if (o === 'free-dates') {
+      inner = renderFreeDatesControls();
+      root.innerHTML = sheetHtml('Свободные даты', inner, false);
+    } else if (o === 'multi-location') {
+      inner = '<p class="text-muted">Уточните местоположение для каждого дня маршрута:</p>';
+      (data.days || []).forEach(d => {
+        inner += '<div class="form-group"><label class="form-label">' + fmtDate(d) + '</label>' +
+          '<input class="form-input" value="' + escapeHtml(data.locations[d] || '') + '" onchange="window._proto.updateDayLoc(\'' + d + '\',this.value)"></div>';
+      });
+      inner += '<button class="btn btn-primary btn-block" onclick="window._proto.saveDayLocations()">Готово</button>';
+      root.innerHTML = sheetHtml('Маршрут по дням', inner, false);
+    } else if (o === 'demo-states') {
+      inner = '<button type="button" class="btn btn-secondary btn-block" onclick="window._proto.showDemoLoading()">Loading</button>' +
+        '<button type="button" class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.showDemoError()">Error</button>' +
+        '<button type="button" class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.showDemoOffline()">Offline</button>' +
+        '<button type="button" class="btn btn-secondary btn-block" style="margin-top:8px" onclick="window._proto.closeOverlay()">Закрыть</button>';
+      root.innerHTML = sheetHtml('Демо состояний', inner, false);
+    }
+  }
+
+  function sheetHtml(title, body, showSave, saveFn, saveLabel) {
+    const label = saveLabel || 'Сохранить тур';
+    return '<div class="overlay" onclick="if(event.target===this)window._proto.closeOverlay()"><div class="sheet">' +
+      '<div class="sheet-header"><span class="sheet-title">' + title + '</span>' +
+      '<button type="button" class="icon-btn" onclick="window._proto.closeOverlay()" aria-label="Закрыть">' + ICON.close + '</button></div>' +
+      '<div class="sheet-body">' + body + '</div>' +
+      (showSave ? '<div class="sheet-footer"><button class="btn btn-primary btn-block" onclick="window._proto.' + saveFn + '()">' + label + '</button></div>' : '') +
+      '</div></div>';
+  }
+
+  function overlayCenter(title, body) {
+    return '<div class="overlay center" onclick="if(event.target===this)window._proto.closeOverlay()"><div class="sheet">' +
+      '<div class="sheet-header"><span class="sheet-title">' + title + '</span>' +
+      '<button type="button" class="icon-btn" onclick="window._proto.closeOverlay()" aria-label="Закрыть">' + ICON.close + '</button></div>' +
+      '<div class="sheet-body">' + body + '</div></div></div>';
+  }
+
+  function renderTourForm(data) {
+    const d = data.form || defaultTourForm();
+    let html = '';
+    if (data.conflictMsg) html += '<div class="alert alert-danger">' + escapeHtml(data.conflictMsg) + '</div>';
+    html += '<div class="form-group"><label class="form-label">Название тура *</label>' +
+      '<input class="form-input" id="f-title" value="' + escapeHtml(d.title) + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Дата начала</label>' +
+      '<input type="date" class="form-input" id="f-start" value="' + d.startDate + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Дата окончания (многодневный)</label>' +
+      '<input type="date" class="form-input" id="f-end" value="' + d.endDate + '"></div>';
+    html += '<div class="toggle-row"><span>Указать время</span>' +
+      '<button class="toggle' + (d.useTime ? ' on' : '') + '" id="f-time-toggle" onclick="window._proto.toggleTime()"></button></div>';
+    if (d.useTime) {
+      html += '<div class="form-row"><div class="form-group"><label class="form-label">Начало</label>' +
+        '<input type="time" class="form-input" id="f-start-time" value="' + (d.startTime || '09:00') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Окончание</label>' +
+        '<input type="time" class="form-input" id="f-end-time" value="' + (d.endTime || '14:00') + '"></div></div>';
+    }
+    html += '<div class="form-group"><label class="form-label">Компания</label>' +
+      '<input class="form-input" id="f-company" value="' + escapeHtml(d.company || '') + '" placeholder="Silk Road Travel"></div>';
+    html += '<div class="form-group"><label class="form-label">Местоположение</label>' +
+      '<input class="form-input" id="f-location" value="' + escapeHtml(d.location || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Доход (USD)</label>' +
+      '<input type="number" class="form-input" id="f-income" value="' + (d.income || '') + '"></div>';
+    html += '<div class="form-row"><div class="form-group"><label class="form-label">Статус</label>' +
+      '<select class="form-select" id="f-status"><option value="reserved"' + (d.status === 'reserved' ? ' selected' : '') + '>Бронь</option>' +
+      '<option value="confirmed"' + (d.status === 'confirmed' ? ' selected' : '') + '>Занято</option></select></div>' +
+      '<div class="form-group"><label class="form-label">Оплата</label>' +
+      '<select class="form-select" id="f-payment"><option value="unpaid"' + (d.payment === 'unpaid' ? ' selected' : '') + '>Не оплачено</option>' +
+      '<option value="paid"' + (d.payment === 'paid' ? ' selected' : '') + '>Оплачено</option></select></div></div>';
+    html += '<div class="form-group"><label class="form-label">Заметка</label>' +
+      '<textarea class="form-textarea" id="f-note">' + escapeHtml(d.note || '') + '</textarea></div>';
+  if (d.startDate === '2026-08-28' && d.useTime && d.startTime === '12:00' && d.endTime === '16:00') {
+      html += '<p class="text-hint">Подсказка: это время пересекается с «Обзорный Самарканд» 09:00–14:00</p>';
+    }
+    return html;
+  }
+
+  function defaultTourForm() {
+    return {
+      title: '', startDate: state.selectedDate, endDate: state.selectedDate,
+      useTime: false, startTime: '09:00', endTime: '14:00',
+      company: '', location: '', income: '', status: 'reserved', payment: 'unpaid', note: ''
+    };
+  }
+
+  function renderDayOffForm(data) {
+    const d = data.form || { startDate: state.selectedDate, endDate: state.selectedDate };
+    return '<div class="form-group"><label class="form-label">Дата начала</label>' +
+      '<input type="date" class="form-input" id="f-do-start" value="' + d.startDate + '"></div>' +
+      '<div class="form-group"><label class="form-label">Дата окончания</label>' +
+      '<input type="date" class="form-input" id="f-do-end" value="' + d.endDate + '"></div>' +
+      '<p class="text-muted">Выходной занимает весь день и блокирует дату</p>';
+  }
+
+  function renderDetail(id) {
+    const e = tours.find(t => t.id === id);
+    if (!e) return '<p>Тур не найден</p>';
+    if (e.type === 'day_off') {
+      return '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">Выходной</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Даты</span><span class="detail-value">' + fmtDate(e.startDate) +
+        (e.endDate !== e.startDate ? ' – ' + fmtDate(e.endDate) : '') + '</span></div>' +
+        '<button class="btn btn-danger btn-block" style="margin-top:16px" onclick="window._proto.openDelete(\'' + id + '\')">Удалить</button>';
+    }
+    const dateRange = e.startDate === e.endDate ? fmtDate(e.startDate) : fmtDate(e.startDate) + ' – ' + fmtDate(e.endDate);
+    let html = '<div class="detail-row"><span class="detail-label">Название</span><span class="detail-value">' + escapeHtml(e.title) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Даты</span><span class="detail-value">' + dateRange + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Время</span><span class="detail-value">' + timeLabel(e) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Компания</span><span class="detail-value">' + escapeHtml(e.company || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Местоположение</span><span class="detail-value">' + escapeHtml(locationFor(e, state.selectedDate)) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Доход</span><span class="detail-value">$' + (e.income || 0) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Оплата</span><span class="detail-value">' + paymentLabel(e.payment) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Статус</span><span class="detail-value">' + statusLabel(e.status) + '</span></div>' +
+      (e.note ? '<div class="detail-row"><span class="detail-label">Заметка</span><span class="detail-value">' + escapeHtml(e.note) + '</span></div>' : '') +
+      '<div class="detail-row"><span class="detail-label">Источник</span><span class="detail-value">' + escapeHtml(e.source || 'Mini App') + '</span></div>' +
+      '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">' +
+      '<button class="btn btn-secondary" onclick="window._proto.editTour(\'' + id + '\')">Изменить</button>' +
+      '<button class="btn btn-secondary" onclick="window._proto.copyTour(\'' + id + '\')">Копировать</button>' +
+      '<button class="btn btn-danger" onclick="window._proto.openDelete(\'' + id + '\')">Удалить</button></div>';
+    return html;
+  }
+
+  function renderSettingsOverlay() {
+    return '<div class="overlay" onclick="if(event.target===this)window._proto.closeSettings()"><div class="sheet" style="max-height:95vh">' +
+      '<div class="sheet-header"><span class="sheet-title">Настройки</span>' +
+      '<button type="button" class="icon-btn" onclick="window._proto.closeSettings()" aria-label="Закрыть">' + ICON.close + '</button></div>' +
+      '<div class="sheet-body" style="padding:0">' +
+      '<div class="settings-list">' +
+      settingsSection('Профиль', renderProfileSection()) +
+      settingsSection('Telegram ID', renderTelegramSection()) +
+      settingsSection('Типы и география', renderTypesSection()) +
+      settingsSection('Уведомления', renderNotifSection()) +
+      settingsSection('Тема (демо)', renderThemeSection()) +
+      '<div class="settings-item" onclick="window._proto.openDemoStates()"><span>Демо состояний UI</span><span class="arrow">›</span></div>' +
+      '<div class="settings-item" style="cursor:default"><span>Язык</span><span>Русский</span></div>' +
+      '<div class="settings-item" style="cursor:default"><span>О приложении</span><span class="text-muted" style="font-size:12px">Guide OS Mini App · прототип MA2</span></div>' +
+      '</div></div></div></div>';
+  }
+
+  function settingsSection(title, content) {
+    return '<div class="section-title" style="padding:12px 16px 0">' + title + '</div>' + content;
+  }
+
+  function renderProfileSection() {
+    return '<div style="padding:12px 16px"><label class="form-label">Отображаемое имя</label>' +
+      '<input class="form-input" value="' + escapeHtml(profile.name) + '" onchange="window._proto.profile.name=this.value"></div>';
+  }
+
+  function renderTelegramSection() {
+    return '<div style="padding:12px 16px;display:flex;align-items:center;gap:8px">' +
+      '<code style="flex:1;font-size:14px">' + profile.telegramId + '</code>' +
+      '<button class="btn btn-secondary" onclick="window._proto.copyTelegramId()">Скопировать ID</button></div>';
+  }
+
+  function renderTypesSection() {
+    let html = '<div style="padding:8px 16px 12px">';
+    profile.types.forEach(t => {
+      html += '<div class="card" style="margin-bottom:8px"><strong>' + t.label + '</strong><br>' +
+        '<span class="text-muted">' + t.geo.join(', ') + '</span></div>';
+    });
+    html += '<p class="text-muted" style="font-size:12px">Локальный гид · Маршрутный гид · Сопровождающий гид</p></div>';
+    return html;
+  }
+
+  function renderThemeSection() {
+    const modes = [
+      { id: 'telegram', label: 'Как в Telegram' },
+      { id: 'light', label: 'Светлая' },
+      { id: 'dark', label: 'Тёмная' }
+    ];
+    let html = '<p class="demo-note">Демонстрационный переключатель. Production Mini App следует <code>Telegram.WebApp.colorScheme</code> и <code>Telegram.WebApp.themeParams</code>.</p>';
+    html += '<div class="filter-row" style="padding:8px 16px 12px">';
+    modes.forEach(m => {
+      html += '<button type="button" class="chip' + (state.themeMode === m.id ? ' active' : '') +
+        '" onclick="window._proto.setThemeMode(\'' + m.id + '\')">' + m.label + '</button>';
+    });
+    return html + '</div>';
+  }
+
+  function renderNotifSection() {
+    return '<div style="padding:12px 16px">' +
+      '<div class="toggle-row"><span>Напоминания</span>' +
+      '<button class="toggle' + (profile.notifications.enabled ? ' on' : '') + '" onclick="window._proto.toggleNotif()"></button></div>' +
+      '<div class="form-group" style="margin-top:8px"><label class="form-label">Время напоминания</label>' +
+      '<input type="time" class="form-input" value="' + profile.notifications.time + '" onchange="window._proto.profile.notifications.time=this.value"></div></div>';
+  }
+
+  function readTourForm() {
+    const d = state.overlayData.form || defaultTourForm();
+    const useTime = document.getElementById('f-time-toggle')?.classList.contains('on') || d.useTime;
+    return {
+      title: document.getElementById('f-title')?.value || d.title,
+      startDate: document.getElementById('f-start')?.value || d.startDate,
+      endDate: document.getElementById('f-end')?.value || d.endDate,
+      useTime,
+      startTime: useTime ? (document.getElementById('f-start-time')?.value || d.startTime) : null,
+      endTime: useTime ? (document.getElementById('f-end-time')?.value || d.endTime) : null,
+      company: document.getElementById('f-company')?.value || '',
+      location: document.getElementById('f-location')?.value || '',
+      income: parseInt(document.getElementById('f-income')?.value, 10) || 0,
+      status: document.getElementById('f-status')?.value || 'reserved',
+      payment: document.getElementById('f-payment')?.value || 'unpaid',
+      note: document.getElementById('f-note')?.value || ''
+    };
+  }
+
+  function buildEntryFromForm(f) {
+    return {
+      type: 'tour',
+      title: f.title.trim(),
+      company: f.company,
+      location: f.location,
+      startDate: f.startDate,
+      endDate: f.endDate || f.startDate,
+      startTime: f.useTime ? f.startTime : null,
+      endTime: f.useTime ? f.endTime : null,
+      status: f.status,
+      payment: f.payment,
+      income: f.income,
+      note: f.note,
+      source: 'Mini App'
+    };
+  }
+
+  const api = {
+    setTab(t) {
+      state.tab = t;
+      if (t === 'calendar' && state.calendarScreen !== 'day') state.calendarScreen = 'feed';
+      render();
+    },
+    toggleMonthPicker() {
+      state.monthExpanded = !state.monthExpanded;
+      render();
+    },
+    prevMonth() {
+      state.viewMonth -= 1;
+      if (state.viewMonth < 0) { state.viewMonth = 11; state.viewYear -= 1; }
+      render();
+    },
+    nextMonth() {
+      state.viewMonth += 1;
+      if (state.viewMonth > 11) { state.viewMonth = 0; state.viewYear += 1; }
+      render();
+    },
+    openDayDetail(iso) {
+      state.selectedDate = iso;
+      state.calendarScreen = 'day';
+      state.monthExpanded = false;
+      render();
+    },
+    selectDateFromMonth(iso) {
+      state.selectedDate = iso;
+      state.calendarScreen = 'day';
+      state.monthExpanded = false;
+      render();
+    },
+    openFeed() {
+      state.calendarScreen = 'feed';
+      render();
+    },
+    goToday() {
+      state.selectedDate = MOCK_TODAY;
+      state.viewMonth = 7;
+      state.viewYear = 2026;
+      state.calendarScreen = 'feed';
+      state.monthExpanded = false;
+      render();
+    },
+    openSettings() { state.settingsOpen = true; render(); },
+    closeSettings() { state.settingsOpen = false; render(); },
+    openAdd() {
+      state.overlay = 'add-select';
+      state.overlayData = {};
+      if (state.calendarScreen === 'day') state.overlayReturn = 'day';
+      renderOverlay();
+    },
+    openTourForm(prefill) {
+      const form = prefill || defaultTourForm();
+      if (state.selectedDate === MOCK_TODAY && !prefill) {
+        form.startTime = '12:00';
+        form.endTime = '16:00';
+        form.useTime = true;
+        form.title = 'Новый тур (конфликт)';
+      }
+      state.overlay = 'tour-form';
+      state.overlayData = { form, edit: state.overlayData.edit, copy: state.overlayData.copy, editId: state.overlayData.editId };
+      renderOverlay();
+    },
+    openDayOffForm() {
+      state.overlay = 'dayoff-form';
+      state.overlayData = { form: { startDate: state.selectedDate, endDate: state.selectedDate } };
+      renderOverlay();
+    },
+    toggleTime() {
+      const el = document.getElementById('f-time-toggle');
+      if (el) el.classList.toggle('on');
+    },
+    closeOverlay() {
+      state.overlay = null;
+      state.overlayData = {};
+      state.deleteId = null;
+      if (state.overlayReturn === 'day') {
+        state.overlayReturn = null;
+        state.calendarScreen = 'day';
+      }
+      render();
+    },
+    returnToTourFormFromConflict(targetField) {
+      const data = state.overlayData || {};
+      state.overlay = 'tour-form';
+      state.overlayData = {
+        form: data.form || defaultTourForm(),
+        editId: data.editId,
+        edit: data.edit,
+        copy: data.copy
+      };
+      renderOverlay();
+      const focusId = targetField === 'time' ? 'f-start-time' : 'f-start';
+      requestAnimationFrame(() => {
+        const el = document.getElementById(focusId);
+        if (el) el.focus();
+      });
+    },
+    saveTour() {
+      const f = readTourForm();
+      if (!f.title.trim()) { showToast('Укажите название тура'); return; }
+      if (f.endDate < f.startDate) { showToast('Конечная дата раньше начальной'); return; }
+      if (f.useTime && f.startTime >= f.endTime) { showToast('Время окончания должно быть позже начала'); return; }
+
+      const entry = buildEntryFromForm(f);
+      const editId = state.overlayData.editId;
+      const conflict = checkConflicts(entry, editId);
+
+      if (conflict && conflict.block) {
+        state.overlay = 'conflict';
+        state.overlayData = {
+          reason: conflict.reason,
+          form: f,
+          editId,
+          edit: state.overlayData.edit,
+          copy: state.overlayData.copy
+        };
+        renderOverlay();
+        return;
+      }
+      if (conflict && conflict.warn && !state.dateWarningAck) {
+        state.overlay = 'warning';
+        state.overlayData = { ...conflict, form: f, editId };
+        renderOverlay();
+        return;
+      }
+
+      state.dateWarningAck = false;
+      if (editId) {
+        const idx = tours.findIndex(t => t.id === editId);
+        if (idx >= 0) tours[idx] = { ...tours[idx], ...entry, id: editId };
+        showToast('Тур обновлён');
+      } else {
+        const id = 't' + nextId++;
+        tours.push({ ...entry, id });
+        showToast('Тур сохранён');
+        if (entry.startDate !== entry.endDate) {
+          const days = daysInRange(entry.startDate, entry.endDate);
+          const locs = {};
+          days.forEach(d => { locs[d] = entry.location; });
+          state.overlay = 'multi-location';
+          state.overlayData = { id, days, locations: locs };
+          renderOverlay();
+          return;
+        }
+      }
+      state.selectedDate = f.startDate;
+      state.calendarScreen = 'day';
+      api.closeOverlay();
+    },
+    ackWarningAndSave() {
+      state.dateWarningAck = true;
+      state.overlay = 'tour-form';
+      state.overlayData.form = state.overlayData.form;
+      state.overlayData.editId = state.overlayData.editId;
+      api.saveTour();
+    },
+    saveDayOff() {
+      const start = document.getElementById('f-do-start').value;
+      const end = document.getElementById('f-do-end').value;
+      const entry = { type: 'day_off', title: 'Выходной', startDate: start, endDate: end, income: 0, source: 'Mini App' };
+      const conflict = checkConflicts(entry, null);
+      if (conflict && conflict.block) {
+        showToast(conflict.reason);
+        return;
+      }
+      tours.push({ ...entry, id: 'd' + nextId++ });
+      showToast('Выходной сохранён');
+      api.closeOverlay();
+    },
+    openDetail(id) {
+      state.overlay = 'detail';
+      state.overlayData = { id };
+      if (state.calendarScreen === 'day') state.overlayReturn = 'day';
+      renderOverlay();
+    },
+    editTour(id) {
+      const e = tours.find(t => t.id === id);
+      if (!e) return;
+      state.overlay = 'tour-form';
+      state.overlayData = {
+        edit: true, editId: id,
+        form: {
+          title: e.title, startDate: e.startDate, endDate: e.endDate,
+          useTime: e.startTime && e.endTime, startTime: e.startTime, endTime: e.endTime,
+          company: e.company, location: e.location, income: e.income,
+          status: e.status, payment: e.payment, note: e.note
+        }
+      };
+      renderOverlay();
+    },
+    copyTour(id) {
+      const e = tours.find(t => t.id === id);
+      if (!e) return;
+      state.overlay = 'tour-form';
+      state.overlayData = {
+        copy: true,
+        form: {
+          title: e.title, startDate: state.selectedDate, endDate: state.selectedDate,
+          useTime: e.startTime && e.endTime, startTime: e.startTime, endTime: e.endTime,
+          company: e.company, location: e.location, income: e.income,
+          status: e.status, payment: e.payment, note: e.note
+        }
+      };
+      renderOverlay();
+    },
+    openDelete(id) {
+      state.overlay = 'delete';
+      state.overlayData = { id };
+      state.deleteId = id;
+      renderOverlay();
+    },
+    confirmDelete() {
+      const idx = tours.findIndex(t => t.id === state.deleteId);
+      if (idx >= 0) tours.splice(idx, 1);
+      showToast('Удалено');
+      api.closeOverlay();
+    },
+    openFreeDates() {
+      state.availOpenFrom = state.tab;
+      state.overlay = 'free-dates';
+      renderOverlay();
+    },
+    copyFreeDates() { copyText(buildFreeDatesText()); },
+    copyTelegramId() { copyText(profile.telegramId); },
+    setReportsPeriod(p) { state.reportsPeriod = p; render(); },
+    prevReportsMonth() {
+      state.reportsMonth -= 1;
+      if (state.reportsMonth < 0) { state.reportsMonth = 11; state.reportsYear -= 1; }
+      render();
+    },
+    nextReportsMonth() {
+      state.reportsMonth += 1;
+      if (state.reportsMonth > 11) { state.reportsMonth = 0; state.reportsYear += 1; }
+      render();
+    },
+    prevReportsYear() {
+      state.reportsYear -= 1;
+      render();
+    },
+    nextReportsYear() {
+      if (state.reportsYear < getMockTodayYear()) {
+        state.reportsYear += 1;
+        render();
+      }
+    },
+    setFilterStatus(s) { state.filterStatus = s; render(); },
+    setFilterPayment(p) { state.filterPayment = p; render(); },
+    setAvailContextMode(custom) {
+      state.availUseCustom = custom;
+      if (custom) {
+        const { from, to } = getAvailContextRange();
+        state.availCustomFrom = from;
+        state.availCustomTo = to;
+      }
+      if (state.overlay === 'free-dates') renderOverlay();
+      else render();
+    },
+    setAvailCustomFrom(v) {
+      state.availCustomFrom = v;
+      if (state.overlay === 'free-dates') renderOverlay();
+      else render();
+    },
+    setAvailCustomTo(v) {
+      state.availCustomTo = v;
+      if (state.overlay === 'free-dates') renderOverlay();
+      else render();
+    },
+    setThemeMode(mode) {
+      state.themeMode = mode;
+      applyThemeMode(mode);
+      render();
+    },
+    toggleNotif() {
+      profile.notifications.enabled = !profile.notifications.enabled;
+      render();
+    },
+    openDemoStates() {
+      state.overlay = 'demo-states';
+      renderOverlay();
+    },
+    showDemoLoading() {
+      state.settingsOpen = false;
+      state.demoLoading = true;
+      state.overlay = null;
+      render();
+      setTimeout(() => { state.demoLoading = false; render(); }, 2000);
+    },
+    showDemoError() {
+      state.settingsOpen = false;
+      state.demoError = true;
+      state.overlay = null;
+      render();
+    },
+    showDemoOffline() {
+      state.settingsOpen = false;
+      state.demoOffline = true;
+      state.overlay = null;
+      render();
+    },
+    retry() {
+      state.demoError = false;
+      state.demoOffline = false;
+      render();
+    },
+    updateDayLoc(d, v) {
+      state.overlayData.locations[d] = v;
+    },
+    saveDayLocations() {
+      const e = tours.find(t => t.id === state.overlayData.id);
+      if (e) e.dayLocations = { ...state.overlayData.locations };
+      api.closeOverlay();
+    }
+  };
+
+  window._proto = api;
+  try {
+    const savedTheme = sessionStorage.getItem(THEME_SESSION_KEY);
+    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'telegram') {
+      state.themeMode = savedTheme;
+      applyThemeMode(savedTheme);
+    }
+  } catch (e) { /* ignore */ }
+  render();
+})();
+</script>
+</body>
+</html>
