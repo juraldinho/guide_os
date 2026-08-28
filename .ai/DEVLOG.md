@@ -1,5 +1,13 @@
 # Guide OS — Development Log
 
+## 2026-08-28 — Stage 19 personal records in progress
+
+- Integration Stages 0–18 remain production-complete: GuideShop events ON, Guide OS events/notifications ON, reconciliation CLEAN after owner notification and observation smoke.
+- Stage 19A audit confirmed personal places and self-reported external outcomes can be implemented inside Guide OS without changing GuideShop or the event pipeline.
+- Stage 19B persistence/ownership was committed and pushed on branch `stage19-personal-records`, commit `22fb924`.
+- Stage 19C private personal-place Telegram CRUD was implemented locally and remains uncommitted pending local smoke and owner Terminal commit/push.
+- New operating rule recorded: routine Terminal actions such as Git branch/add/commit/push are owner-run from exact commands; Cursor is reserved for code changes and meaningful code analysis.
+
 ## 2026-08-19 — GuideShop Stage 11 handoff accepted
 
 - Stage 11A contracts завершён: package `v1.2.0`;

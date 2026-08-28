@@ -1,16 +1,18 @@
 # Guide OS — Project State
 
-> Обновлено: 2026-08-22
+> Обновлено: 2026-08-28
 
 > **Канонический roadmap:** `integration_foundation.md`, раздел 18. Историческая декомпозиция ниже сохранена только как архитектурная справка.
 
 ## Текущий статус
 
-Интеграционные Stages 0–18 завершены с PASS; открытых implementation gates нет. Финальная production-архитектура: GuideShop transactional outbox и authenticated event feed → Guide OS durable inbox, identity isolation и deduplication → bounded Telegram notification delivery с существующим safe deep link.
+Интеграционные Stages 0–18 завершены с PASS и активированы в production. Финальная production-архитектура: GuideShop transactional outbox и authenticated event feed → Guide OS durable inbox, identity isolation и deduplication → bounded Telegram notification delivery с существующим safe deep link.
 
 GuideShop остаётся источником истины для официальных Visits и points. GuideShop производит и публикует domain events, но не доставляет Telegram-уведомления: GuideShop events включены, а его notifications выключены. Guide OS потребляет события, хранит inbox/checkpoint/watermark и выполняет Telegram-доставку; Guide OS events и notifications включены.
 
 GuideShop остаётся источником истины для официальных компаний, Visits/Sales и points. Guide OS является источником истины для будущих личных мест гида и самостоятельно внесённых внешних продаж. Guide OS не получает прямой доступ к базе GuideShop: актуальное business state читается через read-only API, а события используются только как сигнал для inbox и уведомления.
+
+Stage 19 выбран владельцем и начат в Guide OS: личные места и личные записи гида создаются только в профиле Guide OS. Stage 19B persistence/ownership уже committed/pushed на branch `stage19-personal-records` (`22fb924`). Stage 19C Telegram CRUD для `📍 Мои места` реализован локально, но ещё не закоммичен и ожидает local Telegram smoke.
 
 ## Цель интеграции
 

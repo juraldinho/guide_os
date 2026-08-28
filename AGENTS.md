@@ -217,36 +217,36 @@ GuideShop (`services/guide_shop_*`):
 - Для trivial/local-only правок — не гонять дорогие проверки без причины.
 - CI всегда: `python -m pytest -q` + `git diff --check`.
 
-### Команды (из README; использовать venv проекта)
+### Команды (использовать `.venv` проекта)
 
 Один test:
 
 ```sh
-venv/bin/python -m pytest -q tests/test_tour_service.py::test_save_tour_creates_group
+.venv/bin/python -m pytest -q tests/test_tour_service.py::test_save_tour_creates_group
 ```
 
 Один test file:
 
 ```sh
-venv/bin/python -m pytest -q tests/test_tour_service.py
+.venv/bin/python -m pytest -q tests/test_tour_service.py
 ```
 
 Связанные tests (несколько файлов):
 
 ```sh
-venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_guide_shop_ui.py
+.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_guide_shop_ui.py
 ```
 
 Focused env/docs guard:
 
 ```sh
-venv/bin/python -m pytest -q tests/test_environment_documentation.py
+.venv/bin/python -m pytest -q tests/test_environment_documentation.py
 ```
 
 Full suite:
 
 ```sh
-venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -q
 ```
 
 Whitespace check:
@@ -273,6 +273,8 @@ git diff --check
 8. Исправить ошибки.
 9. При необходимости один раз — **full pytest** + `git diff --check`.
 10. Остановиться; не расширять scope.
+
+Git branch, add, commit and push commands are owner-run Terminal operations by default. Do not spend Cursor/Codex coding time on routine Git actions; provide exact copy-paste commands instead. Never use `git add .`.
 
 Перед кодом (если задача нетривиальная) показать:
 

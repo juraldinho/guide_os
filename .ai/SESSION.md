@@ -1,10 +1,10 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-08-22
+> Обновлено: 2026-08-28
 
 ## Текущий фокус
 
-Stages 0–18 завершены. Runtime/data/security/operations closure — PASS; открытых implementation gates нет. Текущая работа — только documentation closure, после неё routine monitoring и incident response.
+Stages 0–18 завершены и работают в production. Текущий product workstream — Stage 19: личные места и личные записи гида внутри Guide OS. Эти записи не являются GuideShop companies/sales и не меняют GuideShop.
 
 Финальная production-схема: GuideShop outbox/feed → Guide OS inbox/deduplication → Telegram notification/deep link. GuideShop остаётся источником истины для Visits и points; event production в GuideShop отделён от Telegram notification delivery в Guide OS.
 
@@ -39,6 +39,9 @@ Stages 0–18 завершены. Runtime/data/security/operations closure — P
 - Stage 16 notification canary — PASS; owner notification/deep-link и Visit back-navigation smoke — PASS;
 - Stage 17 observation — PASS: `10m11s`, `22` cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`;
 - Stage 18 final closure audit — PASS для runtime, data, security и operations;
+- Stage 19A audit — PASS: личные места и self-reported external outcomes feasible без изменения GuideShop/event pipeline;
+- Stage 19B persistence/ownership — committed and pushed, branch `stage19-personal-records`, commit `22fb924`; добавлены `personal_places`, `personal_place_entries`, owner-scoped services, hard-delete protection и WAL-safe `/backup`;
+- Stage 19C Telegram personal-place CRUD — implemented locally and uncommitted; includes `📍 Мои места`, create/detail/edit/deactivate, inactive read-only state, local fallback when GuideShop reads unavailable, and scoped back navigation;
 - Stage 16A audit: GuideShop production `cd3895d…` не содержит `3e8a760`, `a6299c7` или `4cf1c10b…`; canary не готов;
 - Stage 11 candidate: events OFF блокирует outbox/version writes через единый shared boundary; migrations unconditional;
 
@@ -113,7 +116,7 @@ Stages 0–18 завершены. Runtime/data/security/operations closure — P
 
 ## Следующее действие
 
-Согласно `.ai/NEXT_TASK.md`, выполнять routine post-launch monitoring и incident response. Новая product-разработка начинается только после выбора нового roadmap item владельцем.
+Проверить Stage 19C в локальном Telegram bot, затем подготовить точные Terminal-команды для commit/push. Не использовать Cursor для routine Git операций.
 
 ## Зафиксированное будущее требование
 
@@ -135,4 +138,5 @@ Stages 0–18 завершены. Runtime/data/security/operations closure — P
 
 - Исходный код изменяет только Cursor.
 - Этот чат анализирует, проектирует, проверяет и обновляет Markdown.
+- Git branch/add/commit/push и простые terminal-запуски выполняет владелец по готовым командам этого чата.
 - Minimal Change; никаких несвязанных изменений.
