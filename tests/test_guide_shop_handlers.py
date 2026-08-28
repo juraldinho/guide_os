@@ -17,6 +17,7 @@ from handlers.guide_shop import (
     ACCESS_DENIED_TEXT,
     DISABLED_TEXT,
     INVALID_ROUTE_TEXT,
+    LOCAL_HOME_TEXT,
     STALE_TOKEN_TEXT,
     _dispatch_route,
     configure_guide_shop_ui,
@@ -26,6 +27,7 @@ from handlers.guide_shop import (
 )
 from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
 from services.guide_shop_contracts import PointsStatus
+from services.guide_shop_client import GuideShopTemporarilyUnavailableError
 from services.guide_shop_navigation import (
     GuideShopRoute,
     NavigationRouteInvalidError,
@@ -91,6 +93,17 @@ def callback(raw_token="gs_token", user_id=101):
     )
 
 
+def assert_local_home(answer):
+    answer.assert_awaited_once()
+    call = answer.await_args
+    assert call.args == (LOCAL_HOME_TEXT,)
+    assert call.kwargs["parse_mode"] == "HTML"
+    buttons = call.kwargs["reply_markup"].inline_keyboard
+    assert [(button.text, button.callback_data) for row in buttons for button in row] == [
+        ("📍 Мои места", "pp:list")
+    ]
+
+
 def real_environment(private_key_pem):
     return {
         "GUIDESHOP_READS_ENABLED": "true",
@@ -134,7 +147,7 @@ def test_fake_true_is_rejected_outside_authorized_environments(app_env):
         GuideShopRuntimeSettings.from_env(values)
 
 
-def test_default_menu_is_exact_and_reads_append_without_reordering(monkeypatch):
+def test_main_menu_keeps_local_guide_shop_section_when_reads_are_disabled(monkeypatch):
     expected = [
         ["➕ Добавить тур"],
         ["🗓 Календарь"],
@@ -143,29 +156,44 @@ def test_default_menu_is_exact_and_reads_append_without_reordering(monkeypatch):
         ["📊 Статистика"],
         ["👤 Профиль"],
     ]
+    expected.append(["🛍 GuideShop"])
     assert menu_texts(get_main_menu(reads_enabled=False)) == expected
-    assert menu_texts(get_main_menu(reads_enabled=True)) == expected + [
-        ["🛍 GuideShop"]
-    ]
+    assert menu_texts(get_main_menu(reads_enabled=True)) == expected
 
     configure_guide_shop_menu(None)
     monkeypatch.delenv("GUIDESHOP_READS_ENABLED", raising=False)
     assert menu_texts(get_main_menu()) == expected
 
 
-def test_fake_alone_does_not_show_menu_button(monkeypatch):
+def test_fake_setting_does_not_hide_local_guide_shop_section(monkeypatch):
     monkeypatch.setenv("GUIDESHOP_USE_FAKE", "true")
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.delenv("GUIDESHOP_READS_ENABLED", raising=False)
-    assert "🛍 GuideShop" not in sum(menu_texts(get_main_menu()), [])
+    assert "🛍 GuideShop" in sum(menu_texts(get_main_menu()), [])
 
 
 def test_runtime_defaults_disabled_and_entry_creates_no_token():
     msg = message()
     before = navigation_count()
     run(open_guide_shop(msg))
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
     assert navigation_count() == before
+
+
+def test_guide_shop_home_failure_is_sanitized_and_keeps_local_places(caplog):
+    sensitive = "private-identity-and-endpoint"
+    service = SimpleNamespace(
+        home=AsyncMock(side_effect=GuideShopTemporarilyUnavailableError(sensitive))
+    )
+    configure_guide_shop_ui(service, reads_enabled=True)
+    msg = message()
+
+    with caplog.at_level(logging.DEBUG):
+        run(open_guide_shop(msg))
+
+    assert_local_home(msg.answer)
+    assert sensitive not in caplog.text
+    assert sensitive not in str(msg.answer.await_args)
 
 
 class HomeService:
@@ -186,7 +214,7 @@ class HomeService:
         )
 
 
-def test_enabled_entry_renders_six_user_bound_buttons():
+def test_enabled_entry_renders_six_user_bound_buttons_and_local_places():
     user_id = 424242
     msg = message(user_id)
     configure_guide_shop_ui(HomeService(), reads_enabled=True)
@@ -200,8 +228,9 @@ def test_enabled_entry_renders_six_user_bound_buttons():
         row[0].callback_data
         for row in call.kwargs["reply_markup"].inline_keyboard
     ]
-    assert len(callbacks) == 6
-    for raw_token in callbacks:
+    assert len(callbacks) == 7
+    assert callbacks[-1] == "pp:list"
+    for raw_token in callbacks[:-1]:
         with pytest.raises(NavigationTokenAccessDeniedError):
             resolve_navigation_token(raw_token, user_id + 1)
         assert resolve_navigation_token(raw_token, user_id)
@@ -346,7 +375,7 @@ def test_unexpected_programming_errors_are_not_swallowed(monkeypatch):
 
 
 def test_callback_filter_does_not_claim_non_navigation_data():
-    handler = router.callback_query.handlers[0]
+    handler = router.callback_query.handlers[1]
     matched, _ = run(handler.check(callback("other:data")))
     assert not matched
     matched, _ = run(handler.check(callback("gs_value")))
@@ -381,10 +410,10 @@ def test_composition_default_off_ignores_real_settings_and_clears_provider(monke
     signing_settings.assert_not_called()
     token_provider.assert_not_called()
     http_client.assert_not_called()
-    assert "🛍 GuideShop" not in sum(menu_texts(get_main_menu()), [])
+    assert "🛍 GuideShop" in sum(menu_texts(get_main_menu()), [])
     msg = message()
     run(open_guide_shop(msg))
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
 
 
 def test_composition_explicit_development_fake_uses_empty_data(monkeypatch):
@@ -438,7 +467,7 @@ def test_composition_reads_without_fake_rejects_missing_configuration_and_clears
         )
     msg = message()
     run(open_guide_shop(msg))
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
 
 
 class ComposedClient:
@@ -549,7 +578,7 @@ def test_real_configuration_error_is_safe_and_has_no_fallback(
     assert private_value not in caplog.text
     msg = message()
     run(open_guide_shop(msg))
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
 
 
 def test_guide_shop_router_is_registered_before_errors_router():

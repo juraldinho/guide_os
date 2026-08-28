@@ -5,6 +5,7 @@ from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from keyboards.guide_shop import build_guide_shop_keyboard
+from services.guide_shop_client import GuideShopClientError
 from services.guide_shop_navigation import (
     GuideShopRoute,
     NavigationRouteInvalidError,
@@ -30,6 +31,12 @@ _provider: GuideShopUIServiceProvider | None = None
 _reads_enabled = False
 
 DISABLED_TEXT = "Раздел GuideShop временно отключён."
+LOCAL_HOME_TEXT = (
+    "<b>GuideShop</b>\n\n"
+    "Официальные данные GuideShop сейчас недоступны "
+    "или аккаунт ещё не подключён.\n\n"
+    "Личные места доступны независимо от подключения."
+)
 STALE_TOKEN_TEXT = "Кнопка устарела. Откройте GuideShop снова."
 ACCESS_DENIED_TEXT = "Эта кнопка недоступна."
 INVALID_ROUTE_TEXT = "Не удалось открыть раздел GuideShop."
@@ -72,9 +79,17 @@ def configure_guide_shop_provider(
 
 
 async def _answer_screen(
-    message: Message, telegram_user_id: int, screen: GuideShopScreen
+    message: Message,
+    telegram_user_id: int,
+    screen: GuideShopScreen,
+    *,
+    include_personal_places: bool = False,
 ) -> None:
-    keyboard = build_guide_shop_keyboard(telegram_user_id, screen.actions)
+    keyboard = build_guide_shop_keyboard(
+        telegram_user_id,
+        screen.actions,
+        include_personal_places=include_personal_places,
+    )
     await message.answer(
         screen.text,
         parse_mode=screen.parse_mode,
@@ -83,9 +98,17 @@ async def _answer_screen(
 
 
 async def _edit_screen(
-    callback: CallbackQuery, telegram_user_id: int, screen: GuideShopScreen
+    callback: CallbackQuery,
+    telegram_user_id: int,
+    screen: GuideShopScreen,
+    *,
+    include_personal_places: bool = False,
 ) -> None:
-    keyboard = build_guide_shop_keyboard(telegram_user_id, screen.actions)
+    keyboard = build_guide_shop_keyboard(
+        telegram_user_id,
+        screen.actions,
+        include_personal_places=include_personal_places,
+    )
     await callback.message.edit_text(
         screen.text,
         parse_mode=screen.parse_mode,
@@ -117,6 +140,24 @@ async def _dispatch_route(
     if route.kind == "history":
         return await service.history(route.cursor)
     raise NavigationRouteInvalidError("Unsupported GuideShop route")
+
+
+def _local_home_screen() -> GuideShopScreen:
+    return GuideShopScreen(LOCAL_HOME_TEXT, ())
+
+
+async def _load_home(user_id: int) -> GuideShopScreen:
+    if not _reads_enabled or _provider is None:
+        return _local_home_screen()
+    try:
+        async with _provider.service_for(user_id) as service:
+            return await service.home()
+    except (
+        GuideShopIdentityUnavailableError,
+        GuideShopRuntimeConfigurationError,
+        GuideShopClientError,
+    ):
+        return _local_home_screen()
 
 
 @router.message(
@@ -166,16 +207,25 @@ async def open_guide_shop_deep_link(
 
 @router.message(F.text == "🛍 GuideShop")
 async def open_guide_shop(message: Message) -> None:
-    if not _reads_enabled or _provider is None:
-        await message.answer(DISABLED_TEXT)
-        return
+    screen = await _load_home(message.from_user.id)
+    await _answer_screen(
+        message,
+        message.from_user.id,
+        screen,
+        include_personal_places=True,
+    )
 
-    try:
-        async with _provider.service_for(message.from_user.id) as service:
-            screen = await service.home()
-            await _answer_screen(message, message.from_user.id, screen)
-    except (GuideShopIdentityUnavailableError, GuideShopRuntimeConfigurationError):
-        await message.answer(DISABLED_TEXT)
+
+@router.callback_query(F.data == "pp:shop")
+async def open_guide_shop_local_home(callback: CallbackQuery) -> None:
+    screen = await _load_home(callback.from_user.id)
+    await _edit_screen(
+        callback,
+        callback.from_user.id,
+        screen,
+        include_personal_places=True,
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("gs_"))
@@ -207,7 +257,12 @@ async def navigate_guide_shop(callback: CallbackQuery) -> None:
                 return
 
             screen = await _dispatch_route(service, route)
-            await _edit_screen(callback, callback.from_user.id, screen)
+            await _edit_screen(
+                callback,
+                callback.from_user.id,
+                screen,
+                include_personal_places=route.kind == "home",
+            )
             await callback.answer()
     except (GuideShopIdentityUnavailableError, GuideShopRuntimeConfigurationError):
         await callback.answer(DISABLED_TEXT)

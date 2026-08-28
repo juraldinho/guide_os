@@ -8,12 +8,25 @@ import pytest
 import handlers.guide_shop as handler_module
 from handlers.guide_shop import (
     DISABLED_TEXT,
+    LOCAL_HOME_TEXT,
     configure_guide_shop_provider,
     configure_guide_shop_ui,
     navigate_guide_shop,
     open_guide_shop,
     open_guide_shop_deep_link,
 )
+
+
+def assert_local_home(answer):
+    answer.assert_awaited_once()
+    call = answer.await_args
+    assert call.args == (LOCAL_HOME_TEXT,)
+    callbacks = [
+        button.callback_data
+        for row in call.kwargs["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert callbacks == ["pp:list"]
 from services.guide_shop_navigation import (
     GuideShopRoute,
     NavigationTokenUnknownError,
@@ -400,7 +413,7 @@ def test_failed_provider_reconfiguration_clears_previous_provider():
     msg = message(101)
     run(open_guide_shop(msg))
     service.home.assert_not_awaited()
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
 
 
 def test_invalid_client_does_not_consume_callback_or_deep_link_tokens():
@@ -431,7 +444,7 @@ def test_handler_missing_identity_maps_safe_and_does_not_render():
     configure_guide_shop_provider(provider, reads_enabled=True)
     msg = message(101)
     run(open_guide_shop(msg))
-    msg.answer.assert_awaited_once_with(DISABLED_TEXT)
+    assert_local_home(msg.answer)
     lookup.assert_called_once_with(101)
     assert clients == []
 

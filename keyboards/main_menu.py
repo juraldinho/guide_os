@@ -1,8 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-from services.guide_shop_settings import GuideShopFeatureFlags
-
-
 _guide_shop_reads_enabled: bool | None = None
 
 
@@ -12,12 +9,8 @@ def configure_guide_shop_menu(reads_enabled: bool | None) -> None:
 
 
 def get_main_menu(reads_enabled: bool | None = None):
-    if reads_enabled is None:
-        reads_enabled = (
-            _guide_shop_reads_enabled
-            if _guide_shop_reads_enabled is not None
-            else GuideShopFeatureFlags.from_env().reads_enabled
-        )
+    # The section also contains local personal places and is always available.
+    reads_enabled = True
 
     keyboard = [
         [KeyboardButton(text="➕ Добавить тур")],
