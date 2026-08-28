@@ -19,9 +19,9 @@ from handlers.personal_places import (
     list_places,
     receive_create_field,
     receive_edit_value,
-    skip_create_field,
     start_create_place,
     start_edit_place,
+    open_edit_place_menu,
     view_place,
 )
 from services.personal_places_service import PersonalPlacesService
@@ -113,13 +113,15 @@ def test_empty_and_populated_active_lists_are_private_and_local():
     )
 
 
-def test_create_with_name_only_requires_confirmation():
+def test_create_requires_name_category_and_location_before_confirmation():
     state = State()
     cb = callback("pp:create")
     run(start_create_place(cb, state))
     run(receive_create_field(message("Мини-кафе"), state))
-    for _ in range(4):
-        run(skip_create_field(callback("pp:form_skip"), state))
+    assert state.current == PersonalPlaceCreateState.category.state
+    run(receive_create_field(message("Кафе"), state))
+    assert state.current == PersonalPlaceCreateState.general_location.state
+    run(receive_create_field(message("Центр"), state))
 
     assert PersonalPlacesService().list(user_id=USER_ID) == []
     assert state.current == PersonalPlaceCreateState.confirm.state
@@ -129,21 +131,28 @@ def test_create_with_name_only_requires_confirmation():
     places = PersonalPlacesService().list(user_id=USER_ID)
     assert len(places) == 1
     assert places[0].name == "Мини-кафе"
+    assert places[0].category == "Кафе"
+    assert places[0].general_location == "Центр"
     assert all(getattr(places[0], field) is None for field in (
-        "category", "general_location", "landmark", "note"
+        "landmark", "note"
     ))
 
 
-def test_create_with_every_optional_field_and_escaped_detail():
+def test_create_does_not_ask_landmark_or_note():
     state = State()
     run(start_create_place(callback("pp:create"), state))
-    values = ("Место <1>", "Кафе", "Центр", "У старых ворот", "Только утром")
-    for value in values:
-        run(receive_create_field(message(value), state))
+    run(receive_create_field(message("Место <1>"), state))
+    run(receive_create_field(message("Категория"), state))
+    run(receive_create_field(message("Район"), state))
+    assert state.current == PersonalPlaceCreateState.confirm.state
     run(confirm_create_place(callback("pp:form_confirm"), state))
 
     place = PersonalPlacesService().list(user_id=USER_ID)[0]
-    assert (place.name, place.category, place.general_location, place.landmark, place.note) == values
+    assert place.name == "Место <1>"
+    assert place.category == "Категория"
+    assert place.general_location == "Район"
+    assert place.landmark is None
+    assert place.note is None
     rendered = callback(f"pp:view:{place.public_id}")
     run(view_place(rendered, State()))
     text = rendered.message.edit_text.await_args.args[0]
@@ -156,7 +165,7 @@ def test_create_with_every_optional_field_and_escaped_detail():
 
 @pytest.mark.parametrize(
     ("field", "maximum"),
-    [("name", 100), ("category", 100), ("general_location", 200), ("landmark", 200), ("note", 500)],
+    [("name", 100), ("category", 100), ("general_location", 200)],
 )
 def test_create_validation_and_length_boundaries(field, maximum):
     state = State()
@@ -173,27 +182,23 @@ def test_create_validation_and_length_boundaries(field, maximum):
     assert state.data[field] == "x" * maximum
 
 
-def test_required_name_rejects_blank():
+@pytest.mark.parametrize("field", ["name", "category", "general_location"])
+def test_required_create_fields_reject_blank(field):
     state = State()
-    state.current = PersonalPlaceCreateState.name.state
+    state.current = getattr(PersonalPlaceCreateState, field).state
     state.data = {name: None for name in ("name", "category", "general_location", "landmark", "note")}
     msg = message("   ")
     run(receive_create_field(msg, state))
-    assert state.current == PersonalPlaceCreateState.name.state
+    assert state.current == getattr(PersonalPlaceCreateState, field).state
     assert PersonalPlacesService().list(user_id=USER_ID) == []
 
 
-def test_form_back_moves_one_step_and_preserves_data():
+def test_confirmation_back_returns_to_location_and_preserves_data():
     state = State()
-    state.current = PersonalPlaceCreateState.general_location.state
     state.data = {"name": "Сохранённое имя", "category": "Категория"}
-    run(back_create_field(callback("pp:form_back"), state))
-    assert state.current == PersonalPlaceCreateState.category.state
-    assert state.data == {"name": "Сохранённое имя", "category": "Категория"}
-
     state.current = PersonalPlaceCreateState.confirm.state
     run(back_create_field(callback("pp:form_back"), state))
-    assert state.current == PersonalPlaceCreateState.note.state
+    assert state.current == PersonalPlaceCreateState.general_location.state
     assert state.data["name"] == "Сохранённое имя"
 
 
@@ -245,6 +250,22 @@ def test_deactivate_confirmation_and_inactive_read_only():
     assert ("Тихое место", f"pp:view:{PLACE_ID}") in button_pairs(
         inactive.message.edit_text.await_args.kwargs["reply_markup"]
     )
+
+
+def test_place_detail_has_one_edit_button_and_opens_field_selection():
+    seed_place()
+    detail = callback(f"pp:view:{PLACE_ID}")
+    run(view_place(detail, State()))
+    buttons = button_pairs(detail.message.edit_text.await_args.kwargs["reply_markup"])
+    edit_buttons = [(text, data) for text, data in buttons if text.startswith("✏️")]
+    assert edit_buttons == [("✏️ Редактировать", f"pp:edit_menu:{PLACE_ID}")]
+
+    menu = callback(f"pp:edit_menu:{PLACE_ID}")
+    run(open_edit_place_menu(menu, State()))
+    menu_buttons = button_pairs(menu.message.edit_text.await_args.kwargs["reply_markup"])
+    assert {data.split(":", 3)[2] for _, data in menu_buttons if data.startswith("pp:edit:")} == {
+        "name", "category", "general_location", "landmark", "note"
+    }
 
 
 @pytest.mark.parametrize("requested_id", [PLACE_ID, "place_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"])

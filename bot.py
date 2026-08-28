@@ -37,6 +37,7 @@ from handlers.guide_shop import (
     router as guide_shop_router,
 )
 from handlers.personal_places import router as personal_places_router
+from handlers.personal_place_entries import router as personal_place_entries_router
 from keyboards.main_menu import configure_guide_shop_menu
 from services.guide_shop_client import (
     HTTPGuideShopClient,
@@ -166,6 +167,7 @@ async def main() -> None:
         asyncio.create_task(send_tour_reminders(bot))
 
         dp = Dispatcher()
+        dp.include_router(personal_place_entries_router)
         dp.include_router(personal_places_router)
         dp.include_router(guide_shop_router)
         dp.include_router(start_router)

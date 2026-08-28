@@ -8,6 +8,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from database.queries import register_user
+from handlers.personal_place_entries import entry_action_rows, render_recent_entries
+from services.external_sales_service import ExternalSalesService
 from services.personal_places_service import (
     PersonalPlace,
     PersonalPlaceConflictError,
@@ -24,6 +26,7 @@ SAVE_FAILED_TEXT = "Не удалось сохранить место. Попр�
 PRIVATE_EXPLANATION = "Это ваши личные места. Они видны только вам."
 
 _FIELDS = ("name", "category", "general_location", "landmark", "note")
+_CREATE_FIELDS = ("name", "category", "general_location")
 _FIELD_LABELS = {
     "name": "Название",
     "category": "Категория",
@@ -42,8 +45,6 @@ _CREATE_STATES = {
     "name": PersonalPlaceCreateState.name,
     "category": PersonalPlaceCreateState.category,
     "general_location": PersonalPlaceCreateState.general_location,
-    "landmark": PersonalPlaceCreateState.landmark,
-    "note": PersonalPlaceCreateState.note,
 }
 
 
@@ -72,7 +73,7 @@ def _list_keyboard(places: list[PersonalPlace], *, inactive: bool):
     return _keyboard(rows)
 
 
-def _detail_text(place: PersonalPlace) -> str:
+def _detail_text(place: PersonalPlace, entries=()) -> str:
     lines = [
         "📍 <b>Личное место</b>",
         "🔒 Видно только вам",
@@ -85,16 +86,23 @@ def _detail_text(place: PersonalPlace) -> str:
             lines.append(f"<b>{_FIELD_LABELS[field]}:</b> {escape(value)}")
     if place.status == "inactive":
         lines.extend(("", "Место неактивно и доступно только для просмотра."))
-    return "\n".join(lines)
+    total_commission = sum(
+        entry.received_points or 0
+        for entry in entries
+        if entry.status == "active"
+    )
+    lines.extend(("", f"<b>Всего получено комиссии:</b> {total_commission}"))
+    return "\n".join(lines) + "\n\n" + render_recent_entries(list(entries))
 
 
-def _detail_keyboard(place: PersonalPlace) -> InlineKeyboardMarkup:
-    rows: list[list[tuple[str, str]]] = []
+def _detail_keyboard(place: PersonalPlace, entries=()) -> InlineKeyboardMarkup:
+    rows: list[list[tuple[str, str]]] = entry_action_rows(
+        place.public_id,
+        list(entries),
+        active=place.status == "active",
+    )
     if place.status == "active":
-        rows.extend(
-            [[(f"✏️ {_FIELD_LABELS[field]}", f"pp:edit:{field}:{place.public_id}")]
-             for field in _FIELDS]
-        )
+        rows.append([("✏️ Редактировать", f"pp:edit_menu:{place.public_id}")])
         rows.append([("🗃 Деактивировать", f"pp:deactivate:{place.public_id}")])
     back = "pp:list" if place.status == "active" else "pp:inactive"
     rows.append([("⬅️ Назад", back)])
@@ -126,10 +134,15 @@ async def _get_place(callback: CallbackQuery, public_id: str) -> PersonalPlace |
 
 
 async def _show_detail(callback: CallbackQuery, place: PersonalPlace) -> None:
+    entries = ExternalSalesService().list(
+        user_id=callback.from_user.id,
+        personal_place_id=place.public_id,
+        include_inactive=True,
+    )
     await callback.message.edit_text(
-        _detail_text(place),
+        _detail_text(place, entries),
         parse_mode="HTML",
-        reply_markup=_detail_keyboard(place),
+        reply_markup=_detail_keyboard(place, entries),
     )
     await callback.answer()
 
@@ -145,8 +158,8 @@ def _form_keyboard(*, optional: bool) -> InlineKeyboardMarkup:
 def _prompt(field: str) -> str:
     hints = {
         "name": "Введите название места (обязательно):",
-        "category": "Введите категорию или пропустите:",
-        "general_location": "Введите общее расположение или пропустите:",
+        "category": "Введите категорию (обязательно):",
+        "general_location": "Введите расположение (обязательно):",
         "landmark": "Введите ориентир или пропустите:",
         "note": "Введите заметку или пропустите:",
     }
@@ -156,7 +169,7 @@ def _prompt(field: str) -> str:
 async def _show_form_prompt(target: Message | CallbackQuery, state: FSMContext, field: str):
     await state.set_state(_CREATE_STATES[field])
     method = target.message.edit_text if isinstance(target, CallbackQuery) else target.answer
-    await method(_prompt(field), reply_markup=_form_keyboard(optional=field != "name"))
+    await method(_prompt(field), reply_markup=_form_keyboard(optional=False))
     if isinstance(target, CallbackQuery):
         await target.answer()
 
@@ -220,33 +233,33 @@ async def receive_create_field(message: Message, state: FSMContext) -> None:
         return
     value = message.text.strip() if isinstance(message.text, str) else ""
     maximum = _FIELD_LIMITS[field]
-    if (field == "name" and not value) or len(value) > maximum:
+    if not value or len(value) > maximum:
         await message.answer(
             f"Проверьте значение: максимум {maximum} символов.",
             reply_markup=_form_keyboard(optional=field != "name"),
         )
         return
     await state.update_data(**{field: value or None})
-    index = _FIELDS.index(field)
-    if index + 1 == len(_FIELDS):
+    index = _CREATE_FIELDS.index(field)
+    if index + 1 == len(_CREATE_FIELDS):
         await _show_confirmation(message, state)
     else:
-        await _show_form_prompt(message, state, _FIELDS[index + 1])
+        await _show_form_prompt(message, state, _CREATE_FIELDS[index + 1])
 
 
 @router.callback_query(F.data == "pp:form_skip")
 async def skip_create_field(callback: CallbackQuery, state: FSMContext) -> None:
     current = await state.get_state()
     field = next((name for name, value in _CREATE_STATES.items() if value.state == current), None)
-    if field not in _FIELDS[1:]:
+    if field not in _CREATE_FIELDS[1:]:
         await callback.answer(SAFE_PLACE_TEXT)
         return
     await state.update_data(**{field: None})
-    index = _FIELDS.index(field)
-    if index + 1 == len(_FIELDS):
+    index = _CREATE_FIELDS.index(field)
+    if index + 1 == len(_CREATE_FIELDS):
         await _show_confirmation(callback, state)
     else:
-        await _show_form_prompt(callback, state, _FIELDS[index + 1])
+        await _show_form_prompt(callback, state, _CREATE_FIELDS[index + 1])
 
 
 @router.callback_query(F.data == "pp:form_back")
@@ -257,13 +270,17 @@ async def back_create_field(callback: CallbackQuery, state: FSMContext) -> None:
         await _show_list(callback, inactive=False)
         return
     if current == PersonalPlaceCreateState.confirm.state:
-        await _show_form_prompt(callback, state, "note")
+        await _show_form_prompt(callback, state, "general_location")
         return
     field = next((name for name, value in _CREATE_STATES.items() if value.state == current), None)
     if field is None:
         await callback.answer(SAFE_PLACE_TEXT)
         return
-    await _show_form_prompt(callback, state, _FIELDS[_FIELDS.index(field) - 1])
+    await _show_form_prompt(
+        callback,
+        state,
+        _CREATE_FIELDS[_CREATE_FIELDS.index(field) - 1],
+    )
 
 
 @router.callback_query(F.data == "pp:form_cancel")
@@ -306,6 +323,26 @@ async def start_edit_place(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(
         f"Введите новое значение поля «{_FIELD_LABELS[field]}».{suffix}",
         reply_markup=_keyboard([[ ("⬅️ Назад", f"pp:view:{public_id}") ]]),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("pp:edit_menu:"))
+async def open_edit_place_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    public_id = callback.data.removeprefix("pp:edit_menu:")
+    place = await _get_place(callback, public_id)
+    if place is None or place.status != "active":
+        await callback.answer(SAFE_PLACE_TEXT)
+        return
+    rows = [
+        [(f"✏️ {_FIELD_LABELS[field]}", f"pp:edit:{field}:{public_id}")]
+        for field in _FIELDS
+    ]
+    rows.append([("⬅️ Назад", f"pp:view:{public_id}")])
+    await callback.message.edit_text(
+        "Что изменить в личном месте?",
+        reply_markup=_keyboard(rows),
     )
     await callback.answer()
 
