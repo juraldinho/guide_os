@@ -16,7 +16,7 @@
 | Reports summary | extend | ✅ `reports_service` | ✅ GET `/reports/summary` |
 | Availability text | extend | ✅ `availability_service` | ✅ POST `/availability/preview` |
 | Time conflicts | extend | ✅ `check_entry_conflicts` | ✅ 409 envelope |
-| Auth/session | missing | — | ⏳ dev stub; **MA6** initData |
+| Auth/session | missing | — | ✅ initData + sessions (MA6); dev stub gated |
 | Copy tour | missing | ✅ `copy_tour_entry` | ✅ POST `.../copy` |
 | Idempotency | missing | — | ✅ `miniapp_idempotency` table |
 
@@ -185,9 +185,12 @@ Contract conformance (MA5): API route tests against golden JSON fixtures from `A
 
 1. ~~**Step 2:** migrations + service extensions + pytest~~ ✅
 2. ~~**MA5:** `web_api/` routes~~ ✅
-3. **MA6:** real initData session auth (replace dev stub).
-4. **MA7:** replace `api/mock/store` with HTTP client in Mini App.
-5. **MA8–MA10:** reports/availability parity E2E, staging bot, allowlist.
+3. ~~**MA6:** real initData session auth~~ ✅
+4. ~~**MA7:** replace `api/mock/store` with HTTP client in Mini App~~ ✅
+5. ~~**MA8:** reports/availability HTTP parity~~ ✅
+6. ~~**MA9:** staging smoke and production gate documentation~~ ✅
+7. ~~**MA10:** local Telegram E2E with dedicated test bot and allowlist~~ ✅
+8. **MA11:** hosted closed staging deployment — deferred until owner approval.
 
 ## 10. Risks accepted for Step 2
 
