@@ -4,7 +4,7 @@
 
 ## Статус
 
-Этап **MA3 complete** на mocks. **MA4 complete** (contract + shared services). **MA5 complete** (`web_api/` transport). **MA6 complete** (initData auth + session tokens). **MA7** React HTTP client — не начато.
+Этап **MA3 complete** на mocks. **MA4–MA8 complete** (backend + HTTP frontend). **MA9 complete** (staging smoke + production gate docs). **MA10 complete — local Telegram E2E PASS** (2026-08-30). **MA11** hosted closed staging — deferred until owner approval.
 
 Не описывать планируемую архитектуру как существующий код.
 
@@ -75,7 +75,7 @@ GuideShop remains optional read-only through existing Guide OS client.
 - Mini App AGENTS: present.
 - Official external SVG source: present in Tourism OS marketing folder.
 - Wireframes/Figma: not started.
-- Frontend manifest/source/tests: present in `miniapp/` (mocks only).
+- Frontend manifest/source/tests: present in `miniapp/` (mock default; HTTP client ready).
 - Web API: present (`web_api/`, `guide_os_miniapp_api.py`; feature flag off by default).
 - Telegram Mini App auth: initData validation + SQLite sessions (MA6); dev stub gated by flag.
 - Time/daily-location schema: present (MA4 migrations).

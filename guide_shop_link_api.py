@@ -23,7 +23,11 @@ async def run_guide_shop_link_api(values=None, *, clock=None, stop_event=None):
         raise SystemExit(1)
 
     init_db()
-    runner = await start_guide_shop_link_provider(values, clock=clock)
+    runner = await start_guide_shop_link_provider(
+        values,
+        clock=clock,
+        attach_miniapp_api=True,
+    )
     if runner is None:
         raise SystemExit(1)
 

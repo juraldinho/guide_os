@@ -137,3 +137,39 @@ export interface GuideProfile extends UserProfile {
   types: GuideType[];
   notifications: { enabled: boolean; time: string };
 }
+
+export interface ReportsSummaryPeriod {
+  from: string;
+  to: string;
+}
+
+export interface ReportsSummary {
+  tourCount: number;
+  workDays: number;
+  income: number;
+  paidTours: number;
+  unpaidTours: number;
+  period?: ReportsSummaryPeriod;
+}
+
+export interface AvailabilityPreview {
+  heading: string;
+  text: string;
+  freeDates: string[];
+  ranges: { start: string; end: string }[];
+}
+
+export interface ReportsSummaryParams {
+  from: string;
+  to: string;
+  status: 'all' | 'reserved' | 'confirmed';
+  payment: 'all' | 'paid' | 'unpaid';
+  company?: string;
+  location?: string;
+}
+
+export interface AvailabilityPreviewParams {
+  from: string;
+  to: string;
+  format?: 'text' | 'structured';
+}

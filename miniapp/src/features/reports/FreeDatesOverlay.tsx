@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { Chip } from '@/components/ui/Chip';
 import { useToast } from '@/components/ui/Toast';
+import { guideOsClient } from '@/api/createClient';
+import type { AvailabilityPreview } from '@/api/types';
+import { USE_MOCK_API } from '@/config';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { buildFreeDatesText, describeAvailContext } from './lib/availability';
@@ -66,8 +69,38 @@ export function FreeDatesOverlay() {
     [useCustom, customFrom, customTo],
   );
 
+  const availRange = useMemo(
+    () =>
+      getAvailContextRange(availOpenFrom, avail, calendarCtx, reports, entries),
+    [availOpenFrom, avail, calendarCtx, reports, entries],
+  );
+
+  const [apiPreview, setApiPreview] = useState<AvailabilityPreview | null>(null);
+
+  useEffect(() => {
+    if (USE_MOCK_API) {
+      setApiPreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    guideOsClient
+      .previewAvailability({ from: availRange.from, to: availRange.to })
+      .then((data) => {
+        if (!cancelled) setApiPreview(data);
+      })
+      .catch(() => {
+        if (!cancelled) setApiPreview({ heading: '', text: '', freeDates: [], ranges: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [availRange.from, availRange.to]);
+
   const contextText = describeAvailContext(availOpenFrom, avail, calendarCtx, reports, entries);
-  const freeText = buildFreeDatesText(entries, availOpenFrom, avail, calendarCtx, reports);
+  const mockFreeText = buildFreeDatesText(entries, availOpenFrom, avail, calendarCtx, reports);
+  const freeText = USE_MOCK_API ? mockFreeText : (apiPreview?.text ?? '');
 
   const enableCustomMode = () => {
     setUseCustom(true);

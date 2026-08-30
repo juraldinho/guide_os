@@ -11,6 +11,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    allowedHosts: ['.trycloudflare.com'],
+    proxy: {
+      '/app/v1': {
+        target: 'http://127.0.0.1:8083',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     rollupOptions: {
       input: rootIndex,

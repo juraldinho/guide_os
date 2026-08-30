@@ -3,7 +3,7 @@
 > Версия: 1.0  
 > Дата: 2026-08-28  
 > Обновлено: 2026-08-29
-> Статус: **MA4–MA5 реализованы** (shared services + `web_api/` transport). Auth: dev stub (MA6 — initData). Frontend: mocks (MA7).
+> Статус: **MA0–MA10 complete**. Следующий: **MA11** hosted closed staging deploy (deferred until owner approval).
 
 ## 1. Цель
 
@@ -146,7 +146,7 @@ Migration to PostgreSQL is a separate approved workstream with backup, restore, 
 
 ### 6.3 Session requirements
 
-Exact cookie/token choice is fixed in MA5/MA6. Requirements:
+Exact cookie/token choice: **opaque bearer `session_token`** (hash in `miniapp_sessions`; MA6 implemented). Requirements:
 
 - short TTL;
 - rotation/renewal policy;

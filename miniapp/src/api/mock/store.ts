@@ -1,5 +1,14 @@
-import type { GuideOsClient } from '../client';
-import type { CalendarEntry, DayOffFormValues, GuideProfile, TourFormValues } from '../types';
+import type { GuideOsClient, WriteOptions } from '../client';
+import type {
+  AvailabilityPreviewParams,
+  CalendarEntry,
+  DayOffFormValues,
+  GuideProfile,
+  ReportsSummaryParams,
+  TourFormValues,
+} from '../types';
+import { buildAvailabilityPreview } from '@/features/reports/lib/availability';
+import { calcSummary } from '@/features/reports/lib/summary';
 import { INITIAL_ENTRIES, MOCK_PROFILE } from './data';
 
 let nextId = 10;
@@ -34,20 +43,20 @@ export const mockClient: GuideOsClient = {
     return entry ? { ...entry } : null;
   },
 
-  async createTour(form: TourFormValues) {
+  async createTour(form: TourFormValues, _options?: WriteOptions) {
     const entry: CalendarEntry = { ...tourFromForm(form), id: `t${nextId++}` };
     entries.push(entry);
     return { ...entry };
   },
 
-  async updateTour(id: string, form: TourFormValues) {
+  async updateTour(id: string, form: TourFormValues, _options?: WriteOptions) {
     const idx = entries.findIndex((e) => e.id === id);
     if (idx < 0) throw new Error('Tour not found');
     entries[idx] = { ...entries[idx], ...tourFromForm(form), id };
     return { ...entries[idx] };
   },
 
-  async createDayOff(form: DayOffFormValues) {
+  async createDayOff(form: DayOffFormValues, _options?: WriteOptions) {
     const entry: CalendarEntry = {
       id: `d${nextId++}`,
       type: 'day_off',
@@ -91,6 +100,23 @@ export const mockClient: GuideOsClient = {
       profile.notifications = { ...profile.notifications, ...patch.notifications };
     }
     return mockClient.getProfile();
+  },
+
+  async getReportsSummary(params: ReportsSummaryParams) {
+    const summary = calcSummary(entries, { from: params.from, to: params.to }, {
+      status: params.status,
+      payment: params.payment,
+      company: params.company ?? '',
+      location: params.location ?? '',
+    });
+    return {
+      ...summary,
+      period: { from: params.from, to: params.to },
+    };
+  },
+
+  async previewAvailability(params: AvailabilityPreviewParams) {
+    return buildAvailabilityPreview(entries, params.from, params.to);
   },
 };
 

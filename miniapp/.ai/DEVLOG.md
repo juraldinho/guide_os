@@ -135,4 +135,47 @@
 - Dev auth stub: `X-Dev-User-Id` / `Bearer dev:<user_id>` when `MINI_APP_API_DEV_AUTH=true`;
 - Idempotency store (`miniapp_idempotency` table); camelCase DTO mapping; Russian error envelope;
 - `tests/test_miniapp_api.py` (16 tests); full suite 1005 passed;
-- `MINI_APP_API_ENABLED=false` by default; React client still on mocks; next MA6 (initData auth).
+- `MINI_APP_API_ENABLED=false` by default; React client still on mocks (MA7 next).
+
+## 2026-08-29 — MA6 Telegram initData auth + sessions
+
+- `web_api/telegram_auth.py`: HMAC-SHA256 initData validation, auth_date freshness;
+- `miniapp_sessions` table; opaque bearer tokens (hash stored server-side);
+- `POST/DELETE /app/v1/session` production path; dev stub only when `MINI_APP_API_DEV_AUTH=true`;
+- Optional `MINI_APP_API_ALLOWLIST`; env: session TTL, initData max age;
+- `tests/test_miniapp_telegram_auth.py` (7 tests); full suite 1012 passed;
+- next MA7 (React HTTP client).
+
+## 2026-08-29 — MA7 React HTTP client
+
+- `httpClient.ts`: session bootstrap (initData / dev_user_id), bearer, idempotency, 409 → `ApiConflictError`;
+- `createClient.ts`: mock vs HTTP via `VITE_USE_MOCK_API` (default mock);
+- `CalendarContext` wired to `guideOsClient`; server `date_warning` ack path;
+- Vite proxy `/app/v1`; vitest `httpClient.test.ts` (4 tests); frontend **16 passed**;
+- next MA8 (reports/availability API + staging smoke).
+
+## 2026-08-29 — MA8 Reports and availability via API
+
+- `GuideOsClient`: `getReportsSummary`, `previewAvailability`;
+- HTTP mode: Reports metrics and free-dates copy from server; mock keeps local calc;
+- `buildAvailabilityPreview` helper for mock client; vitest httpClient +18 tests total;
+- next MA9 (staging smoke).
+
+## 2026-08-30 — MA10 local Telegram E2E PASS
+
+- Owner validated full MVP flow locally on Mac: dedicated test bot, real initData, API `127.0.0.1:8083`, Vite `127.0.0.1:5173`, Cloudflare Quick Tunnel, local SQLite, owner-only allowlist;
+- Scenarios PASS: calendar CRUD, conflicts, day-off, multi-day/locations, reports (month/year/all-time + filters), availability, clipboard, profile/settings, themes;
+- Railway hosted staging **deferred**; production unchanged; **MA10 complete**;
+- next **MA11** — hosted closed staging deployment (deferred until owner approval).
+
+## 2026-08-29 — MA10 Railway staging deploy (deferred)
+
+- Combined Mini App routes on staging link API process explored in repo;
+- Railway staging deploy attempted separately; not part of MA10 PASS;
+- Hosted staging checklist remains [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) for future MA11.
+
+## 2026-08-29 — MA9 Staging smoke + production gate docs
+
+- `docs/mini_app/STAGING_SMOKE_MA9.md` — owner-operable WebView + curl checklist, pass/fail table, kill switch;
+- `docs/mini_app/PRODUCTION_GATE_MA9.md` — pre-production checklist + owner sign-off;
+- no code/deploy changes; MA10 local E2E followed.

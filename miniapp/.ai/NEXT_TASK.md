@@ -1,37 +1,23 @@
 # Guide OS Mini App — Next Task
 
-> Обновлено: 2026-08-29
+> Обновлено: 2026-08-30
 
 ## Единственная следующая задача
 
-**MA6 — Telegram Mini App session auth** (replace MA5 dev stub in `web_api/auth.py` with initData validation).
+**MA11 — hosted closed staging deployment** — **deferred until owner approval**.
 
-## Scope MA6
+Use [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) and [PRODUCTION_GATE_MA9.md](../../docs/mini_app/PRODUCTION_GATE_MA9.md) when MA11 is explicitly approved. Do not start MA11 without owner sign-off.
 
-1. Validate Telegram `init_data` on `POST /app/v1/session` using bot token HMAC (no secrets in repo; tests with synthetic initData).
-2. Issue short-lived session token (or signed session) for subsequent `/app/v1/*` requests.
-3. Remove or gate `MINI_APP_API_DEV_AUTH` behind explicit test-only flag; document dev workflow.
-4. Contract tests for auth success/failure paths per `API_CONTRACT_v1.md`.
+## MA10 closed
 
-## Inputs
+**MA10 complete — local Telegram E2E PASS** (2026-08-30).
 
-- `docs/mini_app/API_CONTRACT_v1.md` (auth section)
-- `web_api/auth.py`, `web_api/routes/session.py`
-- `miniapp/GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md`
+Validated locally: dedicated test bot, real initData, API on `127.0.0.1:8083`, Vite on `127.0.0.1:5173`, temporary Cloudflare Quick Tunnel, local SQLite, owner-only allowlist. Railway and production were not used.
 
-## Constraints
-
-- Mini App React **stays on mocks** until MA7.
-- Bot handlers unchanged.
-- No production rollout.
-
-## Definition of Done (MA6)
-
-- Real initData auth on session create; dev stub documented for local tests only.
-- Unauthorized requests return `auth_required` / `auth_invalid` per contract.
-- Pytest auth suite passes.
-- No secrets in repo.
+See `miniapp/.ai/SESSION.md` and `miniapp/README.md` § Local Telegram E2E.
 
 ## Stop
 
-Do not wire Mini App HTTP client (MA7) until MA6 reviewed.
+- MA11 **not authorized**.
+- Production gate **not** approved.
+- No production Railway / bot changes.

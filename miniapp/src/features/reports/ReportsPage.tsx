@@ -1,11 +1,22 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { IconChevronLeft, IconChevronRight } from '@/components/ui/Icons';
+import { guideOsClient } from '@/api/createClient';
+import { USE_MOCK_API } from '@/config';
 import { MONTH_NAMES_CAP } from '@/i18n/ru';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { getReportRange, getMockTodayYear } from './lib/periods';
 import { calcSummary } from './lib/summary';
+import type { ReportsSummary } from './lib/types';
+
+const EMPTY_SUMMARY: ReportsSummary = {
+  tourCount: 0,
+  workDays: 0,
+  income: 0,
+  paidTours: 0,
+  unpaidTours: 0,
+};
 
 export function ReportsPage() {
   const {
@@ -27,7 +38,7 @@ export function ReportsPage() {
 
   const maxYear = getMockTodayYear();
   const range = getReportRange(reportsPeriod, reportsMonth, reportsYear, entries);
-  const summary = useMemo(
+  const mockSummary = useMemo(
     () =>
       calcSummary(entries, range, {
         status: filterStatus,
@@ -37,6 +48,36 @@ export function ReportsPage() {
       }),
     [entries, range, filterStatus, filterPayment],
   );
+
+  const [apiSummary, setApiSummary] = useState<ReportsSummary | null>(null);
+
+  useEffect(() => {
+    if (USE_MOCK_API) {
+      setApiSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+    guideOsClient
+      .getReportsSummary({
+        from: range.from,
+        to: range.to,
+        status: filterStatus,
+        payment: filterPayment,
+      })
+      .then((data) => {
+        if (!cancelled) setApiSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setApiSummary(EMPTY_SUMMARY);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [range.from, range.to, filterStatus, filterPayment]);
+
+  const summary = USE_MOCK_API ? mockSummary : (apiSummary ?? EMPTY_SUMMARY);
 
   return (
     <main className="main">

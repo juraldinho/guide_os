@@ -305,10 +305,11 @@ def test_staging_settings_path_accepted_at_composition(monkeypatch, public_pem):
     runner = Mock()
     runner.cleanup = AsyncMock()
 
-    async def start(values=None, *, clock=None):
+    async def start(values=None, *, clock=None, attach_miniapp_api=False):
         order.append("start_provider")
         assert values["APP_ENV"] == "staging"
         assert values["PORT"] == "8080"
+        assert attach_miniapp_api is True
         return runner
 
     stop = asyncio.Event()

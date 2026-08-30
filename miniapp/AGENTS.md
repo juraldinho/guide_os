@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-> Обновлено: 2026-08-29. Этапы **MA0–MA5 complete**. Следующий: **MA6** (Telegram initData auth).
+> Обновлено: 2026-08-30. Этапы **MA0–MA10 complete**. Следующий: **MA11** (hosted closed staging deploy — deferred until owner approval).
 
 | Этап | Статус | Артефакт |
 |------|--------|----------|
@@ -15,11 +15,15 @@
 | MA2 | ✅ | high-fi prototype (owner approved) |
 | MA3 | ✅ | React + Vite в `miniapp/src/` (mocks) |
 | MA4 | ✅ | contract + shared services + migrations |
-| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` (dev auth stub) |
-| MA6 | ⏳ | real initData session — не начато |
-| MA7 | ⏳ | React HTTP client — после MA6 |
+| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` |
+| MA6 | ✅ | initData HMAC + `miniapp_sessions` + bearer tokens |
+| MA7 | ✅ | React HTTP client (`httpClient.ts`, session bootstrap) |
+| MA8 | ✅ | Reports/availability via API (HTTP mode) |
+| MA9 | ✅ | Staging smoke + production gate docs |
+| MA10 | ✅ | Local Telegram E2E PASS (real initData, local stack) |
+| MA11 | ⏸ | Hosted closed staging deploy — deferred |
 
-**Frontend** (`miniapp/src/`) работает на **mock store** до MA7. **Web API** реализован, feature flag **`MINI_APP_API_ENABLED=false`** по умолчанию. **Telegram-бот** (handlers) не изменён.
+**Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Web API** с **real initData auth** (MA6).
 
 Главная следующая задача — только в `.ai/NEXT_TASK.md`.
 
@@ -211,12 +215,21 @@ npm run dev
 ### Backend / Web API (root Guide OS)
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_reports_service.py tests/test_availability_service.py tests/test_miniapp_api.py
+.venv/bin/python -m pytest -q tests/test_tour_service.py tests/test_reports_service.py tests/test_availability_service.py tests/test_miniapp_api.py tests/test_miniapp_telegram_auth.py
 .venv/bin/python -m pytest -q
 git diff --check
 ```
 
-Локальный Web API (dev auth):
+Локальный Web API (production auth path with real `BOT_TOKEN`):
+
+```sh
+MINI_APP_API_ENABLED=true python guide_os_miniapp_api.py
+# POST /app/v1/session with {"init_data": "..."} → Bearer session_token
+```
+
+**Local Telegram E2E (MA10 validated):** see [README.md](README.md) § Local Telegram E2E — test bot, real initData, Vite + Cloudflare Quick Tunnel, owner allowlist. Not staging/production.
+
+Dev-only shortcut (tests/local explicit flag):
 
 ```sh
 MINI_APP_API_ENABLED=true MINI_APP_API_DEV_AUTH=true python guide_os_miniapp_api.py

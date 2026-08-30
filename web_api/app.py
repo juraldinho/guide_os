@@ -22,16 +22,20 @@ async def health(_request: web.Request) -> web.Response:
 
 def create_miniapp_api_app(settings: MiniAppApiSettings) -> web.Application:
     app = web.Application(client_max_size=MAX_REQUEST_BODY_BYTES)
+    app.router.add_get("/health", health)
+    register_miniapp_api_on_app(app, settings)
+    return app
+
+
+def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettings) -> None:
     app["miniapp_settings"] = settings
     app["max_body_bytes"] = MAX_REQUEST_BODY_BYTES
 
-    app.router.add_get("/health", health)
     register_session_routes(app)
     register_entries_routes(app)
     register_profile_routes(app)
     register_reports_routes(app)
     register_availability_routes(app)
-    return app
 
 
 async def start_miniapp_api(values=None, *, clock=None):

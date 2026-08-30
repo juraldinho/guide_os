@@ -2,7 +2,7 @@
 
 > Версия: 1.0  
 > Дата: 2026-08-28  
-> Статус: утверждённая архитектура; **implementation progress через MA5** (см. §1.1)
+> Статус: утверждённая архитектура; **implementation progress через MA8** (см. §1.1)
 
 ## 1. Назначение документа
 
@@ -19,10 +19,14 @@
 | MA2 | ✅ | High-fi prototype (approved) |
 | MA3 | ✅ | React app on mocks (`miniapp/src/`) |
 | MA4 | ✅ | Services, migrations, contract docs |
-| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` (dev auth) |
-| MA6 | ⏳ | Telegram initData session |
-| MA7 | ⏳ | React HTTP client |
-| MA8–MA15 | ⏳ | Integration, staging, production |
+| MA5 | ✅ | `web_api/`, `guide_os_miniapp_api.py` |
+| MA6 | ✅ | initData HMAC + session tokens |
+| MA7 | ✅ | React HTTP client |
+| MA8 | ✅ | Reports + availability API (HTTP mode) |
+| MA9 | ✅ | Staging smoke + production gate docs |
+| MA10 | ✅ | Local Telegram E2E PASS (2026-08-30) |
+| MA11 | ⏸ | Hosted closed staging deploy — deferred |
+| MA12–MA16 | ⏳ | Quality gate, pilot, production |
 
 Telegram-бот (handlers) **не изменён**. Production Mini App **выключен** (`MINI_APP_API_ENABLED=false`).
 
@@ -372,7 +376,7 @@ Company и location предлагают ранее введённые знач�
 - конкретный год;
 - весь период.
 
-Выбор оформляется компактно по образцу статистики Telegram-бота: месяцы, переход между периодами и отдельное действие `За весь период`. Текущий год считается с 1 января по сегодняшний день; завершённый прошлый год — с 1 января по 31 декабря. Будущий год выбрать нельзя.
+Выбор оформляется компактно по образцу статистики Telegram-бота: месяцы, переход между периодами и отдельное действие `За весь период`. Выбранный год считается полностью с 1 января по 31 декабря, включая запланированные будущие туры этого года. Год позднее текущего календарного года выбрать нельзя.
 
 ### 12.2 Summary
 
@@ -687,60 +691,44 @@ DoD: bot regression tests pass; services callable outside handlers.
 
 DoD: contract examples and tests approved before frontend real-data integration.
 
-### MA6 — Telegram authentication and session
+### MA6 — Telegram authentication and session ✅
 
-- verify raw initData;
-- auth_date freshness;
-- session cookie/token strategy;
-- allowlist for staging;
-- ownership and CSRF/session protection;
-- replay/expiry tests.
+Implemented 2026-08-29:
 
-DoD: forged, expired, cross-user and missing auth fail closed.
+- verify raw initData (HMAC-SHA256 `WebAppData`);
+- auth_date freshness (`MINI_APP_INITDATA_MAX_AGE`);
+- opaque bearer `session_token` + SQLite `miniapp_sessions`;
+- optional staging allowlist (`MINI_APP_API_ALLOWLIST`);
+- dev stub gated (`MINI_APP_API_DEV_AUTH=true` only);
+- replay/expiry/tamper tests in `tests/test_miniapp_telegram_auth.py`.
 
-### MA7 — Calendar and tours integration
+DoD: forged, expired, cross-user and missing auth fail closed — **met**.
 
-- real user-scoped reads/writes;
-- date/week/month;
-- forms;
-- conflict/time rules;
-- multi-day location refinement;
-- bot/Mini App parity.
+### MA7 — Calendar and tours integration ✅
 
-DoD: create/update/delete in either interface immediately visible in the other.
+Implemented 2026-08-29: HTTP client wired to entries CRUD, profile, session bootstrap.
 
-### MA8 — Reports and availability
+### MA8 — Reports and availability ✅
 
-- summary calculations;
-- filters;
-- monthly workload;
-- free-date generation and clipboard;
-- boundaries across months/timezone.
+Implemented 2026-08-29: `getReportsSummary`, `previewAvailability`; HTTP mode uses API; mock unchanged.
 
-DoD: calculations covered by fixtures and match bot/shared services.
+### MA9 — Staging smoke + production gate ✅
 
-### MA9 — Profile and notifications
+Implemented 2026-08-29: `STAGING_SMOKE_MA9.md`, `PRODUCTION_GATE_MA9.md` (docs only).
 
-- name;
-- guide types/geography;
-- Telegram ID copy;
-- notification settings;
-- theme and Russian strings.
+### MA10 — Local Telegram E2E ✅
 
-DoD: settings are user-scoped and reflected in bot behavior where shared.
+Completed 2026-08-30: dedicated local test bot, real initData, API `127.0.0.1:8083`, Vite `127.0.0.1:5173`, Cloudflare Quick Tunnel, local SQLite, owner-only allowlist. Full MVP scenarios PASS. Railway and production **not** used.
 
-### MA10 — Closed Telegram staging
+DoD: real initData session; calendar/reports/availability/profile flows verified in Telegram WebView locally.
 
-- separate test bot/token;
-- separate URL/DB/secrets;
-- allowlist;
-- synthetic data;
-- feature flags;
-- monitoring/error tracking without secrets.
+### MA11 — Hosted closed staging ⏸
 
-DoD: URL without valid test-bot initData and allowlisted ID is rejected.
+**Deferred until owner approval.** Separate test bot/token, Railway staging URL/DB/secrets, allowlist, synthetic data, feature flags. Do not start without explicit owner sign-off.
 
-### MA11 — Quality gate
+DoD: [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) overall PASS on isolated staging; URL without valid initData and allowlisted ID is rejected.
+
+### MA12 — Quality gate
 
 - component/API/auth/ownership tests;
 - iPhone/Android/Desktop;
@@ -754,7 +742,7 @@ DoD: URL without valid test-bot initData and allowlisted ID is rejected.
 
 DoD: no critical defects; rollback and kill switch proven.
 
-### MA12 — Guide pilot
+### MA13 — Guide pilot
 
 - small allowlisted guide group;
 - usability observation;
@@ -763,7 +751,7 @@ DoD: no critical defects; rollback and kill switch proven.
 
 DoD: guides complete primary scenarios without explanation.
 
-### MA13 — Production readiness
+### MA14 — Production readiness
 
 - production URL and bot setup prepared but disabled;
 - privacy policy;
@@ -774,7 +762,7 @@ DoD: guides complete primary scenarios without explanation.
 - smoke checklist;
 - `MINI_APP_ENABLED=false` until approval.
 
-### MA14 — Gradual rollout
+### MA15 — Gradual rollout
 
 - owner smoke;
 - tiny cohort;
@@ -782,7 +770,7 @@ DoD: guides complete primary scenarios without explanation.
 - gradual exposure;
 - immediate feature-flag rollback available.
 
-### MA15 — Post-MVP
+### MA16 — Post-MVP
 
 - read-only GuideShop calendar events after integration gate;
 - localization;

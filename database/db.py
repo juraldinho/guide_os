@@ -714,6 +714,19 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
         PRIMARY KEY (user_id, endpoint, idempotency_key)
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS miniapp_sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_miniapp_sessions_user_id
+    ON miniapp_sessions(user_id)
+    """)
     cursor.execute(
         """
         UPDATE tours

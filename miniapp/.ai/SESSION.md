@@ -1,39 +1,50 @@
 # Guide OS Mini App — Session
 
-> Обновлено: 2026-08-29
+> Обновлено: 2026-08-30
 
-## Текущий статус: MA0–MA5 complete
+## MA10 status: **complete — local Telegram E2E PASS**
 
-| Этап | Результат |
-|------|-----------|
-| MA0 | Docs, DECISIONS D-001…D-051, AGENTS |
-| MA1 | `prototype/index.html` low-fi — approved |
-| MA2 | High-fi prototype — approved (feed, stats, logo, conflicts) |
-| MA3 | React + Vite — Calendar, Reports, Settings, free-dates, demo states on mocks |
-| MA4 Step 1 | `API_CONTRACT_v1.md`, `SERVICE_GAP_ANALYSIS_MA4.md` |
-| MA4 Step 2 | Migrations, `tour_service` / `reports_service` / `availability_service`, pytest |
-| MA5 | `web_api/`, `guide_os_miniapp_api.py`, dev auth stub, 16 API tests |
+### What was validated (local only)
 
-**Следующий:** MA6 — Telegram initData session auth. **React на mocks** до MA7.
+| Layer | Setup |
+|-------|--------|
+| Bot | Dedicated local test bot (not production) |
+| Auth | Real Telegram `initData` → session bearer (`MINI_APP_API_DEV_AUTH=false`) |
+| API | `python guide_os_miniapp_api.py` on `127.0.0.1:8083` |
+| Frontend | Vite dev server on `127.0.0.1:5173`, `VITE_USE_MOCK_API=false` |
+| HTTPS for WebView | Temporary Cloudflare Quick Tunnel → local Vite (disposable URL; **not recorded**) |
+| Database | Local development SQLite |
+| Access control | Owner-only `MINI_APP_API_ALLOWLIST` |
 
-## Ключевые артефакты
+Railway deployment was **explicitly deferred**. Production was **unchanged**.
 
-- Frontend: `miniapp/src/` (`npm run dev`, `npm test`, `npm run build`)
-- Prototype (reference): `miniapp/prototype/`
-- Web API: `web_api/`, entrypoint `guide_os_miniapp_api.py`
-- Services: `services/tour_service.py`, `reports_service.py`, `availability_service.py`
-- Tests: `tests/test_miniapp_api.py` + full suite **1005 passed**
+No secrets, Telegram IDs, tokens, tunnel URLs, or raw initData are stored in this documentation.
 
-## Важные нюансы
+### Owner-verified scenarios (PASS)
 
-- Bot handlers **не изменены**; date conflicts в боте — warning, в Mini App time overlap — blocking (shared service MA4).
-- Legacy tours без времени = full-day.
-- Web API: `MINI_APP_API_ENABLED=false` по умолчанию; dev auth только с `MINI_APP_API_DEV_AUTH=true`.
-- GuideShop не входит в MVP Mini App.
+- Mini App opens from test bot; real session bootstrap
+- Settings; Telegram ID displayed
+- Tour create / persist after reopen / edit
+- Overlapping-time blocking conflict; return to populated form; non-conflicting correction
+- Day-off create and persist
+- Delete confirmation `Нет` / confirmed deletion `Да`
+- Multi-day tour; per-day locations
+- Reports: by month, by selected year, all time; status/payment filters
+- Reports year range: full calendar year (`January 1`–`December 31`), including planned future tours within that year; years after the current calendar year remain unavailable
+- Availability (August and September); clipboard copy
+- Profile/settings; light/dark theme
 
-## Resume instructions
+### Not claimed
 
-1. Read `../AGENTS.md` and `NEXT_TASK.md`.
-2. MA6 scope: `web_api/auth.py`, initData HMAC, session store.
-3. Do not wire `miniapp/src` HTTP client until MA7 approved.
-4. Bot/production unchanged without explicit release scope.
+- **No** staging deployment PASS
+- **No** production deployment PASS
+- **No** Railway frontend service created for this validation
+
+### Railway note (historical, not part of MA10 PASS)
+
+Earlier MA10 attempt targeted Railway staging (`guide-os-staging-api`). That path was recovered with Mini App flag off and is **out of scope** for the MA10 local E2E result. Hosted staging remains **MA11**, deferred.
+
+### Next
+
+1. Owner approval required before **MA11** (hosted closed staging on Railway).
+2. When approved: follow [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md), then production gate still **not** approved until separate sign-off.

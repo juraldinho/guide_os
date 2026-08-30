@@ -8,7 +8,7 @@ import type {
   TourFormValues,
   WarningOverlayData,
 } from '@/api/types';
-import { MOCK_TODAY } from '@/config';
+import { MOCK_TODAY, USE_MOCK_API } from '@/config';
 import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { fmtDate } from '../lib/dates';
 import { locationFor } from '../lib/dayStatus';
@@ -31,6 +31,7 @@ function TourFormFields({
   };
 
   const showConflictHint =
+    USE_MOCK_API &&
     form.startDate === MOCK_TODAY &&
     form.useTime &&
     form.startTime === '12:00' &&

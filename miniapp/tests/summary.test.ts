@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_ENTRIES } from '@/api/mock/data';
-import { MOCK_TODAY } from '@/config';
 import { calcSummary } from '@/features/reports/lib/summary';
 import { getReportRange, getMockTodayYear } from '@/features/reports/lib/periods';
 
@@ -32,12 +31,12 @@ describe('calcSummary', () => {
 });
 
 describe('getReportRange', () => {
-  it('caps current year at MOCK_TODAY', () => {
+  it('includes the full selected year, including planned future tours', () => {
     const maxYear = getMockTodayYear();
     expect(maxYear).toBe(2026);
     const range = getReportRange('year', 7, 2026, INITIAL_ENTRIES);
     expect(range.from).toBe('2026-01-01');
-    expect(range.to).toBe(MOCK_TODAY);
+    expect(range.to).toBe('2026-12-31');
   });
 
   it('uses full december for past years', () => {

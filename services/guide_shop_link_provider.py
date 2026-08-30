@@ -30,6 +30,7 @@ from services.guide_shop_settings import (
     GuideShopSettingsError,
     GuideShopStagingLifecycleSettings,
 )
+from services.miniapp_api_settings import MiniAppApiSettings
 from services.guide_shop_staging_lifecycle_auth import (
     GuideShopStagingLifecycleAuthenticationError,
     GuideShopStagingLifecycleJWTVerifier,
@@ -418,7 +419,12 @@ def create_guide_shop_link_provider_app(
     return app
 
 
-async def start_guide_shop_link_provider(values=None, *, clock=None):
+async def start_guide_shop_link_provider(
+    values=None,
+    *,
+    clock=None,
+    attach_miniapp_api: bool = False,
+):
     runtime = GuideShopLinkProviderSettings.from_env(values)
     if not runtime.enabled:
         return None
@@ -445,11 +451,16 @@ async def start_guide_shop_link_provider(values=None, *, clock=None):
             )
     verifier = GuideShopInboundJWTVerifier(settings, clock=clock)
     service = GuideShopLinkExchangeService(clock=clock)
-    runner = web.AppRunner(
-        create_guide_shop_link_provider_app(
-            verifier, service, lifecycle_verifier=lifecycle_verifier
-        )
+    app = create_guide_shop_link_provider_app(
+        verifier, service, lifecycle_verifier=lifecycle_verifier
     )
+    if attach_miniapp_api:
+        miniapp_settings = MiniAppApiSettings.from_env(values)
+        if miniapp_settings.enabled:
+            from web_api.app import register_miniapp_api_on_app
+
+            register_miniapp_api_on_app(app, miniapp_settings)
+    runner = web.AppRunner(app)
     try:
         await runner.setup()
         site = web.TCPSite(runner, runtime.host, runtime.port)

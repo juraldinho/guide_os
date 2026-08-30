@@ -92,6 +92,26 @@ export function buildFreeDatesText(
   return `${buildFreeDatesHeading(from, to)} ${joined}.`;
 }
 
+export function buildAvailabilityPreview(
+  entries: CalendarEntry[],
+  from: string,
+  to: string,
+): { heading: string; text: string; freeDates: string[]; ranges: { start: string; end: string }[] } {
+  const free = daysInRange(from, to).filter((d) => dayStatus(d, entries) === 'free');
+  const ranges = compressRanges(free);
+  const heading = buildFreeDatesHeading(from, to);
+  const text = free.length
+    ? buildFreeDatesText(
+        entries,
+        'reports',
+        { useCustom: true, customFrom: from, customTo: to },
+        { calendarScreen: 'feed', selectedDate: from, viewMonth: 0, viewYear: parseDate(from).getFullYear() },
+        { period: 'month', month: parseDate(from).getMonth(), year: parseDate(from).getFullYear() },
+      )
+    : '';
+  return { heading, text, freeDates: free, ranges };
+}
+
 export function describeAvailContext(
   availOpenFrom: AvailOpenFrom,
   avail: { useCustom: boolean; customFrom: string; customTo: string },

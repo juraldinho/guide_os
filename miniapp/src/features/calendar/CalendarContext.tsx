@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { mockClient } from '@/api/mock/store';
+import { ApiConflictError } from '@/api/httpClient';
+import { guideOsClient } from '@/api/createClient';
 import type {
   CalendarEntry,
   CalendarScreen,
@@ -23,7 +24,7 @@ import type {
   TourFormValues,
   WarningOverlayData,
 } from '@/api/types';
-import { MOCK_TODAY } from '@/config';
+import { MOCK_TODAY, USE_MOCK_API } from '@/config';
 import { useToast } from '@/components/ui/Toast';
 import { checkConflicts } from '@/features/calendar/lib/conflicts';
 import { daysInRange } from '@/features/calendar/lib/dates';
@@ -166,13 +167,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [demoOffline, setDemoOffline] = useState(false);
 
   const refreshEntries = useCallback(async () => {
-    const list = await mockClient.listEntries();
+    const list = await guideOsClient.listEntries();
     setEntries(list);
   }, []);
 
   useEffect(() => {
     refreshEntries();
-    mockClient.getProfile().then(setProfile);
+    guideOsClient.getProfile().then(setProfile);
   }, [refreshEntries]);
 
   const setActiveTab = useCallback((tab: TabId) => {
@@ -201,7 +202,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const openTourForm = useCallback(
     (prefill?: Partial<TourFormValues>) => {
       let form = defaultTourForm(selectedDate, prefill);
-      if (selectedDate === MOCK_TODAY && !prefill) {
+      if (USE_MOCK_API && selectedDate === MOCK_TODAY && !prefill) {
         form = {
           ...form,
           startTime: '12:00',
@@ -303,23 +304,52 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
       setDateWarningAck(false);
 
-      if (editId) {
-        await mockClient.updateTour(editId, form);
-        showToast(t.toastUpdated);
-      } else {
-        const created = await mockClient.createTour(form);
-        showToast(t.toastSaved);
-        if (created.startDate !== created.endDate) {
-          const days = daysInRange(created.startDate, created.endDate);
-          const locs: Record<string, string> = {};
-          days.forEach((d) => {
-            locs[d] = created.location || '';
+      const writeOpts = dateWarningAck ? { ackDateWarning: true } : undefined;
+
+      try {
+        if (editId) {
+          await guideOsClient.updateTour(editId, form, writeOpts);
+          showToast(t.toastUpdated);
+        } else {
+          const created = await guideOsClient.createTour(form, writeOpts);
+          showToast(t.toastSaved);
+          if (created.startDate !== created.endDate) {
+            const days = daysInRange(created.startDate, created.endDate);
+            const locs: Record<string, string> = {};
+            days.forEach((d) => {
+              locs[d] = created.location || '';
+            });
+            setOverlay('multi-location');
+            setOverlayData({ id: created.id, days, locations: locs } as MultiLocationOverlayData);
+            await refreshEntries();
+            return;
+          }
+        }
+      } catch (e) {
+        if (e instanceof ApiConflictError) {
+          const { details } = e;
+          if (details.conflict_kind === 'date_warning') {
+            setOverlay('warning');
+            setOverlayData({
+              warn: true,
+              date: details.date,
+              ex: details.existing_entry,
+              form,
+              editId,
+            } as WarningOverlayData);
+            return;
+          }
+          setOverlay('conflict');
+          setOverlayData({
+            reason: e.message,
+            form,
+            editId,
+            edit: tourData.edit,
+            copy: tourData.copy,
           });
-          setOverlay('multi-location');
-          setOverlayData({ id: created.id, days, locations: locs } as MultiLocationOverlayData);
-          await refreshEntries();
           return;
         }
+        throw e;
       }
 
       await refreshEntries();
@@ -357,7 +387,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         showToast(conflict.reason);
         return;
       }
-      await mockClient.createDayOff(form);
+      await guideOsClient.createDayOff(form);
       showToast(t.toastDayOffSaved);
       await refreshEntries();
       closeOverlay();
@@ -376,7 +406,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const editTour = useCallback(
     async (id: string) => {
-      const e = await mockClient.getEntry(id);
+      const e = await guideOsClient.getEntry(id);
       if (!e || e.type !== 'tour') return;
       setOverlay('tour-form');
       setOverlayData({
@@ -403,7 +433,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const copyTour = useCallback(
     async (id: string) => {
-      const e = await mockClient.getEntry(id);
+      const e = await guideOsClient.getEntry(id);
       if (!e || e.type !== 'tour') return;
       setOverlay('tour-form');
       setOverlayData({
@@ -435,7 +465,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const confirmDelete = useCallback(async () => {
     if (!deleteId) return;
-    await mockClient.deleteEntry(deleteId);
+    await guideOsClient.deleteEntry(deleteId);
     showToast(t.toastDeleted);
     closeOverlay();
     await refreshEntries();
@@ -444,7 +474,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const saveDayLocations = useCallback(
     async (locations: Record<string, string>) => {
       const data = overlayData as MultiLocationOverlayData;
-      await mockClient.updateDayLocations(data.id, locations);
+      await guideOsClient.updateDayLocations(data.id, locations);
       closeOverlay();
       await refreshEntries();
     },
@@ -548,13 +578,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   }, [profile, showToast]);
 
   const updateProfileName = useCallback(async (name: string) => {
-    const updated = await mockClient.updateProfile({ name });
+    const updated = await guideOsClient.updateProfile({ name });
     setProfile(updated);
   }, []);
 
   const toggleNotif = useCallback(async () => {
     if (!profile) return;
-    const updated = await mockClient.updateProfile({
+    const updated = await guideOsClient.updateProfile({
       notifications: { ...profile.notifications, enabled: !profile.notifications.enabled },
     });
     setProfile(updated);
@@ -562,7 +592,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const updateNotifTime = useCallback(async (time: string) => {
     if (!profile) return;
-    const updated = await mockClient.updateProfile({
+    const updated = await guideOsClient.updateProfile({
       notifications: { ...profile.notifications, time },
     });
     setProfile(updated);

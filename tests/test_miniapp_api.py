@@ -16,19 +16,26 @@ from web_api.auth import dev_session_token
 
 ROOT = Path(__file__).resolve().parents[1]
 API_USER = 887001
+TEST_BOT_TOKEN = "7000000000:TEST_miniapp_synthetic_bot_token"
 
 
 def run(awaitable):
     return asyncio.run(awaitable)
 
 
-def _settings(dev_auth=True):
-    return MiniAppApiSettings(
-        enabled=True,
-        host="127.0.0.1",
-        port=8083,
-        dev_auth=dev_auth,
-    )
+def _settings(dev_auth=True, **overrides):
+    values = {
+        "enabled": True,
+        "host": "127.0.0.1",
+        "port": 8083,
+        "dev_auth": dev_auth,
+        "bot_token": TEST_BOT_TOKEN,
+        "session_ttl_seconds": 3600,
+        "initdata_max_age_seconds": 86400,
+        "allowlist": frozenset(),
+    }
+    values.update(overrides)
+    return MiniAppApiSettings(**values)
 
 
 def _auth_headers(user_id=API_USER, **extra):
@@ -141,14 +148,15 @@ def test_session_dev_auth_creates_token(seeded_user):
     )
     body = response_json(response)
     assert response.status == 200
-    assert body["data"]["token"] == dev_session_token(seeded_user)
+    assert body["data"]["session_token"] == dev_session_token(seeded_user)
     assert body["data"]["user"]["telegram_id"] == str(seeded_user)
 
 
-def test_session_rejects_init_data_stub():
+def test_session_rejects_invalid_init_data():
     response = api_request(
         "POST",
         "/app/v1/session",
+        dev_auth=False,
         json={"init_data": "stub"},
     )
     body = response_json(response)
@@ -156,7 +164,7 @@ def test_session_rejects_init_data_stub():
     assert body["error"]["code"] == "auth_invalid"
 
 
-def test_session_disabled_when_dev_auth_off():
+def test_session_dev_user_id_rejected_when_dev_auth_off():
     response = api_request(
         "POST",
         "/app/v1/session",

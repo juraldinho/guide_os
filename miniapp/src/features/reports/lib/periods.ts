@@ -30,13 +30,12 @@ export function getReportRange(
   reportsYear: number,
   entries: CalendarEntry[],
 ): DateRange {
-  const maxYear = getMockTodayYear();
   if (period === 'month') {
     return monthStartEnd(reportsYear, reportsMonth);
   }
   if (period === 'year') {
     const from = `${reportsYear}-01-01`;
-    const to = reportsYear < maxYear ? `${reportsYear}-12-31` : MOCK_TODAY;
+    const to = `${reportsYear}-12-31`;
     return { from, to };
   }
   return getAllMockDataRange(entries);

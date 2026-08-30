@@ -4,7 +4,7 @@ High-fidelity **disposable** clickable prototype on mock data. **Not** the produ
 
 ## Status
 
-**MA2 approved** (2026-08-28). Superseded for day-to-day work by **MA3 React scaffold**; kept as visual/behavior reference. Backend: **MA5 Web API** exists separately in `web_api/`.
+**MA2 approved**. Reference only — active UI: `miniapp/src/`. Backend: `web_api/` (MA5–MA6).
 
 ## Open locally
 

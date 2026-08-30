@@ -3,9 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import secrets
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from database.db import get_connection, run_write_with_retry
+from services.miniapp_api_settings import MiniAppApiSettings
 
 _MAX_SQLITE_INTEGER = 2**63 - 1
 _DEV_USER_HEADER = "X-Dev-User-Id"
@@ -13,6 +17,10 @@ _BEARER_DEV = re.compile(r"^dev:(\d{1,20})\Z")
 
 
 class MiniAppAuthError(Exception):
+    pass
+
+
+class MiniAppForbiddenError(Exception):
     pass
 
 
@@ -26,23 +34,126 @@ def _parse_user_id(value: str) -> int:
     return user_id
 
 
-def resolve_user_id_from_request(request, dev_auth_enabled: bool) -> int:
-    if dev_auth_enabled:
-        header_values = request.headers.getall(_DEV_USER_HEADER, [])
-        if len(header_values) == 1:
-            return _parse_user_id(header_values[0].strip())
+def _utc_now_timestamp() -> int:
+    return int(time.time())
 
+
+def _format_expires_at(expires_timestamp: int) -> str:
+    return datetime.fromtimestamp(expires_timestamp, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+def _hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _extract_bearer_token(request) -> str | None:
     auth_values = request.headers.getall("Authorization", [])
     if len(auth_values) != 1:
-        raise MiniAppAuthError
+        return None
     token = auth_values[0].strip()
     if not token.startswith("Bearer "):
-        raise MiniAppAuthError
+        return None
     bearer = token[7:].strip()
-    match = _BEARER_DEV.fullmatch(bearer)
-    if match is None:
+    return bearer or None
+
+
+def check_allowlist(settings: MiniAppApiSettings, user_id: int) -> None:
+    if settings.allowlist and user_id not in settings.allowlist:
+        raise MiniAppForbiddenError
+
+
+def create_miniapp_session(
+    user_id: int,
+    ttl_seconds: int,
+    now_timestamp: int | None = None,
+) -> tuple[str, str]:
+    now = now_timestamp if now_timestamp is not None else _utc_now_timestamp()
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_session_token(token)
+    expires_timestamp = now + ttl_seconds
+    expires_at = _format_expires_at(expires_timestamp)
+
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO miniapp_sessions (token_hash, user_id, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (token_hash, user_id, expires_at),
+        )
+
+    run_write_with_retry(operation)
+    return token, expires_at
+
+
+def resolve_session_user_id(token: str, now_timestamp: int | None = None) -> int | None:
+    now = now_timestamp if now_timestamp is not None else _utc_now_timestamp()
+    now_iso = _format_expires_at(now)
+    token_hash = _hash_session_token(token)
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT user_id, expires_at
+        FROM miniapp_sessions
+        WHERE token_hash = ?
+        LIMIT 1
+        """,
+        (token_hash,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    expires_at = row["expires_at"]
+    if expires_at <= now_iso:
+        revoke_miniapp_session(token)
+        return None
+    return int(row["user_id"])
+
+
+def revoke_miniapp_session(token: str) -> bool:
+    token_hash = _hash_session_token(token)
+
+    def operation(conn):
+        cursor = conn.execute(
+            "DELETE FROM miniapp_sessions WHERE token_hash = ?",
+            (token_hash,),
+        )
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+
+def resolve_user_id_from_request(
+    request,
+    settings: MiniAppApiSettings,
+    now_timestamp: int | None = None,
+) -> int:
+    bearer = _extract_bearer_token(request)
+    if bearer is not None:
+        dev_match = _BEARER_DEV.fullmatch(bearer)
+        if dev_match is not None:
+            if not settings.dev_auth:
+                raise MiniAppAuthError
+            user_id = _parse_user_id(dev_match.group(1))
+            check_allowlist(settings, user_id)
+            return user_id
+
+        session_user_id = resolve_session_user_id(bearer, now_timestamp=now_timestamp)
+        if session_user_id is not None:
+            check_allowlist(settings, session_user_id)
+            return session_user_id
         raise MiniAppAuthError
-    return _parse_user_id(match.group(1))
+
+    if settings.dev_auth:
+        header_values = request.headers.getall(_DEV_USER_HEADER, [])
+        if len(header_values) == 1:
+            user_id = _parse_user_id(header_values[0].strip())
+            check_allowlist(settings, user_id)
+            return user_id
+
+    raise MiniAppAuthError
 
 
 def dev_session_token(user_id: int) -> str:

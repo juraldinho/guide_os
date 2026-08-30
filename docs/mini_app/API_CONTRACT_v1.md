@@ -2,17 +2,18 @@
 
 > Version: **v1**
 > Base path: `/app/v1`
-> Status: **implemented (MA5)** — routes in `web_api/`; auth **dev stub** until MA6
+> Status: **implemented (MA5–MA6)** — routes + initData session auth; dev stub gated by flag
 > Last updated: 2026-08-29
 
-## Implementation notes (MA5)
+## Implementation notes (MA5–MA6)
 
-- Entrypoint: `guide_os_miniapp_api.py` (standalone, no bot polling)
-- Feature flag: `MINI_APP_API_ENABLED=false` by default (see `.env.example`)
-- Dev auth: `MINI_APP_API_DEV_AUTH=true` + `POST /app/v1/session` with `dev_user_id` or `Bearer dev:<id>`
-- Business logic: `services/tour_service.py`, `reports_service.py`, `availability_service.py`
-- Frontend: still on mocks in `miniapp/src/` until MA7
-- Real Telegram initData: **MA6**
+- Entrypoint: `guide_os_miniapp_api.py`
+- Feature flag: `MINI_APP_API_ENABLED=false` by default
+- **MA6 auth:** `POST /app/v1/session` with `init_data` → `session_token` (HMAC-SHA256 + `auth_date`)
+- Dev auth (tests only): `MINI_APP_API_DEV_AUTH=true` + `dev_user_id`
+- Sessions: `miniapp_sessions` table; `Authorization: Bearer <session_token>`
+- Optional staging allowlist: `MINI_APP_API_ALLOWLIST`
+- Frontend: mocks in `miniapp/src/` until **MA7**
 
 ## 1. Scope
 
@@ -504,7 +505,7 @@ Query:
 
 Response `data`: `ReportsSummary`
 
-Client maps `reportsPeriod` month/year/all to `from`/`to` locally (year capped at today for current year).
+Client maps `reportsPeriod` month/year/all to `from`/`to` locally. A selected year always uses January 1 through December 31 so planned future tours within that year are included.
 
 ### 9.11 Availability preview (MA3 client-side today)
 
