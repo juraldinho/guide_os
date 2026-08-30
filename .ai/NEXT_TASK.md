@@ -1,6 +1,6 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-08-28
+> Обновлено: 2026-08-29
 
 ## Завершённое состояние
 
@@ -20,12 +20,16 @@
 
 ## Текущая разработка
 
-Stage 19 выбран владельцем: личные места и самостоятельно внесённые внешние результаты гида живут только в Guide OS и не создают компании/продажи в GuideShop.
+Stage 19 завершён и выпущен в Guide OS production.
 
 - Stage 19A audit — PASS: архитектурного blocker нет.
-- Stage 19B persistence/ownership — committed and pushed on branch `stage19-personal-records`, commit `22fb924`; production не разворачивался.
-- Stage 19C personal-place Telegram CRUD — в разработке локально, uncommitted. Изменения включают `📍 Мои места`, создание/просмотр/редактирование/деактивацию личных мест, local fallback при недоступном GuideShop и owner-scoped доступ.
+- Stage 19B persistence/ownership — PASS.
+- Stage 19C/19D personal-place Telegram UX — PASS.
+- Production commit `be1717921319d5650288ec245b0a8364212f3b39`, deployment `5408aa69-33a0-4052-883c-e3d0c7716167`, health PASS.
+- Owner production smoke — PASS.
+- Личные места и комиссии хранятся только в Guide OS; GuideShop official sales/points не изменялись.
+- Mini-app foundation вынесен в отдельную ветку/чат и не является текущей задачей этого документа.
 
 ## Единственная следующая задача
 
-Довести Stage 19C до ручного local Telegram smoke, затем владелец выполняет Terminal git add/commit/push по точному списку файлов. Routine post-launch monitoring Stages 0–18 остаётся текущей операционной обязанностью параллельно.
+Routine post-launch monitoring и incident response. Новая product-разработка начинается только после выбора владельцем следующего roadmap item.
