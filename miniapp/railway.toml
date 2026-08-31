@@ -1,11 +1,11 @@
-# Railway config for Guide OS Mini App static frontend (future MA11 hosted staging).
+# Railway config for the Guide OS Mini App static frontend.
 # Set service root directory to `miniapp/` in Railway UI.
-# Build-time variables (staging only):
+# Build-time variables:
 #   VITE_USE_MOCK_API=false
-#   VITE_API_BASE_URL=https://guide-os-staging-api-staging.up.railway.app
+#   VITE_API_BASE_URL=https://your-guide-os-api.example
 
 [build]
-buildCommand = "npm ci && npm run build"
+buildCommand = "npm run build"
 
 [deploy]
 startCommand = "npx vite preview --host 0.0.0.0 --port ${PORT:-4173}"
