@@ -1,12 +1,20 @@
 # Guide OS Mini App — Next Task
 
-> Обновлено: 2026-08-30
+> Обновлено: 2026-08-31
 
 ## Единственная следующая задача
 
-**MA11 — hosted closed staging deployment** — **deferred until owner approval**.
+**Нет активной coding или deployment задачи.** Следующий product task определяется владельцем.
 
-Use [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) and [PRODUCTION_GATE_MA9.md](../../docs/mini_app/PRODUCTION_GATE_MA9.md) when MA11 is explicitly approved. Do not start MA11 without owner sign-off.
+**MA11 — hosted closed staging deployment** — **deferred until explicit owner approval**. Не начинать автоматически и не рекомендовать Railway без sign-off.
+
+Use [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) and [PRODUCTION_GATE_MA9.md](../../docs/mini_app/PRODUCTION_GATE_MA9.md) only when MA11 is explicitly approved.
+
+## Post-MA10 checkpoint closed
+
+**Owner-approved Mini App MVP UX checkpoint — complete** (2026-08-31).
+
+Commit `57405f4` (`Complete Guide OS Mini App prototype UX`) pushed to `origin/main`. Owner manual review PASS in dedicated local Telegram test bot. Current React Mini App UX is the working MVP interface; no known blocking UX issues remain.
 
 ## MA10 closed
 

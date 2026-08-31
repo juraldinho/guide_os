@@ -26,6 +26,9 @@
 | MA9 | ✅ | Staging smoke + production gate docs |
 | MA10 | ✅ | Local Telegram E2E PASS (2026-08-30) |
 | MA11 | ⏸ | Hosted closed staging deploy — deferred |
+
+**Post-MA10 (2026-08-31):** Owner-approved Mini App MVP UX checkpoint — complete (`57405f4` on `main`). Owner device review PASS; no known blocking UX issues.
+
 | MA12–MA16 | ⏳ | Quality gate, pilot, production |
 
 Telegram-бот (handlers) **не изменён**. Production Mini App **выключен** (`MINI_APP_API_ENABLED=false`).
@@ -720,6 +723,20 @@ Implemented 2026-08-29: `STAGING_SMOKE_MA9.md`, `PRODUCTION_GATE_MA9.md` (docs o
 Completed 2026-08-30: dedicated local test bot, real initData, API `127.0.0.1:8083`, Vite `127.0.0.1:5173`, Cloudflare Quick Tunnel, local SQLite, owner-only allowlist. Full MVP scenarios PASS. Railway and production **not** used.
 
 DoD: real initData session; calendar/reports/availability/profile flows verified in Telegram WebView locally.
+
+### Post-MA10 — Owner-approved Mini App MVP UX checkpoint ✅
+
+Completed 2026-08-31 (commit `57405f4` on `main`). Owner manual review PASS in dedicated local Telegram test bot. Current React UX is the approved working MVP interface.
+
+Verified UX improvements:
+
+- Telegram Calendar–style sticky header; centered dynamic month/year; logo returns to Today
+- Continuous forward calendar feed; precise month-boundary title switching
+- Responsive seven-column month picker; month picker anchored to sticky header at current feed position
+- Reports duplicate `Итоги` title removed; bottom Reports action reachable above fixed navigation
+- Automatic `Telegram.WebApp.ready()` and `expand()` on startup
+
+No known blocking UX issues remain. Further refinements may be requested later. MA11 and production deployment remain unauthorized.
 
 ### MA11 — Hosted closed staging ⏸
 

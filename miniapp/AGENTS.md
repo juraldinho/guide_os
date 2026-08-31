@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-> Обновлено: 2026-08-30. Этапы **MA0–MA10 complete**. Следующий: **MA11** (hosted closed staging deploy — deferred until owner approval).
+> Обновлено: 2026-08-31. Этапы **MA0–MA10 complete**. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). Следующий: **MA11** (hosted closed staging deploy — deferred until owner approval).
 
 | Этап | Статус | Артефакт |
 |------|--------|----------|
@@ -22,6 +22,8 @@
 | MA9 | ✅ | Staging smoke + production gate docs |
 | MA10 | ✅ | Local Telegram E2E PASS (real initData, local stack) |
 | MA11 | ⏸ | Hosted closed staging deploy — deferred |
+
+**Post-MA10 checkpoint (2026-08-31):** Owner-approved Mini App MVP UX — complete. React interface owner-validated in dedicated local test bot; no known blocking UX issues. Further UX refinements may be requested later.
 
 **Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Web API** с **real initData auth** (MA6).
 

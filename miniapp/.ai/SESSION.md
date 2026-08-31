@@ -1,6 +1,25 @@
 # Guide OS Mini App — Session
 
-> Обновлено: 2026-08-30
+> Обновлено: 2026-08-31
+
+## Post-MA10 UX checkpoint: **Owner-approved Mini App MVP UX — complete**
+
+| Item | Status |
+|------|--------|
+| Commit | `57405f4` on `origin/main` — `Complete Guide OS Mini App prototype UX` |
+| Validation | Owner manual review in dedicated local Telegram test bot |
+| Interface | Current React Mini App UX approved as working MVP |
+| Blocking UX issues | None known |
+
+### Owner-verified UX (2026-08-31)
+
+- Telegram Calendar–style sticky header; centered dynamic month/year; logo → Today
+- Continuous forward calendar feed; precise month-boundary title switching
+- Responsive seven-column month picker; picker anchored below sticky header at current feed position
+- Reports: single `Итоги` title (header only); bottom action reachable above fixed navigation
+- Automatic `Telegram.WebApp.ready()` + `expand()` on startup (owner device PASS)
+
+Further UX refinements may be requested; no active coding task until owner defines next step.
 
 ## MA10 status: **complete — local Telegram E2E PASS**
 
@@ -48,3 +67,4 @@ Earlier MA10 attempt targeted Railway staging (`guide-os-staging-api`). That pat
 
 1. Owner approval required before **MA11** (hosted closed staging on Railway).
 2. When approved: follow [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md), then production gate still **not** approved until separate sign-off.
+3. No coding or deployment authorized until owner defines next product task.

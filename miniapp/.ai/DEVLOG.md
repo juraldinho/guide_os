@@ -179,3 +179,11 @@
 - `docs/mini_app/STAGING_SMOKE_MA9.md` — owner-operable WebView + curl checklist, pass/fail table, kill switch;
 - `docs/mini_app/PRODUCTION_GATE_MA9.md` — pre-production checklist + owner sign-off;
 - no code/deploy changes; MA10 local E2E followed.
+
+## 2026-08-31 — Owner-approved Mini App MVP UX checkpoint — complete
+
+- Post-MA10 UX checkpoint closed after owner manual review in dedicated local Telegram test bot;
+- React Mini App interface approved as working MVP; no known blocking UX issues;
+- Verified UX: sticky header with centered month/year and logo→Today; continuous feed; month-boundary title switching; seven-column month picker anchored to sticky header; Reports single title and bottom-safe scroll; `Telegram.WebApp.ready()` + `expand()` on startup;
+- MA10 remains validated local Telegram E2E stage; MA11 hosted staging **deferred**; production **unauthorized**;
+- next product task defined by owner only.
