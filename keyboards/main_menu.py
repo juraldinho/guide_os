@@ -1,4 +1,10 @@
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 
 MINI_APP_MENU_LABEL = "📱 Guide OS Mini App"
 
@@ -16,6 +22,21 @@ def configure_miniapp_menu(public_url: str | None) -> None:
     _miniapp_public_url = public_url
 
 
+def get_miniapp_inline_keyboard() -> InlineKeyboardMarkup | None:
+    if not _miniapp_public_url:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=MINI_APP_MENU_LABEL,
+                    web_app=WebAppInfo(url=_miniapp_public_url),
+                )
+            ]
+        ]
+    )
+
+
 def get_main_menu(reads_enabled: bool | None = None):
     # The section also contains local personal places and is always available.
     reads_enabled = True
@@ -28,16 +49,6 @@ def get_main_menu(reads_enabled: bool | None = None):
         [KeyboardButton(text="📊 Статистика")],
         [KeyboardButton(text="👤 Профиль")],
     ]
-
-    if _miniapp_public_url:
-        keyboard.append(
-            [
-                KeyboardButton(
-                    text=MINI_APP_MENU_LABEL,
-                    web_app=WebAppInfo(url=_miniapp_public_url),
-                )
-            ]
-        )
 
     if reads_enabled:
         keyboard.append([KeyboardButton(text="🛍 GuideShop")])

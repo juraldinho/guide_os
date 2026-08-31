@@ -6,6 +6,7 @@ from keyboards.main_menu import (
     configure_miniapp_menu,
     configure_guide_shop_menu,
     get_main_menu,
+    get_miniapp_inline_keyboard,
 )
 from services.miniapp_api_settings import MiniAppMenuSettings, normalize_miniapp_public_url
 
@@ -14,9 +15,20 @@ def menu_texts(menu):
     return [[button.text for button in row] for row in menu.keyboard]
 
 
-def mini_app_urls(menu):
+def reply_web_app_urls(menu):
     urls = []
     for row in menu.keyboard:
+        for button in row:
+            if button.web_app is not None:
+                urls.append(button.web_app.url)
+    return urls
+
+
+def inline_web_app_urls(markup):
+    if markup is None:
+        return []
+    urls = []
+    for row in markup.inline_keyboard:
         for button in row:
             if button.web_app is not None:
                 urls.append(button.web_app.url)
@@ -32,12 +44,13 @@ def reset_menu():
     configure_miniapp_menu(None)
 
 
-def test_default_menu_has_no_mini_app_button():
+def test_default_menu_has_no_mini_app_reply_button():
     assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
-    assert mini_app_urls(get_main_menu()) == []
+    assert reply_web_app_urls(get_main_menu()) == []
+    assert get_miniapp_inline_keyboard() is None
 
 
-def test_mini_app_enabled_false_hides_button_even_with_url():
+def test_mini_app_enabled_false_hides_inline_button_even_with_url():
     configure_miniapp_menu(None)
     settings = MiniAppMenuSettings.from_env(
         {
@@ -48,32 +61,33 @@ def test_mini_app_enabled_false_hides_button_even_with_url():
     )
     assert settings.enabled is False
     assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
+    assert get_miniapp_inline_keyboard() is None
 
 
-def test_enabled_with_valid_url_shows_one_mini_app_button():
+def test_enabled_with_valid_url_shows_one_inline_web_app_button():
     url = "https://miniapp.example.com"
     configure_miniapp_menu(url)
     menu = get_main_menu()
-    labels = sum(menu_texts(menu), [])
+    assert MINI_APP_MENU_LABEL not in sum(menu_texts(menu), [])
+    assert reply_web_app_urls(menu) == []
+
+    inline = get_miniapp_inline_keyboard()
+    labels = [button.text for row in inline.inline_keyboard for button in row]
     assert labels.count(MINI_APP_MENU_LABEL) == 1
-    assert mini_app_urls(menu) == [url]
+    assert inline_web_app_urls(inline) == [url]
 
 
-def test_mini_app_button_uses_web_app_info_url():
+def test_inline_mini_app_button_uses_web_app_info_url():
     url = "https://miniapp.example.com/app"
     configure_miniapp_menu(url)
-    menu = get_main_menu()
-    button = next(
-        button
-        for row in menu.keyboard
-        for button in row
-        if button.text == MINI_APP_MENU_LABEL
-    )
+    inline = get_miniapp_inline_keyboard()
+    button = inline.inline_keyboard[0][0]
+    assert button.text == MINI_APP_MENU_LABEL
     assert button.web_app is not None
     assert button.web_app.url == url
 
 
-def test_invalid_url_shows_no_button_and_menu_stays_usable():
+def test_invalid_url_shows_no_inline_button_and_menu_stays_usable():
     settings = MiniAppMenuSettings.from_env(
         {
             "MINI_APP_ENABLED": "true",
@@ -87,6 +101,22 @@ def test_invalid_url_shows_no_button_and_menu_stays_usable():
     assert MINI_APP_MENU_LABEL not in texts
     assert "➕ Добавить тур" in texts
     assert "👤 Профиль" in texts
+    assert get_miniapp_inline_keyboard() is None
+
+
+def test_main_reply_keyboard_unchanged_when_mini_app_enabled():
+    configure_miniapp_menu("https://miniapp.example.com")
+    expected = [
+        ["➕ Добавить тур"],
+        ["🗓 Календарь"],
+        ["🔎 Проверить дату"],
+        ["🔔 Уведомления"],
+        ["📊 Статистика"],
+        ["👤 Профиль"],
+        ["🛍 GuideShop"],
+    ]
+    assert menu_texts(get_main_menu()) == expected
+    assert reply_web_app_urls(get_main_menu()) == []
 
 
 def test_guide_shop_rows_remain_when_mini_app_enabled():
@@ -96,11 +126,12 @@ def test_guide_shop_rows_remain_when_mini_app_enabled():
     assert ["🛍 GuideShop"] in menu_texts(get_main_menu())
 
 
-def test_repeated_configuration_does_not_duplicate_mini_app_button():
+def test_repeated_configuration_does_not_duplicate_inline_mini_app_button():
     url = "https://miniapp.example.com"
     configure_miniapp_menu(url)
     configure_miniapp_menu(url)
-    labels = sum(menu_texts(get_main_menu()), [])
+    inline = get_miniapp_inline_keyboard()
+    labels = [button.text for row in inline.inline_keyboard for button in row]
     assert labels.count(MINI_APP_MENU_LABEL) == 1
 
 
@@ -141,6 +172,7 @@ def test_configure_miniapp_runtime_from_env(caplog):
             }
         )
     assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
+    assert get_miniapp_inline_keyboard() is None
     assert "MINI_APP_PUBLIC_URL missing or invalid" in caplog.text
 
     bot_module.configure_miniapp_runtime(
@@ -150,4 +182,5 @@ def test_configure_miniapp_runtime_from_env(caplog):
             "APP_ENV": "production",
         }
     )
-    assert mini_app_urls(get_main_menu()) == ["https://miniapp.example.com"]
+    assert reply_web_app_urls(get_main_menu()) == []
+    assert inline_web_app_urls(get_miniapp_inline_keyboard()) == ["https://miniapp.example.com"]
