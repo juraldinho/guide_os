@@ -25,7 +25,7 @@ from handlers.guide_shop import (
     open_guide_shop,
     router,
 )
-from keyboards.main_menu import configure_guide_shop_menu, configure_miniapp_menu, get_main_menu
+from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
 from services.guide_shop_contracts import PointsStatus
 from services.guide_shop_client import GuideShopTemporarilyUnavailableError
 from services.guide_shop_navigation import (
@@ -56,11 +56,9 @@ def run(awaitable):
 def reset_runtime():
     configure_guide_shop_ui(None, reads_enabled=False)
     configure_guide_shop_menu(None)
-    configure_miniapp_menu(None)
     yield
     configure_guide_shop_ui(None, reads_enabled=False)
     configure_guide_shop_menu(None)
-    configure_miniapp_menu(None)
 
 
 def menu_texts(menu):

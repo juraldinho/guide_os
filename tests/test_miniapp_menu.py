@@ -1,14 +1,17 @@
+import asyncio
 import logging
-import pytest
+from unittest.mock import AsyncMock
 
-from keyboards.main_menu import (
-    MINI_APP_MENU_LABEL,
-    configure_miniapp_menu,
-    configure_guide_shop_menu,
-    get_main_menu,
-    get_miniapp_inline_keyboard,
-)
+import pytest
+from aiogram.types import MenuButtonCommands, MenuButtonWebApp
+
+import bot as bot_module
+from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
 from services.miniapp_api_settings import MiniAppMenuSettings, normalize_miniapp_public_url
+
+
+def run(awaitable):
+    return asyncio.run(awaitable)
 
 
 def menu_texts(menu):
@@ -24,34 +27,18 @@ def reply_web_app_urls(menu):
     return urls
 
 
-def inline_web_app_urls(markup):
-    if markup is None:
-        return []
-    urls = []
-    for row in markup.inline_keyboard:
-        for button in row:
-            if button.web_app is not None:
-                urls.append(button.web_app.url)
-    return urls
-
-
 @pytest.fixture(autouse=True)
 def reset_menu():
     configure_guide_shop_menu(None)
-    configure_miniapp_menu(None)
     yield
     configure_guide_shop_menu(None)
-    configure_miniapp_menu(None)
 
 
-def test_default_menu_has_no_mini_app_reply_button():
-    assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
+def test_default_menu_has_no_web_app_reply_button():
     assert reply_web_app_urls(get_main_menu()) == []
-    assert get_miniapp_inline_keyboard() is None
 
 
-def test_mini_app_enabled_false_hides_inline_button_even_with_url():
-    configure_miniapp_menu(None)
+def test_mini_app_enabled_false_keeps_reply_keyboard_only():
     settings = MiniAppMenuSettings.from_env(
         {
             "MINI_APP_ENABLED": "false",
@@ -60,52 +47,18 @@ def test_mini_app_enabled_false_hides_inline_button_even_with_url():
         }
     )
     assert settings.enabled is False
-    assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
-    assert get_miniapp_inline_keyboard() is None
+    assert reply_web_app_urls(get_main_menu()) == []
 
 
-def test_enabled_with_valid_url_shows_one_inline_web_app_button():
-    url = "https://miniapp.example.com"
-    configure_miniapp_menu(url)
-    menu = get_main_menu()
-    assert MINI_APP_MENU_LABEL not in sum(menu_texts(menu), [])
-    assert reply_web_app_urls(menu) == []
-
-    inline = get_miniapp_inline_keyboard()
-    labels = [button.text for row in inline.inline_keyboard for button in row]
-    assert labels.count(MINI_APP_MENU_LABEL) == 1
-    assert inline_web_app_urls(inline) == [url]
-
-
-def test_inline_mini_app_button_uses_web_app_info_url():
-    url = "https://miniapp.example.com/app"
-    configure_miniapp_menu(url)
-    inline = get_miniapp_inline_keyboard()
-    button = inline.inline_keyboard[0][0]
-    assert button.text == MINI_APP_MENU_LABEL
-    assert button.web_app is not None
-    assert button.web_app.url == url
-
-
-def test_invalid_url_shows_no_inline_button_and_menu_stays_usable():
+def test_main_reply_keyboard_unchanged_when_mini_app_enabled_in_settings():
     settings = MiniAppMenuSettings.from_env(
         {
             "MINI_APP_ENABLED": "true",
-            "MINI_APP_PUBLIC_URL": "not-a-valid-url",
+            "MINI_APP_PUBLIC_URL": "https://miniapp.example.com",
             "APP_ENV": "production",
         }
     )
-    assert settings.public_url is None
-    configure_miniapp_menu(settings.public_url)
-    texts = sum(menu_texts(get_main_menu()), [])
-    assert MINI_APP_MENU_LABEL not in texts
-    assert "➕ Добавить тур" in texts
-    assert "👤 Профиль" in texts
-    assert get_miniapp_inline_keyboard() is None
-
-
-def test_main_reply_keyboard_unchanged_when_mini_app_enabled():
-    configure_miniapp_menu("https://miniapp.example.com")
+    assert settings.public_url == "https://miniapp.example.com"
     expected = [
         ["➕ Добавить тур"],
         ["🗓 Календарь"],
@@ -119,20 +72,25 @@ def test_main_reply_keyboard_unchanged_when_mini_app_enabled():
     assert reply_web_app_urls(get_main_menu()) == []
 
 
-def test_guide_shop_rows_remain_when_mini_app_enabled():
-    configure_miniapp_menu("https://miniapp.example.com")
+def test_invalid_url_keeps_reply_keyboard_usable():
+    settings = MiniAppMenuSettings.from_env(
+        {
+            "MINI_APP_ENABLED": "true",
+            "MINI_APP_PUBLIC_URL": "not-a-valid-url",
+            "APP_ENV": "production",
+        }
+    )
+    assert settings.public_url is None
+    texts = sum(menu_texts(get_main_menu()), [])
+    assert "➕ Добавить тур" in texts
+    assert "👤 Профиль" in texts
+    assert reply_web_app_urls(get_main_menu()) == []
+
+
+def test_guide_shop_rows_remain():
     texts = sum(menu_texts(get_main_menu()), [])
     assert "🛍 GuideShop" in texts
     assert ["🛍 GuideShop"] in menu_texts(get_main_menu())
-
-
-def test_repeated_configuration_does_not_duplicate_inline_mini_app_button():
-    url = "https://miniapp.example.com"
-    configure_miniapp_menu(url)
-    configure_miniapp_menu(url)
-    inline = get_miniapp_inline_keyboard()
-    labels = [button.text for row in inline.inline_keyboard for button in row]
-    assert labels.count(MINI_APP_MENU_LABEL) == 1
 
 
 def test_get_main_menu_signature_remains_compatible():
@@ -160,9 +118,7 @@ def test_normalize_public_url_allows_localhost_http_in_development():
     )
 
 
-def test_configure_miniapp_runtime_from_env(caplog):
-    import bot as bot_module
-
+def test_configure_miniapp_runtime_warns_on_invalid_public_url(caplog):
     with caplog.at_level(logging.WARNING):
         bot_module.configure_miniapp_runtime(
             {
@@ -171,16 +127,78 @@ def test_configure_miniapp_runtime_from_env(caplog):
                 "APP_ENV": "production",
             }
         )
-    assert MINI_APP_MENU_LABEL not in sum(menu_texts(get_main_menu()), [])
-    assert get_miniapp_inline_keyboard() is None
     assert "MINI_APP_PUBLIC_URL missing or invalid" in caplog.text
 
-    bot_module.configure_miniapp_runtime(
-        {
-            "MINI_APP_ENABLED": "true",
-            "MINI_APP_PUBLIC_URL": "https://miniapp.example.com",
-            "APP_ENV": "production",
-        }
+
+def test_setup_miniapp_chat_menu_button_enabled_uses_default_web_app_button():
+    bot = AsyncMock()
+    run(
+        bot_module.setup_miniapp_chat_menu_button(
+            bot,
+            {
+                "MINI_APP_ENABLED": "true",
+                "MINI_APP_PUBLIC_URL": "https://miniapp.example.com",
+                "APP_ENV": "production",
+            },
+        )
     )
-    assert reply_web_app_urls(get_main_menu()) == []
-    assert inline_web_app_urls(get_miniapp_inline_keyboard()) == ["https://miniapp.example.com"]
+    bot.set_chat_menu_button.assert_awaited_once()
+    call = bot.set_chat_menu_button.await_args
+    assert "chat_id" not in call.kwargs
+    menu_button = call.kwargs["menu_button"]
+    assert isinstance(menu_button, MenuButtonWebApp)
+    assert menu_button.text == bot_module.MINIAPP_CHAT_MENU_BUTTON_TEXT
+    assert menu_button.web_app.url == "https://miniapp.example.com"
+
+
+def test_setup_miniapp_chat_menu_button_disabled_uses_commands():
+    bot = AsyncMock()
+    run(
+        bot_module.setup_miniapp_chat_menu_button(
+            bot,
+            {
+                "MINI_APP_ENABLED": "false",
+                "MINI_APP_PUBLIC_URL": "https://miniapp.example.com",
+                "APP_ENV": "production",
+            },
+        )
+    )
+    menu_button = bot.set_chat_menu_button.await_args.kwargs["menu_button"]
+    assert isinstance(menu_button, MenuButtonCommands)
+
+
+def test_setup_miniapp_chat_menu_button_invalid_url_uses_commands():
+    bot = AsyncMock()
+    run(
+        bot_module.setup_miniapp_chat_menu_button(
+            bot,
+            {
+                "MINI_APP_ENABLED": "true",
+                "MINI_APP_PUBLIC_URL": "not-a-valid-url",
+                "APP_ENV": "production",
+            },
+        )
+    )
+    menu_button = bot.set_chat_menu_button.await_args.kwargs["menu_button"]
+    assert isinstance(menu_button, MenuButtonCommands)
+
+
+def test_setup_miniapp_chat_menu_button_failure_is_sanitized(caplog):
+    bot = AsyncMock()
+    bot.set_chat_menu_button.side_effect = RuntimeError("https://secret-miniapp.example failed")
+    with caplog.at_level(logging.WARNING):
+        run(
+            bot_module.setup_miniapp_chat_menu_button(
+                bot,
+                {
+                    "MINI_APP_ENABLED": "true",
+                    "MINI_APP_PUBLIC_URL": "https://secret-miniapp.example",
+                    "APP_ENV": "production",
+                },
+            )
+        )
+    assert any(
+        record.message == "Mini App chat menu button configuration failed"
+        for record in caplog.records
+    )
+    assert "https://secret-miniapp.example" not in caplog.text

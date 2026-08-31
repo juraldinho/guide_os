@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 
-from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat, MenuButtonCommands, MenuButtonWebApp, WebAppInfo
 from handlers.broadcast import router as broadcast_router
 
 from handlers.notifications import router as notifications_router
@@ -38,7 +38,7 @@ from handlers.guide_shop import (
 )
 from handlers.personal_places import router as personal_places_router
 from handlers.personal_place_entries import router as personal_place_entries_router
-from keyboards.main_menu import configure_guide_shop_menu, configure_miniapp_menu
+from keyboards.main_menu import configure_guide_shop_menu
 from services.miniapp_api_settings import MiniAppMenuSettings
 from web_api.app import start_miniapp_api
 from services.guide_shop_client import (
@@ -63,6 +63,7 @@ from services.guide_shop_event_worker import (
 from utils.logger import setup_logging
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+MINIAPP_CHAT_MENU_BUTTON_TEXT = "Guide OS Mini App"
 
 
 async def start_guide_shop_event_worker(bot, values=None):
@@ -122,14 +123,27 @@ def configure_guide_shop_runtime(values=None) -> None:
 
 def configure_miniapp_runtime(values=None) -> None:
     menu_settings = MiniAppMenuSettings.from_env(values)
-    if menu_settings.enabled and menu_settings.public_url:
-        configure_miniapp_menu(menu_settings.public_url)
-    else:
-        configure_miniapp_menu(None)
-        if menu_settings.enabled:
-            logging.getLogger(__name__).warning(
-                "Mini App menu entry disabled: MINI_APP_PUBLIC_URL missing or invalid"
+    if menu_settings.enabled and not menu_settings.public_url:
+        logging.getLogger(__name__).warning(
+            "Mini App menu entry disabled: MINI_APP_PUBLIC_URL missing or invalid"
+        )
+
+
+async def setup_miniapp_chat_menu_button(bot: Bot, values=None) -> None:
+    logger = logging.getLogger(__name__)
+    settings = MiniAppMenuSettings.from_env(values)
+    try:
+        if settings.enabled and settings.public_url:
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text=MINIAPP_CHAT_MENU_BUTTON_TEXT,
+                    web_app=WebAppInfo(url=settings.public_url),
+                ),
             )
+        else:
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception:
+        logger.warning("Mini App chat menu button configuration failed")
 
 
 async def setup_bot_commands(bot: Bot) -> None:
@@ -169,6 +183,7 @@ async def main() -> None:
 
     bot = Bot(token=BOT_TOKEN)
     await setup_bot_commands(bot)
+    await setup_miniapp_chat_menu_button(bot)
     
     init_db()
     link_provider_runner = None

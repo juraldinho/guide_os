@@ -6,7 +6,7 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
-from keyboards.main_menu import get_main_menu, get_miniapp_inline_keyboard
+from keyboards.main_menu import get_main_menu
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -52,12 +52,8 @@ async def cmd_start(message: Message) -> None:
         "Для помощи — /help"
     )
 
-    sent = await message.answer(
+    await message.answer(
         text,
         reply_markup=get_main_menu(),
         parse_mode="HTML",
     )
-
-    inline_markup = get_miniapp_inline_keyboard()
-    if inline_markup is not None:
-        await sent.edit_reply_markup(reply_markup=inline_markup)

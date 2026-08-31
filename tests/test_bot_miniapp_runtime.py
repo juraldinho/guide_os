@@ -57,6 +57,7 @@ def _bot_runtime(monkeypatch):
     monkeypatch.setattr(bot_module, "validate_guide_shop_event_flags", Mock())
     monkeypatch.setattr(bot_module, "Bot", Mock(return_value=runtime.bot))
     monkeypatch.setattr(bot_module, "setup_bot_commands", AsyncMock())
+    monkeypatch.setattr(bot_module, "setup_miniapp_chat_menu_button", AsyncMock())
     monkeypatch.setattr(
         bot_module, "init_db", Mock(side_effect=lambda: runtime.order.append("init_db"))
     )
