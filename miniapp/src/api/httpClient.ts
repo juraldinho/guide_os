@@ -294,14 +294,3 @@ export function __testClearSession(): void {
 export function __testSetSessionToken(token: string): void {
   persistToken(token);
 }
-
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp?: {
-        initData?: string;
-        ready?: () => void;
-      };
-    };
-  }
-}

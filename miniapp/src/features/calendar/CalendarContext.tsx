@@ -24,10 +24,16 @@ import type {
   TourFormValues,
   WarningOverlayData,
 } from '@/api/types';
-import { MOCK_TODAY, USE_MOCK_API } from '@/config';
+import { MOCK_TODAY, USE_MOCK_API, ENTRIES_RANGE_TO } from '@/config';
 import { useToast } from '@/components/ui/Toast';
 import { checkConflicts } from '@/features/calendar/lib/conflicts';
-import { daysInRange } from '@/features/calendar/lib/dates';
+import {
+  countDaysInclusive,
+  daysInRange,
+  FEED_CHUNK_DAYS,
+  FEED_INITIAL_DAYS,
+  parseDate,
+} from '@/features/calendar/lib/dates';
 import type {
   AvailOpenFrom,
   FilterPayment,
@@ -65,11 +71,17 @@ interface CalendarContextValue {
   selectedDate: string;
   viewMonth: number;
   viewYear: number;
+  headerMonth: number;
+  headerYear: number;
+  feedDayCount: number;
+  scrollToTodaySignal: number;
   overlay: OverlayKind | null;
   overlayData: OverlayData;
   overlayReturn: 'day' | null;
   setActiveTab: (tab: TabId) => void;
   toggleMonthPicker: () => void;
+  setVisibleFeedFromIso: (iso: string) => void;
+  extendFeed: () => void;
   prevMonth: () => void;
   nextMonth: () => void;
   openDayDetail: (iso: string) => void;
@@ -137,13 +149,21 @@ const CalendarContext = createContext<CalendarContextValue | null>(null);
 
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
+  const todayMonthYear = useMemo(() => {
+    const d = parseDate(MOCK_TODAY);
+    return { month: d.getMonth(), year: d.getFullYear() };
+  }, []);
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
   const [activeTab, setActiveTabState] = useState<TabId>('calendar');
   const [calendarScreen, setCalendarScreen] = useState<CalendarScreen>('feed');
   const [monthExpanded, setMonthExpanded] = useState(false);
   const [selectedDate, setSelectedDate] = useState(MOCK_TODAY);
-  const [viewMonth, setViewMonth] = useState(7);
-  const [viewYear, setViewYear] = useState(2026);
+  const [viewMonth, setViewMonth] = useState(todayMonthYear.month);
+  const [viewYear, setViewYear] = useState(todayMonthYear.year);
+  const [visibleFeedMonth, setVisibleFeedMonth] = useState(todayMonthYear.month);
+  const [visibleFeedYear, setVisibleFeedYear] = useState(todayMonthYear.year);
+  const [feedDayCount, setFeedDayCount] = useState(FEED_INITIAL_DAYS);
+  const [scrollToTodaySignal, setScrollToTodaySignal] = useState(0);
   const [overlay, setOverlay] = useState<OverlayKind | null>(null);
   const [overlayData, setOverlayData] = useState<OverlayData>({});
   const [overlayReturn, setOverlayReturn] = useState<'day' | null>(null);
@@ -175,6 +195,41 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     refreshEntries();
     guideOsClient.getProfile().then(setProfile);
   }, [refreshEntries]);
+
+  const maxFeedDays = useMemo(
+    () => countDaysInclusive(MOCK_TODAY, ENTRIES_RANGE_TO),
+    [],
+  );
+
+  const headerMonth = monthExpanded ? viewMonth : visibleFeedMonth;
+  const headerYear = monthExpanded ? viewYear : visibleFeedYear;
+
+  const setVisibleFeedFromIso = useCallback(
+    (iso: string) => {
+      if (monthExpanded) return;
+      const d = parseDate(iso);
+      setVisibleFeedMonth(d.getMonth());
+      setVisibleFeedYear(d.getFullYear());
+    },
+    [monthExpanded],
+  );
+
+  const extendFeed = useCallback(() => {
+    setFeedDayCount((c) => {
+      if (c >= maxFeedDays) return c;
+      return Math.min(c + FEED_CHUNK_DAYS, maxFeedDays);
+    });
+  }, [maxFeedDays]);
+
+  const toggleMonthPicker = useCallback(() => {
+    setMonthExpanded((expanded) => {
+      if (!expanded) {
+        setViewMonth(visibleFeedMonth);
+        setViewYear(visibleFeedYear);
+      }
+      return !expanded;
+    });
+  }, [visibleFeedMonth, visibleFeedYear]);
 
   const setActiveTab = useCallback((tab: TabId) => {
     setActiveTabState(tab);
@@ -644,11 +699,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       selectedDate,
       viewMonth,
       viewYear,
+      headerMonth,
+      headerYear,
+      feedDayCount,
+      scrollToTodaySignal,
       overlay,
       overlayData,
       overlayReturn,
       setActiveTab,
-      toggleMonthPicker: () => setMonthExpanded((v) => !v),
+      toggleMonthPicker,
+      setVisibleFeedFromIso,
+      extendFeed,
       prevMonth: () => {
         if (viewMonth <= 0) {
           setViewMonth(11);
@@ -677,11 +738,15 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       },
       openFeed: () => setCalendarScreen('feed'),
       goToday: () => {
+        setActiveTabState('calendar');
         setSelectedDate(MOCK_TODAY);
-        setViewMonth(7);
-        setViewYear(2026);
+        setViewMonth(todayMonthYear.month);
+        setViewYear(todayMonthYear.year);
+        setVisibleFeedMonth(todayMonthYear.month);
+        setVisibleFeedYear(todayMonthYear.year);
         setCalendarScreen('feed');
         setMonthExpanded(false);
+        setScrollToTodaySignal((s) => s + 1);
       },
       openAdd,
       openTourForm,
@@ -747,10 +812,18 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       selectedDate,
       viewMonth,
       viewYear,
+      headerMonth,
+      headerYear,
+      feedDayCount,
+      scrollToTodaySignal,
       overlay,
       overlayData,
       overlayReturn,
       setActiveTab,
+      toggleMonthPicker,
+      setVisibleFeedFromIso,
+      extendFeed,
+      todayMonthYear,
       openAdd,
       openTourForm,
       openDayOffForm,

@@ -81,8 +81,6 @@ export function ReportsPage() {
 
   return (
     <main className="main">
-      <h2 className="page-title">{t.reportsTitle}</h2>
-
       <div className="filter-row" role="group" aria-label={t.reportsPeriodLabel}>
         <Chip
           label={t.periodMonth}

@@ -7,8 +7,23 @@ import { GlobalOverlays } from './GlobalOverlays';
 import { DemoErrorScreen, DemoLoadingScreen, DemoOfflineScreen } from './DemoScreens';
 
 export function AppShell() {
-  const { activeTab, setActiveTab, goToday, openSettings, demoLoading, demoError, demoOffline } =
-    useCalendar();
+  const {
+    activeTab,
+    setActiveTab,
+    goToday,
+    openSettings,
+    demoLoading,
+    demoError,
+    demoOffline,
+    headerMonth,
+    headerYear,
+    calendarScreen,
+    monthExpanded,
+    toggleMonthPicker,
+  } = useCalendar();
+
+  const showMonthPicker =
+    activeTab === 'calendar' && calendarScreen === 'feed' && monthExpanded;
 
   if (demoLoading) return <DemoLoadingScreen />;
   if (demoOffline) return <DemoOfflineScreen />;
@@ -17,7 +32,16 @@ export function AppShell() {
   return (
     <>
       <div className="app-shell">
-        <AppHeader onToday={goToday} onSettings={openSettings} />
+        <AppHeader
+          activeTab={activeTab}
+          headerMonth={headerMonth}
+          headerYear={headerYear}
+          monthExpanded={monthExpanded}
+          showMonthPicker={showMonthPicker}
+          onLogoToday={goToday}
+          onToggleMonthPicker={toggleMonthPicker}
+          onSettings={openSettings}
+        />
         {activeTab === 'calendar' ? <CalendarPage /> : <ReportsPage />}
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
