@@ -9,9 +9,18 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from database.queries import register_user
-from services.miniapp_api_settings import MiniAppApiSettings
+from services.miniapp_api_settings import (
+    MiniAppApiSettings,
+    derive_miniapp_allowed_origin,
+    normalize_miniapp_public_url,
+)
 from services.tour_service import TourEntryDraft, create_tour_entry, SOURCE_MINI_APP
-from web_api.app import create_miniapp_api_app, start_miniapp_api
+from web_api.app import (
+    CORS_ALLOWED_HEADERS,
+    CORS_ALLOWED_METHODS,
+    create_miniapp_api_app,
+    start_miniapp_api,
+)
 from web_api.auth import dev_session_token
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -376,3 +385,185 @@ def test_idempotency_replay_and_conflict(seeded_user):
     conflict_body = response_json(conflict)
     assert conflict.status == 409
     assert conflict_body["error"]["code"] == "idempotency_replay"
+
+
+PRODUCTION_FRONTEND_ORIGIN = "https://guide-os-miniapp.example"
+
+
+def _cors_settings(**overrides):
+    values = {
+        "enabled": True,
+        "host": "127.0.0.1",
+        "port": 8083,
+        "dev_auth": True,
+        "bot_token": TEST_BOT_TOKEN,
+        "session_ttl_seconds": 3600,
+        "initdata_max_age_seconds": 86400,
+        "allowlist": frozenset(),
+        "allowed_origin": PRODUCTION_FRONTEND_ORIGIN,
+    }
+    values.update(overrides)
+    return MiniAppApiSettings(**values)
+
+
+def cors_request(method, path, origin=None, settings=None, **kwargs):
+    headers = dict(kwargs.pop("headers", {}))
+    if origin is not None:
+        headers["Origin"] = origin
+
+    app_settings = settings if settings is not None else _cors_settings()
+
+    async def _run():
+        app = create_miniapp_api_app(app_settings)
+        client = TestClient(TestServer(app))
+        async with client:
+            response = await client.request(method, path, headers=headers, **kwargs)
+            response._body_text = await response.text()
+            return response
+
+    return run(_run())
+
+
+def test_cors_allowed_origin_header_on_api_request():
+    response = cors_request(
+        "GET",
+        "/app/v1/profile",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+        headers=_auth_headers(),
+    )
+    assert response.status == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == PRODUCTION_FRONTEND_ORIGIN
+
+
+def test_cors_vary_origin_header():
+    response = cors_request(
+        "GET",
+        "/app/v1/profile",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+        headers=_auth_headers(),
+    )
+    assert response.headers.get("Vary") == "Origin"
+
+
+def test_cors_allowed_preflight_succeeds():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    assert response.status == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == PRODUCTION_FRONTEND_ORIGIN
+
+
+def test_cors_preflight_methods_restricted():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    assert response.headers.get("Access-Control-Allow-Methods") == CORS_ALLOWED_METHODS
+
+
+def test_cors_preflight_headers_restricted():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    assert response.headers.get("Access-Control-Allow-Headers") == CORS_ALLOWED_HEADERS
+
+
+def test_cors_disallowed_origin_no_allow_header():
+    response = cors_request(
+        "GET",
+        "/app/v1/profile",
+        origin="https://evil.example",
+        headers=_auth_headers(),
+    )
+    assert response.status == 200
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_disallowed_preflight_fails_closed():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin="https://evil.example",
+    )
+    assert response.status == 403
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_no_wildcard_origin():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin="https://evil.example",
+    )
+    allow_origin = response.headers.get("Access-Control-Allow-Origin")
+    assert allow_origin is None or allow_origin != "*"
+
+
+def test_cors_request_without_origin_works(seeded_user):
+    response = api_request(
+        "POST",
+        "/app/v1/session",
+        json={"dev_user_id": seeded_user},
+    )
+    assert response.status == 200
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_health_without_origin_has_no_cors_headers():
+    response = api_request("GET", "/health")
+    assert response.status == 200
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_auth_behavior_unchanged_with_allowed_origin(seeded_user):
+    response = cors_request(
+        "GET",
+        "/app/v1/profile",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    body = response_json(response)
+    assert response.status == 401
+    assert body["error"]["code"] == "auth_required"
+
+
+def test_cors_production_http_public_url_not_allowed_origin():
+    settings = MiniAppApiSettings.from_env(
+        {
+            "MINI_APP_API_ENABLED": "true",
+            "MINI_APP_PUBLIC_URL": "http://guide-os-miniapp.example",
+            "APP_ENV": "production",
+            "BOT_TOKEN": TEST_BOT_TOKEN,
+        }
+    )
+    assert settings.allowed_origin is None
+
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/session",
+        origin="http://guide-os-miniapp.example",
+        settings=settings,
+    )
+    assert response.status == 403
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_origin_derived_from_public_url_with_path():
+    public_url = "https://guide-os-miniapp.example/app"
+    normalized = normalize_miniapp_public_url(public_url, "production")
+    assert normalized == public_url
+    assert derive_miniapp_allowed_origin(normalized) == PRODUCTION_FRONTEND_ORIGIN
+
+    settings = MiniAppApiSettings.from_env(
+        {
+            "MINI_APP_API_ENABLED": "true",
+            "MINI_APP_PUBLIC_URL": public_url,
+            "APP_ENV": "production",
+            "BOT_TOKEN": TEST_BOT_TOKEN,
+        }
+    )
+    assert settings.allowed_origin == PRODUCTION_FRONTEND_ORIGIN

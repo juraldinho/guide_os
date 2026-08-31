@@ -38,7 +38,9 @@ from handlers.guide_shop import (
 )
 from handlers.personal_places import router as personal_places_router
 from handlers.personal_place_entries import router as personal_place_entries_router
-from keyboards.main_menu import configure_guide_shop_menu
+from keyboards.main_menu import configure_guide_shop_menu, configure_miniapp_menu
+from services.miniapp_api_settings import MiniAppMenuSettings
+from web_api.app import start_miniapp_api
 from services.guide_shop_client import (
     HTTPGuideShopClient,
     InMemoryGuideShopClient,
@@ -117,6 +119,19 @@ def configure_guide_shop_runtime(values=None) -> None:
         reads_enabled=True,
     )
 
+
+def configure_miniapp_runtime(values=None) -> None:
+    menu_settings = MiniAppMenuSettings.from_env(values)
+    if menu_settings.enabled and menu_settings.public_url:
+        configure_miniapp_menu(menu_settings.public_url)
+    else:
+        configure_miniapp_menu(None)
+        if menu_settings.enabled:
+            logging.getLogger(__name__).warning(
+                "Mini App menu entry disabled: MINI_APP_PUBLIC_URL missing or invalid"
+            )
+
+
 async def setup_bot_commands(bot: Bot) -> None:
     user_commands = [
         BotCommand(command="start", description="Открыть главное меню"),
@@ -149,6 +164,7 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     configure_guide_shop_runtime()
+    configure_miniapp_runtime()
     validate_guide_shop_event_flags()
 
     bot = Bot(token=BOT_TOKEN)
@@ -156,10 +172,12 @@ async def main() -> None:
     
     init_db()
     link_provider_runner = None
+    miniapp_runner = None
     event_worker_task = None
     try:
         event_worker_task = await start_guide_shop_event_worker(bot)
         link_provider_runner = await start_guide_shop_link_provider()
+        miniapp_runner = await start_miniapp_api()
         logger.info("Bot started")
         logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
 
@@ -190,8 +208,12 @@ async def main() -> None:
         try:
             await stop_guide_shop_event_worker(event_worker_task)
         finally:
-            if link_provider_runner is not None:
-                await link_provider_runner.cleanup()
+            try:
+                if link_provider_runner is not None:
+                    await link_provider_runner.cleanup()
+            finally:
+                if miniapp_runner is not None:
+                    await miniapp_runner.cleanup()
 
 
 if __name__ == "__main__":
