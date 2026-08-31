@@ -55,6 +55,11 @@ export class ApiConflictError extends ApiError {
 
 let sessionToken: string | null = null;
 let bootstrapPromise: Promise<void> | null = null;
+let initDataBootstrapDone = false;
+
+function hasTelegramInitData(): boolean {
+  return Boolean(window.Telegram?.WebApp?.initData?.trim());
+}
 
 function readStoredToken(): string | null {
   try {
@@ -78,21 +83,45 @@ function clearSession(): void {
   persistToken(null);
 }
 
-async function bootstrapSession(): Promise<void> {
-  const stored = readStoredToken();
-  if (stored) {
-    sessionToken = stored;
+async function bootstrapSession(options?: { forceInitData?: boolean }): Promise<void> {
+  const forceInitData = options?.forceInitData ?? false;
+  const initData = window.Telegram?.WebApp?.initData?.trim();
+
+  if (initData) {
+    if (!forceInitData && initDataBootstrapDone) {
+      return;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/app/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ init_data: initData }),
+    });
+    const json = (await res.json()) as ApiEnvelope<{ session_token: string }>;
+    if (!res.ok || !json.data?.session_token) {
+      const err = json.error;
+      throw new ApiError(
+        err?.code ?? 'auth_invalid',
+        err?.message ?? 'Не удалось создать сессию.',
+        res.status,
+      );
+    }
+    persistToken(json.data.session_token);
+    initDataBootstrapDone = true;
     return;
   }
 
-  const initData = window.Telegram?.WebApp?.initData?.trim();
-  const body: Record<string, string> = initData
-    ? { init_data: initData }
-    : DEV_USER_ID
-      ? { dev_user_id: DEV_USER_ID }
-      : {};
+  if (!forceInitData) {
+    const stored = readStoredToken();
+    if (stored) {
+      sessionToken = stored;
+      return;
+    }
+  }
 
-  if (!body.init_data && !body.dev_user_id) {
+  const body: Record<string, string> = DEV_USER_ID ? { dev_user_id: DEV_USER_ID } : {};
+
+  if (!body.dev_user_id) {
     throw new ApiError(
       'auth_required',
       'Нет Telegram initData. Укажите VITE_DEV_USER_ID для локальной разработки.',
@@ -117,10 +146,20 @@ async function bootstrapSession(): Promise<void> {
   persistToken(json.data.session_token);
 }
 
-async function ensureSession(): Promise<void> {
-  if (sessionToken) return;
+async function ensureSession(options?: { forceInitData?: boolean }): Promise<void> {
+  const forceInitData = options?.forceInitData ?? false;
+  const initDataPresent = hasTelegramInitData();
+
+  if (
+    sessionToken &&
+    !forceInitData &&
+    (initDataPresent ? initDataBootstrapDone : true)
+  ) {
+    return;
+  }
+
   if (!bootstrapPromise) {
-    bootstrapPromise = bootstrapSession().finally(() => {
+    bootstrapPromise = bootstrapSession({ forceInitData }).finally(() => {
       bootstrapPromise = null;
     });
   }
@@ -170,7 +209,7 @@ async function apiRequest<T>(
   let res = await doFetch();
   if (!skipAuth && res.status === 401 && sessionToken) {
     clearSession();
-    await ensureSession();
+    await ensureSession({ forceInitData: true });
     headers.set('Authorization', `Bearer ${sessionToken}`);
     res = await doFetch();
   }
@@ -289,6 +328,7 @@ export function createHttpClient(): GuideOsClient {
 /** Test-only helpers */
 export function __testClearSession(): void {
   clearSession();
+  initDataBootstrapDone = false;
 }
 
 export function __testSetSessionToken(token: string): void {
