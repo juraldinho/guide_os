@@ -1260,7 +1260,7 @@ def test_bot_runtime_starts_provider_after_init_db_on_the_polling_loop(monkeypat
 
     assert runtime.order == ["init_db", "start_provider", "start_polling"]
     assert runtime.loops["provider"] is runtime.loops["polling"]
-    runtime.provider_start.assert_awaited_once_with()
+    runtime.provider_start.assert_awaited_once_with(attach_miniapp_api=True)
     runtime.runner.cleanup.assert_awaited_once_with()
 
 

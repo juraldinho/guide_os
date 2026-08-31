@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 MAX_REQUEST_BODY_BYTES = 65536
 
+MINIAPP_CORS_MIDDLEWARE_REGISTERED_KEY = "miniapp_cors_middleware_registered"
+
 CORS_ALLOWED_METHODS = "GET, POST, PATCH, DELETE, OPTIONS"
 CORS_ALLOWED_HEADERS = "Authorization, Content-Type, Idempotency-Key"
 
@@ -66,15 +68,19 @@ async def miniapp_cors_middleware(request: web.Request, handler):
     return response
 
 
+def _ensure_miniapp_cors_middleware(app: web.Application) -> None:
+    if app.get(MINIAPP_CORS_MIDDLEWARE_REGISTERED_KEY):
+        return
+    app.middlewares.insert(0, miniapp_cors_middleware)
+    app[MINIAPP_CORS_MIDDLEWARE_REGISTERED_KEY] = True
+
+
 async def health(_request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
 def create_miniapp_api_app(settings: MiniAppApiSettings) -> web.Application:
-    app = web.Application(
-        client_max_size=MAX_REQUEST_BODY_BYTES,
-        middlewares=[miniapp_cors_middleware],
-    )
+    app = web.Application(client_max_size=MAX_REQUEST_BODY_BYTES)
     app.router.add_get("/health", health)
     register_miniapp_api_on_app(app, settings)
     return app
@@ -83,6 +89,9 @@ def create_miniapp_api_app(settings: MiniAppApiSettings) -> web.Application:
 def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettings) -> None:
     app["miniapp_settings"] = settings
     app["max_body_bytes"] = MAX_REQUEST_BODY_BYTES
+    if app._client_max_size < MAX_REQUEST_BODY_BYTES:
+        app._client_max_size = MAX_REQUEST_BODY_BYTES
+    _ensure_miniapp_cors_middleware(app)
 
     register_session_routes(app)
     register_entries_routes(app)

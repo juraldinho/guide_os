@@ -176,8 +176,9 @@ async def main() -> None:
     event_worker_task = None
     try:
         event_worker_task = await start_guide_shop_event_worker(bot)
-        link_provider_runner = await start_guide_shop_link_provider()
-        miniapp_runner = await start_miniapp_api()
+        link_provider_runner = await start_guide_shop_link_provider(attach_miniapp_api=True)
+        if link_provider_runner is None:
+            miniapp_runner = await start_miniapp_api()
         logger.info("Bot started")
         logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
 

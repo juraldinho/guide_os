@@ -19,6 +19,7 @@ def _bot_runtime(monkeypatch):
         provider_runner=Mock(),
         miniapp_start=AsyncMock(),
         provider_start=AsyncMock(),
+        provider_start_kwargs={},
         polling=AsyncMock(),
         bot=Mock(),
         created_tasks=[],
@@ -34,6 +35,7 @@ def _bot_runtime(monkeypatch):
 
     async def start_provider(*args, **kwargs):
         runtime.order.append("start_provider")
+        runtime.provider_start_kwargs = kwargs
         return await runtime.provider_start(*args, **kwargs)
 
     async def start_polling(*args, **kwargs):
@@ -71,19 +73,44 @@ def _bot_runtime(monkeypatch):
     return runtime
 
 
-def test_miniapp_api_disabled_skips_runner(monkeypatch):
+def test_provider_enabled_mounts_miniapp_without_standalone_api(monkeypatch):
     runtime = _bot_runtime(monkeypatch)
-    runtime.miniapp_start.return_value = None
 
     run(bot_module.main())
 
-    assert "start_miniapp_api" in runtime.order
+    assert runtime.provider_start_kwargs == {"attach_miniapp_api": True}
+    assert runtime.order == [
+        "init_db",
+        "start_provider",
+        "start_polling",
+    ]
+    runtime.miniapp_start.assert_not_awaited()
     runtime.miniapp_runner.cleanup.assert_not_awaited()
     runtime.provider_runner.cleanup.assert_awaited_once_with()
 
 
-def test_miniapp_api_enabled_starts_and_cleans_runner(monkeypatch):
+def test_provider_disabled_starts_standalone_miniapp(monkeypatch):
     runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
+
+    run(bot_module.main())
+
+    assert runtime.provider_start_kwargs == {"attach_miniapp_api": True}
+    assert runtime.order == [
+        "init_db",
+        "start_provider",
+        "start_miniapp_api",
+        "start_polling",
+    ]
+    runtime.miniapp_start.assert_awaited_once_with()
+    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
+    runtime.provider_runner.cleanup.assert_not_awaited()
+
+
+def test_both_http_features_disabled_starts_polling_without_cleanup(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
+    runtime.miniapp_start.return_value = None
 
     run(bot_module.main())
 
@@ -93,13 +120,59 @@ def test_miniapp_api_enabled_starts_and_cleans_runner(monkeypatch):
         "start_miniapp_api",
         "start_polling",
     ]
-    runtime.miniapp_start.assert_awaited_once_with()
-    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
+    runtime.miniapp_runner.cleanup.assert_not_awaited()
+    runtime.provider_runner.cleanup.assert_not_awaited()
+
+
+def test_polling_failure_cleans_provider_runner_when_shared(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.polling.side_effect = RuntimeError("polling failed")
+
+    with pytest.raises(RuntimeError, match="polling failed"):
+        run(bot_module.main())
+
     runtime.provider_runner.cleanup.assert_awaited_once_with()
+    runtime.miniapp_runner.cleanup.assert_not_awaited()
+
+
+def test_polling_failure_cleans_standalone_miniapp_runner(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
+    runtime.polling.side_effect = RuntimeError("polling failed")
+
+    with pytest.raises(RuntimeError, match="polling failed"):
+        run(bot_module.main())
+
+    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
+    runtime.provider_runner.cleanup.assert_not_awaited()
+
+
+def test_provider_cleanup_failure_does_not_clean_standalone_miniapp_when_absent(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_runner.cleanup.side_effect = RuntimeError("provider cleanup failed")
+
+    with pytest.raises(RuntimeError, match="provider cleanup failed"):
+        run(bot_module.main())
+
+    runtime.provider_runner.cleanup.assert_awaited_once_with()
+    runtime.miniapp_runner.cleanup.assert_not_awaited()
+
+
+def test_standalone_miniapp_cleanup_runs_when_provider_disabled(monkeypatch):
+    runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
+    runtime.miniapp_runner.cleanup.side_effect = RuntimeError("miniapp cleanup failed")
+
+    with pytest.raises(RuntimeError, match="miniapp cleanup failed"):
+        run(bot_module.main())
+
+    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
+    runtime.provider_runner.cleanup.assert_not_awaited()
 
 
 def test_miniapp_cleanup_runs_when_event_worker_shutdown_fails(monkeypatch):
     runtime = _bot_runtime(monkeypatch)
+    runtime.provider_start.return_value = None
     monkeypatch.setattr(
         bot_module,
         "stop_guide_shop_event_worker",
@@ -110,26 +183,4 @@ def test_miniapp_cleanup_runs_when_event_worker_shutdown_fails(monkeypatch):
         run(bot_module.main())
 
     runtime.miniapp_runner.cleanup.assert_awaited_once_with()
-    runtime.provider_runner.cleanup.assert_awaited_once_with()
-
-
-def test_miniapp_cleanup_runs_when_polling_fails(monkeypatch):
-    runtime = _bot_runtime(monkeypatch)
-    runtime.polling.side_effect = RuntimeError("polling failed")
-
-    with pytest.raises(RuntimeError, match="polling failed"):
-        run(bot_module.main())
-
-    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
-    runtime.provider_runner.cleanup.assert_awaited_once_with()
-
-
-def test_miniapp_cleanup_runs_when_provider_cleanup_fails(monkeypatch):
-    runtime = _bot_runtime(monkeypatch)
-    runtime.provider_runner.cleanup.side_effect = RuntimeError("provider cleanup failed")
-
-    with pytest.raises(RuntimeError, match="provider cleanup failed"):
-        run(bot_module.main())
-
-    runtime.provider_runner.cleanup.assert_awaited_once_with()
-    runtime.miniapp_runner.cleanup.assert_awaited_once_with()
+    runtime.provider_runner.cleanup.assert_not_awaited()
