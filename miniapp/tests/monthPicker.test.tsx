@@ -9,7 +9,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { MonthPicker } from '@/features/calendar/components/MonthPicker';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
-import { Feed } from '@/features/calendar/components/Feed';
+import { Feed, ALL_FEED_DATES } from '@/features/calendar/components/Feed';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { DOW_SHORT, MONTH_NAMES_CAP } from '@/i18n/ru';
@@ -48,9 +48,8 @@ function MonthPickerExpandedPage() {
   );
 }
 
-function FeedCountProbe() {
-  const { feedDayCount } = useCalendar();
-  return <span data-testid="feed-count">{feedDayCount}</span>;
+function FeedRangeProbe() {
+  return <span data-testid="feed-count">{ALL_FEED_DATES.length}</span>;
 }
 
 function VisibleMonthProbe() {
@@ -90,7 +89,7 @@ function CalendarShellLike() {
         onSettings={ctx.openSettings}
       />
       {ctx.activeTab === 'calendar' ? <CalendarPage /> : <ReportsPage />}
-      <FeedCountProbe />
+      <FeedRangeProbe />
       <VisibleMonthProbe />
       <Feed />
     </>
@@ -289,7 +288,7 @@ describe('MonthPicker header anchoring', () => {
     expect(scrollIntoViewSpy).not.toHaveBeenCalled();
   });
 
-  it('opening picker preserves feed chunk count', () => {
+  it('opening picker preserves bounded feed date count', () => {
     wrap(<CalendarShellLike />);
     const before = screen.getByTestId('feed-count').textContent;
     clickHeaderMonthToggle();
