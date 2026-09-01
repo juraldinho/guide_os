@@ -113,7 +113,7 @@ export const t = {
   profRemoveLanguage: (lang: string) => `Удалить язык: ${lang}`,
   profSaving: 'Сохранение…',
   profValNoType: 'Выберите хотя бы один тип гида',
-  profValLocalGeo: 'Выберите один город для локального гида',
+  profValLocalGeo: 'Выберите географию локального гида',
   profValRouteGeo: 'Выберите географию маршрутного гида',
   profValAccompanyingGeo: 'Выберите географию сопровождающего гида',
   profValNoLanguage: 'Выберите хотя бы один язык',

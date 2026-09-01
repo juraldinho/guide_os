@@ -223,7 +223,7 @@ def _normalize_guide_type_entry(item: Any) -> dict[str, Any]:
     if type_code == "local":
         if all_uzbekistan:
             raise ValueError("invalid types")
-        if len(geo) != 1:
+        if not geo:
             raise ValueError("invalid types")
     else:
         if all_uzbekistan and geo:

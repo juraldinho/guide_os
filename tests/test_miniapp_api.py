@@ -568,11 +568,36 @@ def test_profile_rejects_local_without_city(seeded_user):
     )
 
 
-def test_profile_rejects_local_with_multiple_cities(seeded_user):
+def test_profile_save_local_type_with_multiple_cities(seeded_user):
+    response = _patch_profile(
+        seeded_user,
+        {"types": [{"type": "local", "geo": ["Самарканд", "Бухара"], "allUzbekistan": False}]},
+    )
+    data = response_json(response)["data"]
+    assert response.status == 200
+    assert data["types"] == [
+        {
+            "type": "local",
+            "label": "Локальный гид",
+            "geo": ["Самарканд", "Бухара"],
+            "allUzbekistan": False,
+        }
+    ]
+
+
+def test_profile_rejects_local_duplicate_geography(seeded_user):
     _assert_validation_error(
         _patch_profile(
             seeded_user,
-            {"types": [{"type": "local", "geo": ["Самарканд", "Бухара"], "allUzbekistan": False}]},
+            {
+                "types": [
+                    {
+                        "type": "local",
+                        "geo": ["Самарканд", "Самарканд"],
+                        "allUzbekistan": False,
+                    }
+                ]
+            },
         )
     )
 

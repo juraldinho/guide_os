@@ -84,9 +84,10 @@ function accompanyingFieldset() {
   return screen.getByText(t.profAccompanyingGeoLegend).closest('fieldset');
 }
 
-function selectLocalGeo(geo: string) {
+function toggleLocalGeo(geo: string) {
   const fieldset = localFieldset();
-  const label = fieldset?.querySelector(`input[value="${geo}"]`)?.closest('label');
+  const labels = fieldset?.querySelectorAll('label') ?? [];
+  const label = Array.from(labels).find((el) => el.textContent?.includes(geo));
   if (!label) throw new Error(`Local geo not found: ${geo}`);
   fireEvent.click(label);
 }
@@ -196,6 +197,23 @@ describe('ProfessionalProfileEditor', () => {
       expect(screen.getByText('Русский, Английский')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: t.profEditProfile })).toBeInTheDocument();
     });
+
+    it('shows multiple local cities joined by commas in summary', () => {
+      const multiLocalProfile: GuideProfile = {
+        ...baseProfile,
+        types: [
+          {
+            type: 'local',
+            label: 'Локальный гид',
+            geo: ['Самарканд', 'Бухара'],
+            allUzbekistan: false,
+          },
+        ],
+        languages: ['Русский'],
+      };
+      renderEditor(multiLocalProfile);
+      expect(screen.getByText('Самарканд, Бухара')).toBeInTheDocument();
+    });
   });
 
   describe('type and geography', () => {
@@ -210,15 +228,69 @@ describe('ProfessionalProfileEditor', () => {
       expect(screen.getByLabelText(t.profGuideTypeAccompanying)).toBeChecked();
     });
 
-    it('local guide allows exactly one geography selection', () => {
+    it('local guide uses checkboxes, not radio buttons', () => {
       renderEditor(baseProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
-      selectLocalGeo('Ташкент');
-      const checked = localFieldset()?.querySelectorAll('input[type="radio"]:checked');
+      expect(localFieldset()?.querySelectorAll('input[type="radio"]').length).toBe(0);
+      expect(localFieldset()?.querySelectorAll('input[type="checkbox"]').length).toBeGreaterThan(0);
+    });
+
+    it('local guide allows multiple geography selections', () => {
+      renderEditor(baseProfile);
+      openEditor();
+      toggleType(t.profGuideTypeLocal);
+      toggleLocalGeo('Самарканд');
+      toggleLocalGeo('Бухара');
+      expect(localFieldset()?.querySelectorAll('input[type="checkbox"]:checked').length).toBe(2);
+    });
+
+    it('deselecting one local city keeps other local cities selected', () => {
+      renderEditor(baseProfile);
+      openEditor();
+      toggleType(t.profGuideTypeLocal);
+      toggleLocalGeo('Самарканд');
+      toggleLocalGeo('Бухара');
+      toggleLocalGeo('Самарканд');
+      const checked = localFieldset()?.querySelectorAll('input[type="checkbox"]:checked');
       expect(checked?.length).toBe(1);
-      expect((checked?.[0] as HTMLInputElement)?.value).toBe('Ташкент');
+      expect(checked?.[0]?.closest('label')?.textContent).toContain('Бухара');
+    });
+
+    it('does not render all-uzbekistan control for local guide', () => {
+      renderEditor(baseProfile);
+      openEditor();
+      toggleType(t.profGuideTypeLocal);
+      expect(localFieldset()?.textContent).not.toContain(t.profAllUzbekistan);
+    });
+
+    it('restores all local cities when editing existing multi-city profile', () => {
+      const multiLocalProfile: GuideProfile = {
+        ...baseProfile,
+        types: [
+          {
+            type: 'local',
+            label: 'Локальный гид',
+            geo: ['Самарканд', 'Бухара'],
+            allUzbekistan: false,
+          },
+        ],
+        languages: ['Русский'],
+      };
+      renderEditor(multiLocalProfile);
+      openEditorFromConfigured();
+      expect(localFieldset()?.querySelectorAll('input[type="checkbox"]:checked').length).toBe(2);
+    });
+
+    it('local geography does not affect route geography', () => {
+      renderEditor(baseProfile);
+      openEditor();
+      toggleType(t.profGuideTypeLocal);
+      toggleType(t.profGuideTypeRoute);
+      toggleLocalGeo('Самарканд');
+      toggleRouteGeo('Бухара');
+      expect(localFieldset()?.querySelectorAll('input[type="checkbox"]:checked').length).toBe(1);
+      expect(routeFieldset()?.querySelectorAll('input[type="checkbox"]:checked').length).toBe(1);
     });
 
     it('route allows multiple geography values', () => {
@@ -277,7 +349,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo(GEOGRAPHY_OPTIONS[0]);
+      toggleLocalGeo(GEOGRAPHY_OPTIONS[0]);
       selectPresetLanguage('Русский');
       selectPresetLanguage('Английский');
       expect(screen.getByRole('button', { name: 'Русский' })).toHaveAttribute('aria-pressed', 'true');
@@ -298,7 +370,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       addCustomLanguage('  Польский  ');
       fireEvent.click(screen.getByRole('button', { name: t.save }));
       await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());
@@ -392,12 +464,28 @@ describe('ProfessionalProfileEditor', () => {
   });
 
   describe('save, cancel, and errors', () => {
+    it('save sends local payload with multiple cities', async () => {
+      const saveProfessionalProfile = vi.fn().mockResolvedValue(true);
+      renderEditor(baseProfile, saveProfessionalProfile);
+      openEditor();
+      toggleType(t.profGuideTypeLocal);
+      toggleLocalGeo('Самарканд');
+      toggleLocalGeo('Бухара');
+      selectPresetLanguage('Русский');
+      clickSave();
+      await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());
+      const [types] = saveProfessionalProfile.mock.calls[0];
+      expect(types).toEqual([
+        { type: 'local', geo: ['Самарканд', 'Бухара'], allUzbekistan: false },
+      ]);
+    });
+
     it('save sends only GuideTypeInput fields and languages', async () => {
       const saveProfessionalProfile = vi.fn().mockResolvedValue(true);
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       selectPresetLanguage('Русский');
       fireEvent.click(screen.getByRole('button', { name: t.save }));
       await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());
@@ -439,7 +527,7 @@ describe('ProfessionalProfileEditor', () => {
       const { rerender } = renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Ташкент');
+      toggleLocalGeo('Ташкент');
       selectPresetLanguage('Узбекский');
       fireEvent.click(screen.getByRole('button', { name: t.save }));
       await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());
@@ -458,7 +546,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       selectPresetLanguage('Русский');
       fireEvent.click(screen.getByRole('button', { name: t.save }));
       await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());
@@ -477,7 +565,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       selectPresetLanguage('Русский');
       fireEvent.click(screen.getByRole('button', { name: t.save }));
       expect(screen.getByRole('button', { name: t.profSaving })).toBeDisabled();
@@ -528,7 +616,7 @@ describe('ProfessionalProfileEditor', () => {
       expect(saveProfessionalProfile).not.toHaveBeenCalled();
     });
 
-    it('blocks save when local type has no city', async () => {
+    it('blocks save when local type has no geography', async () => {
       const saveProfessionalProfile = vi.fn().mockResolvedValue(true);
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
@@ -566,7 +654,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       clickSave();
       expect(screen.getByText(t.profValNoLanguage)).toBeInTheDocument();
       expect(saveProfessionalProfile).not.toHaveBeenCalled();
@@ -577,7 +665,7 @@ describe('ProfessionalProfileEditor', () => {
       renderEditor(baseProfile, saveProfessionalProfile);
       openEditor();
       toggleType(t.profGuideTypeLocal);
-      selectLocalGeo('Самарканд');
+      toggleLocalGeo('Самарканд');
       selectPresetLanguage('Русский');
       clickSave();
       await waitFor(() => expect(saveProfessionalProfile).toHaveBeenCalled());

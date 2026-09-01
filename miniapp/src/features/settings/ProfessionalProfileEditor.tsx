@@ -141,12 +141,14 @@ export function ProfessionalProfileEditor({
     setTypeDrafts((prev) => ({ ...prev, [code]: { geo: [], allUzbekistan: false } }));
   }, [selectedTypes]);
 
-  const selectLocalGeo = useCallback((geo: string) => {
+  const toggleLocalGeo = useCallback((geo: string) => {
     setFieldErrors((prev) => ({ ...prev, localGeo: undefined }));
-    setTypeDrafts((prev) => ({
-      ...prev,
-      local: { geo: [geo], allUzbekistan: false },
-    }));
+    setTypeDrafts((prev) => {
+      const draft = prev.local ?? { geo: [], allUzbekistan: false };
+      const has = draft.geo.includes(geo);
+      const nextGeo = has ? draft.geo.filter((g) => g !== geo) : [...draft.geo, geo];
+      return { ...prev, local: { geo: nextGeo, allUzbekistan: false } };
+    });
   }, []);
 
   const toggleMultiGeo = useCallback((code: 'route' | 'accompanying', geo: string) => {
@@ -217,7 +219,7 @@ export function ProfessionalProfileEditor({
     }
     if (selectedTypes.includes('local')) {
       const local = typeDrafts.local;
-      if (!local || local.geo.length !== 1) {
+      if (!local || local.geo.length === 0) {
         errors.localGeo = t.profValLocalGeo;
       }
     }
@@ -337,11 +339,9 @@ export function ProfessionalProfileEditor({
               {GEOGRAPHY_OPTIONS.map((geo) => (
                 <label key={geo} className="prof-check-label">
                   <input
-                    type="radio"
-                    name="prof-local-geo"
-                    value={geo}
-                    checked={localDraft?.geo[0] === geo}
-                    onChange={() => selectLocalGeo(geo)}
+                    type="checkbox"
+                    checked={localDraft?.geo.includes(geo) ?? false}
+                    onChange={() => toggleLocalGeo(geo)}
                   />
                   <span>{geo}</span>
                 </label>
