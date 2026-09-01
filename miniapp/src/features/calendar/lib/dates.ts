@@ -66,6 +66,25 @@ export function buildFeedDates(startIso: string, dayCount: number): string[] {
   return out;
 }
 
+export function shiftIso(iso: string, dayDelta: number): string {
+  const d = parseDate(iso);
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + dayDelta);
+  return toISO(next);
+}
+
+export function buildFeedDatesFromRange(fromIso: string, toIso: string): string[] {
+  if (toIso < fromIso) return [];
+  return daysInRange(fromIso, toIso);
+}
+
+/** Initial bidirectional window: one chunk into the past and the legacy forward span. */
+export function defaultFeedRange(todayIso: string): { from: string; to: string } {
+  return {
+    from: shiftIso(todayIso, -FEED_CHUNK_DAYS),
+    to: shiftIso(todayIso, FEED_INITIAL_DAYS - 1),
+  };
+}
+
 /** Days from `startIso` through `endIso` inclusive. */
 export function countDaysInclusive(startIso: string, endIso: string): number {
   const start = parseDate(startIso);

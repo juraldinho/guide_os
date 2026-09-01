@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { MOCK_TODAY } from '@/config';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { ENTRIES_RANGE_FROM, MOCK_TODAY } from '@/config';
 import { t } from '@/i18n/strings';
-import { buildFeedDates, parseDate, dowShortUpper } from '../lib/dates';
+import {
+  buildFeedDatesFromRange,
+  parseDate,
+  dowShortUpper,
+} from '../lib/dates';
 import { dayStatus, entriesOnDate, sortEntriesForDay } from '../lib/dayStatus';
 import { dayStatusText, statusLabel, timeLabel } from '../lib/format';
 import { useCalendar } from '../CalendarContext';
@@ -39,26 +43,53 @@ function monthYearKey(iso: string): string {
   return `${d.getFullYear()}-${d.getMonth()}`;
 }
 
+function applyScrollDelta(delta: number) {
+  if (delta === 0) return;
+  window.scrollBy(0, delta);
+  document.documentElement.scrollTop += delta;
+  document.body.scrollTop += delta;
+}
+
+function scrollTodayBelowHeader(smooth: boolean) {
+  const el = document.querySelector(`[data-feed-date="${MOCK_TODAY}"]`) as HTMLElement | null;
+  if (!el) return;
+  const headerBottom = getStickyHeaderBottom();
+  const top = el.getBoundingClientRect().top;
+  const delta = top - headerBottom;
+  if (delta === 0) return;
+  if (smooth) {
+    window.scrollBy({ top: delta, left: 0, behavior: 'smooth' });
+  } else {
+    applyScrollDelta(delta);
+  }
+}
+
 export function Feed() {
   const {
     entries,
-    feedDayCount,
+    feedFrom,
+    feedTo,
     scrollToTodaySignal,
     monthExpanded,
     openDayDetail,
     setVisibleFeedFromIso,
     extendFeed,
+    prependFeed,
   } = useCalendar();
 
   const dates = useMemo(
-    () => buildFeedDates(MOCK_TODAY, feedDayCount),
-    [feedDayCount],
+    () => buildFeedDatesFromRange(feedFrom, feedTo),
+    [feedFrom, feedTo],
   );
 
   const rowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const scrollRaf = useRef(0);
   const lastReportedMonthYearRef = useRef<string | null>(null);
+  const prependPendingRef = useRef(false);
+  const pendingPrependAnchorRef = useRef<{ iso: string; top: number } | null>(null);
+  const initialScrollDoneRef = useRef(false);
 
   const updateVisibleFromScroll = useCallback(() => {
     if (monthExpanded) return;
@@ -84,6 +115,58 @@ export function Feed() {
       updateVisibleFromScroll();
     });
   }, [updateVisibleFromScroll]);
+
+  const requestPrepend = useCallback(() => {
+    if (prependPendingRef.current || monthExpanded) return;
+    if (feedFrom <= ENTRIES_RANGE_FROM) return;
+
+    const anchorIso = pickVisibleFeedIso(
+      dates,
+      (date) => rowRefs.current.get(date),
+      getStickyHeaderBottom(),
+    );
+    const anchorEl = anchorIso ? rowRefs.current.get(anchorIso) : null;
+
+    prependPendingRef.current = true;
+    if (anchorIso && anchorEl) {
+      pendingPrependAnchorRef.current = {
+        iso: anchorIso,
+        top: anchorEl.getBoundingClientRect().top,
+      };
+    } else {
+      pendingPrependAnchorRef.current = null;
+    }
+    prependFeed();
+  }, [dates, feedFrom, monthExpanded, prependFeed]);
+
+  useLayoutEffect(() => {
+    const pending = pendingPrependAnchorRef.current;
+    if (!pending) {
+      if (prependPendingRef.current) {
+        prependPendingRef.current = false;
+        scheduleVisibleUpdate();
+      }
+      return;
+    }
+
+    const anchorEl = rowRefs.current.get(pending.iso);
+    if (anchorEl) {
+      const delta = anchorEl.getBoundingClientRect().top - pending.top;
+      applyScrollDelta(delta);
+    }
+
+    pendingPrependAnchorRef.current = null;
+    prependPendingRef.current = false;
+    scheduleVisibleUpdate();
+  }, [feedFrom, scheduleVisibleUpdate]);
+
+  useLayoutEffect(() => {
+    if (initialScrollDoneRef.current) return;
+    if (!dates.includes(MOCK_TODAY)) return;
+    scrollTodayBelowHeader(false);
+    initialScrollDoneRef.current = true;
+    scheduleVisibleUpdate();
+  }, [dates, scheduleVisibleUpdate]);
 
   useEffect(() => {
     const onScroll = () => scheduleVisibleUpdate();
@@ -124,8 +207,23 @@ export function Feed() {
   }, [monthExpanded, scheduleVisibleUpdate]);
 
   useEffect(() => {
-    if (!sentinelRef.current) return;
-    const sentinel = sentinelRef.current;
+    if (!topSentinelRef.current) return;
+    const sentinel = topSentinelRef.current;
+    const observer = new IntersectionObserver(
+      (entriesObserved) => {
+        if (entriesObserved.some((e) => e.isIntersecting)) {
+          requestPrepend();
+        }
+      },
+      { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [requestPrepend, feedFrom]);
+
+  useEffect(() => {
+    if (!bottomSentinelRef.current) return;
+    const sentinel = bottomSentinelRef.current;
     const observer = new IntersectionObserver(
       (entriesObserved) => {
         if (entriesObserved.some((e) => e.isIntersecting)) {
@@ -136,14 +234,11 @@ export function Feed() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [extendFeed, dates.length]);
+  }, [extendFeed, feedTo]);
 
   useEffect(() => {
     if (scrollToTodaySignal === 0) return;
-    const el = rowRefs.current.get(MOCK_TODAY);
-    if (el) {
-      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    }
+    scrollTodayBelowHeader(true);
     scheduleVisibleUpdate();
     const followUp = window.setInterval(scheduleVisibleUpdate, 120);
     window.setTimeout(() => window.clearInterval(followUp), 900);
@@ -156,6 +251,12 @@ export function Feed() {
 
   return (
     <div className="day-feed">
+      <div
+        ref={topSentinelRef}
+        className="feed-load-sentinel feed-load-sentinel-top"
+        data-testid="feed-sentinel-top"
+        aria-hidden="true"
+      />
       {dates.map((iso) => {
         const dayEntries = sortEntriesForDay(entriesOnDate(iso, entries));
         const today = iso === MOCK_TODAY;
@@ -198,7 +299,12 @@ export function Feed() {
           </button>
         );
       })}
-      <div ref={sentinelRef} className="feed-load-sentinel" aria-hidden="true" />
+      <div
+        ref={bottomSentinelRef}
+        className="feed-load-sentinel"
+        data-testid="feed-sentinel-bottom"
+        aria-hidden="true"
+      />
     </div>
   );
 }

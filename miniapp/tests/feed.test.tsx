@@ -6,11 +6,14 @@ import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarConte
 import { CalendarPage } from '@/features/calendar/CalendarPage';
 import { Feed, pickVisibleFeedIso, getStickyHeaderBottom } from '@/features/calendar/components/Feed';
 import { AppHeader } from '@/components/layout/AppHeader';
-import { MOCK_TODAY, USE_MOCK_API } from '@/config';
+import { MOCK_TODAY, USE_MOCK_API, ENTRIES_RANGE_FROM, ENTRIES_RANGE_TO } from '@/config';
 import {
   buildFeedDates,
+  buildFeedDatesFromRange,
+  defaultFeedRange,
   FEED_INITIAL_DAYS,
   FEED_CHUNK_DAYS,
+  shiftIso,
 } from '@/features/calendar/lib/dates';
 import { MONTH_NAMES_CAP } from '@/i18n/ru';
 
@@ -50,11 +53,24 @@ function HeaderFromContext() {
 }
 
 function FeedProbe() {
-  const { feedDayCount, extendFeed } = useCalendar();
+  const { feedFrom, feedTo, feedDayCount, extendFeed, prependFeed } = useCalendar();
   return (
     <>
+      <span data-testid="feed-from">{feedFrom}</span>
+      <span data-testid="feed-to">{feedTo}</span>
       <span data-testid="feed-count">{feedDayCount}</span>
       <button type="button" onClick={extendFeed}>extend-feed</button>
+      <button type="button" onClick={prependFeed}>prepend-feed</button>
+    </>
+  );
+}
+
+function GoTodayProbe() {
+  const { goToday, prependFeed } = useCalendar();
+  return (
+    <>
+      <button type="button" onClick={() => prependFeed()}>prepend-once</button>
+      <button type="button" onClick={goToday}>go-today</button>
     </>
   );
 }
@@ -202,6 +218,85 @@ describe('Feed scroll month tracking', () => {
     expect(rafCallbacks.length).toBe(1);
   });
 
+  it('switches header from September to August when scrolling upward', async () => {
+    wrap(
+      <>
+        <HeaderFromContext />
+        <VisibleMonthProbe />
+        <Feed />
+      </>,
+    );
+
+    const header = document.querySelector('.header') as HTMLElement;
+    Object.defineProperty(header, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => mockRect(HEADER_BOTTOM, 52),
+    });
+
+    fireEvent.click(screen.getByText('show-september'));
+    expect(document.querySelector('.header-month-label')?.textContent).toContain(MONTH_NAMES_CAP[8]);
+
+    const rows = screen.getAllByRole('button');
+    rows.forEach((row) => {
+      const iso = row.getAttribute('data-feed-date') ?? '';
+      if (iso === '2026-08-31') {
+        mockRowBottom(row, HEADER_BOTTOM + 1);
+      } else if (iso < '2026-08-31') {
+        mockRowBottom(row, HEADER_BOTTOM);
+      } else {
+        mockRowBottom(row, HEADER_BOTTOM + 200);
+      }
+    });
+
+    fireEvent.scroll(document);
+    await waitFor(() => {
+      expect(document.querySelector('.header-month-label')?.textContent).toContain(MONTH_NAMES_CAP[7]);
+    });
+  });
+
+  it('switches header month and year upward across January boundary', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <HeaderFromContext />
+        <VisibleMonthProbe />
+        <Feed />
+      </>,
+    );
+
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(screen.getByText('extend-feed'));
+    }
+
+    const header = document.querySelector('.header') as HTMLElement;
+    Object.defineProperty(header, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => mockRect(HEADER_BOTTOM, 52),
+    });
+
+    fireEvent.click(screen.getByText('show-january-2027'));
+    expect(document.querySelector('.header-month-label')?.textContent).toContain(`${MONTH_NAMES_CAP[0]} 2027`);
+
+    const rows = screen.getAllByRole('button');
+    const dec31 = rows.find((r) => r.getAttribute('data-feed-date') === '2026-12-31');
+    expect(dec31).toBeTruthy();
+    rows.forEach((row) => {
+      const iso = row.getAttribute('data-feed-date') ?? '';
+      if (iso === '2026-12-31') {
+        mockRowBottom(row, HEADER_BOTTOM + 1);
+      } else if (iso < '2026-12-31') {
+        mockRowBottom(row, HEADER_BOTTOM);
+      } else {
+        mockRowBottom(row, HEADER_BOTTOM + 200);
+      }
+    });
+
+    fireEvent.scroll(document);
+    await waitFor(() => {
+      expect(document.querySelector('.header-month-label')?.textContent).toContain(`${MONTH_NAMES_CAP[11]} 2026`);
+    });
+  });
+
   it('recalculates on document capture scroll', async () => {
     wrap(
       <>
@@ -299,6 +394,32 @@ describe('Feed scroll month tracking', () => {
   });
 });
 
+describe('defaultFeedRange', () => {
+  it('includes today with dates before and after for immediate bidirectional scroll', () => {
+    const { from, to } = defaultFeedRange(MOCK_TODAY);
+    const dates = buildFeedDatesFromRange(from, to);
+    expect(dates.includes(MOCK_TODAY)).toBe(true);
+    expect(dates.some((d) => d < MOCK_TODAY)).toBe(true);
+    expect(dates.some((d) => d > MOCK_TODAY)).toBe(true);
+    expect(dates[0]).toBe(from);
+    expect(dates[dates.length - 1]).toBe(to);
+  });
+
+  it('prepend chunk math clamps at ENTRIES_RANGE_FROM', () => {
+    const from = '2020-02-01';
+    const next = shiftIso(from, -FEED_CHUNK_DAYS);
+    const clamped = next < ENTRIES_RANGE_FROM ? ENTRIES_RANGE_FROM : next;
+    expect(clamped).toBe(ENTRIES_RANGE_FROM);
+  });
+
+  it('extend chunk math clamps at ENTRIES_RANGE_TO', () => {
+    const to = '2030-12-01';
+    const next = shiftIso(to, FEED_CHUNK_DAYS);
+    const clamped = next > ENTRIES_RANGE_TO ? ENTRIES_RANGE_TO : next;
+    expect(clamped).toBe(ENTRIES_RANGE_TO);
+  });
+});
+
 describe('buildFeedDates', () => {
   it('starts on mock today with initial chunk size', () => {
     const dates = buildFeedDates(MOCK_TODAY, FEED_INITIAL_DAYS);
@@ -343,17 +464,43 @@ describe('Feed', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders more than eight day rows from mock today', () => {
+  it('renders bidirectional initial day count', () => {
     wrap(<Feed />);
     const rows = screen.getAllByRole('button');
-    expect(rows.length).toBeGreaterThan(8);
-    expect(rows.length).toBe(FEED_INITIAL_DAYS);
+    const expectedCount = buildFeedDatesFromRange(
+      defaultFeedRange(MOCK_TODAY).from,
+      defaultFeedRange(MOCK_TODAY).to,
+    ).length;
+    expect(rows.length).toBe(expectedCount);
+    expect(rows.length).toBeGreaterThan(FEED_INITIAL_DAYS);
   });
 
-  it('first row is mock today', () => {
+  it('includes today with earlier dates in the feed', () => {
     wrap(<Feed />);
-    const rows = screen.getAllByRole('button');
-    expect(rows[0].getAttribute('data-feed-date')).toBe(MOCK_TODAY);
+    const isos = screen
+      .getAllByRole('button')
+      .map((r) => r.getAttribute('data-feed-date'))
+      .filter(Boolean) as string[];
+    expect(isos.includes(MOCK_TODAY)).toBe(true);
+    expect(isos.some((iso) => iso < MOCK_TODAY)).toBe(true);
+    expect(isos[0] < MOCK_TODAY).toBe(true);
+  });
+
+  it('keeps chronological ascending DOM order', () => {
+    wrap(<Feed />);
+    const isos = screen
+      .getAllByRole('button')
+      .map((r) => r.getAttribute('data-feed-date'))
+      .filter(Boolean) as string[];
+    for (let i = 1; i < isos.length; i++) {
+      expect(isos[i] >= isos[i - 1]).toBe(true);
+    }
+  });
+
+  it('uses distinct top and bottom sentinel markers', () => {
+    wrap(<Feed />);
+    expect(screen.getByTestId('feed-sentinel-top')).toBeTruthy();
+    expect(screen.getByTestId('feed-sentinel-bottom')).toBeTruthy();
   });
 
   it('opens day detail when a row is clicked', () => {
@@ -363,23 +510,158 @@ describe('Feed', () => {
     expect(screen.getByLabelText('Назад к ленте')).toBeTruthy();
   });
 
-  it('extends feed chunk without duplicates', async () => {
+  it('extends feed forward by one chunk without duplicates', async () => {
     wrap(
       <>
         <FeedProbe />
         <Feed />
       </>,
     );
-    expect(screen.getByTestId('feed-count').textContent).toBe(String(FEED_INITIAL_DAYS));
+    const toBefore = screen.getByTestId('feed-to').textContent;
+    const countBefore = Number(screen.getByTestId('feed-count').textContent);
     fireEvent.click(screen.getByText('extend-feed'));
     await waitFor(() => {
-      expect(screen.getByTestId('feed-count').textContent).toBe(
-        String(FEED_INITIAL_DAYS + FEED_CHUNK_DAYS),
+      expect(screen.getByTestId('feed-to').textContent).not.toBe(toBefore);
+      expect(Number(screen.getByTestId('feed-count').textContent)).toBe(
+        countBefore + FEED_CHUNK_DAYS,
       );
     });
     const rows = screen.getAllByRole('button');
     const isos = rows.map((r) => r.getAttribute('data-feed-date')).filter(Boolean);
     expect(new Set(isos).size).toBe(isos.length);
+  });
+
+  it('prepends feed backward by one chunk without duplicates', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    const fromBefore = screen.getByTestId('feed-from').textContent;
+    const countBefore = Number(screen.getByTestId('feed-count').textContent);
+    fireEvent.click(screen.getByText('prepend-feed'));
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-from').textContent).not.toBe(fromBefore);
+      expect(Number(screen.getByTestId('feed-count').textContent)).toBe(
+        countBefore + FEED_CHUNK_DAYS,
+      );
+    });
+    const isos = screen
+      .getAllByRole('button')
+      .map((r) => r.getAttribute('data-feed-date'))
+      .filter(Boolean);
+    expect(new Set(isos).size).toBe(isos.length);
+  });
+
+  it('prepending preserves visible row position via scroll correction', async () => {
+    const observerHooks: Array<{
+      cb: IntersectionObserverCallback;
+      target: Element | null;
+    }> = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn((cb: IntersectionObserverCallback) => ({
+        observe: vi.fn((el: Element) => {
+          observerHooks.push({ cb, target: el });
+        }),
+        disconnect: vi.fn(),
+        unobserve: vi.fn(),
+      })),
+    );
+
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    wrap(<Feed />);
+
+    const todayRow = screen
+      .getAllByRole('button')
+      .find((r) => r.getAttribute('data-feed-date') === MOCK_TODAY);
+    expect(todayRow).toBeTruthy();
+
+    let rectTop = 180;
+    Object.defineProperty(todayRow!, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => mockRect(rectTop + 48, rectTop),
+    });
+
+    const topHook = observerHooks.find(
+      (h) => h.target?.getAttribute('data-testid') === 'feed-sentinel-top',
+    );
+    expect(topHook).toBeTruthy();
+    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+    rectTop = 260;
+    await waitFor(() => {
+      expect(scrollBy).toHaveBeenCalledWith(0, 80);
+    });
+    scrollBy.mockRestore();
+  });
+
+  it('logo Today works after prepending into the past', async () => {
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    wrap(
+      <>
+        <FeedProbe />
+        <HeaderFromContext />
+        <GoTodayProbe />
+        <Feed />
+      </>,
+    );
+    const initialFrom = screen.getByTestId('feed-from').textContent;
+    fireEvent.click(screen.getByText('prepend-once'));
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-from').textContent).not.toBe(initialFrom);
+    });
+
+    const todayRow = screen
+      .getAllByRole('button')
+      .find((r) => r.getAttribute('data-feed-date') === MOCK_TODAY);
+    expect(todayRow).toBeTruthy();
+    mockRowBottom(todayRow!, 420);
+
+    fireEvent.click(screen.getByLabelText('Сегодня'));
+    await waitFor(() => {
+      expect(scrollBy).toHaveBeenCalled();
+      expect(screen.getByText(`${MONTH_NAMES_CAP[7]} 2026`)).toBeTruthy();
+    });
+    scrollBy.mockRestore();
+  });
+
+  it('prepend-feed stops at ENTRIES_RANGE_FROM', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    for (let i = 0; i < 90; i++) {
+      fireEvent.click(screen.getByText('prepend-feed'));
+    }
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-from').textContent).toBe(ENTRIES_RANGE_FROM);
+    });
+  });
+
+  it('extend-feed stops at ENTRIES_RANGE_TO', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    for (let i = 0; i < 90; i++) {
+      fireEvent.click(screen.getByText('extend-feed'));
+    }
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-to').textContent).toBe(ENTRIES_RANGE_TO);
+    });
+  });
+
+  it('feed does not introduce horizontal overflow', () => {
+    wrap(<Feed />);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      document.documentElement.clientWidth + 1,
+    );
   });
 
   it('mock mode keeps deterministic today date', () => {
