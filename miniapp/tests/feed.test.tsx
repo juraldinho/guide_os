@@ -5,7 +5,7 @@ import { StrictMode } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
-import { Feed, pickVisibleFeedIso, getStickyHeaderBottom, resetFeedInitialPositionSessionForTests } from '@/features/calendar/components/Feed';
+import { Feed, pickVisibleFeedIso, getStickyHeaderBottom } from '@/features/calendar/components/Feed';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { MOCK_TODAY, USE_MOCK_API, ENTRIES_RANGE_FROM, ENTRIES_RANGE_TO } from '@/config';
 import {
@@ -145,11 +145,18 @@ function simulateScrollY(y: number) {
   Object.defineProperty(document.body, 'scrollTop', { configurable: true, value: y, writable: true });
 }
 
-function fireUserScroll(fromY: number, toY: number) {
-  simulateScrollY(fromY);
-  fireEvent.scroll(window);
-  simulateScrollY(toY);
-  fireEvent.scroll(window);
+function markSentinelOutside(hook: ObserverHook) {
+  hook.cb(
+    [{ isIntersecting: false, target: hook.target! } as IntersectionObserverEntry],
+    {} as IntersectionObserver,
+  );
+}
+
+function markSentinelIntersecting(hook: ObserverHook) {
+  hook.cb(
+    [{ isIntersecting: true, target: hook.target! } as IntersectionObserverEntry],
+    {} as IntersectionObserver,
+  );
 }
 
 function findObserverHook(hooks: ObserverHook[], testId: string) {
@@ -233,7 +240,6 @@ describe('Feed scroll month tracking', () => {
   const HEADER_BOTTOM = 100;
 
   beforeEach(() => {
-    resetFeedInitialPositionSessionForTests();
     simulateScrollY(0);
     vi.stubGlobal(
       'IntersectionObserver',
@@ -499,7 +505,6 @@ describe('buildFeedDates', () => {
 
 describe('Feed', () => {
   beforeEach(() => {
-    resetFeedInitialPositionSessionForTests();
     simulateScrollY(0);
     vi.stubGlobal(
       'IntersectionObserver',
@@ -645,11 +650,10 @@ describe('Feed', () => {
       },
     });
 
-    fireUserScroll(400, 300);
-
     const topHook = findObserverHook(hooks, 'feed-sentinel-top');
     expect(topHook).toBeTruthy();
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
 
     await waitFor(() => {
       expect(scrollBy).toHaveBeenCalledWith(0, 80);
@@ -736,7 +740,6 @@ describe('Feed sentinel regression', () => {
   const defaultTo = defaultFeedRange(MOCK_TODAY).to;
 
   beforeEach(() => {
-    resetFeedInitialPositionSessionForTests();
     simulateScrollY(0);
   });
 
@@ -795,7 +798,7 @@ describe('Feed sentinel regression', () => {
     expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
   });
 
-  it('top intersection without upward user scroll does not prepend', async () => {
+  it('top intersection before sentinel was outside does not prepend', async () => {
     const { hooks } = installIntersectionObserverCapture(false);
     wrap(
       <>
@@ -810,7 +813,7 @@ describe('Feed sentinel regression', () => {
     expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
   });
 
-  it('upward user scroll and top intersection prepends exactly one chunk', async () => {
+  it('top intersection after sentinel left viewport prepends exactly one chunk', async () => {
     const { hooks } = installIntersectionObserverCapture(false);
     wrap(
       <>
@@ -820,17 +823,16 @@ describe('Feed sentinel regression', () => {
     );
     await flushObserversEnabled();
 
-    fireUserScroll(500, 400);
-
     const topHook = findObserverHook(hooks, 'feed-sentinel-top');
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
     });
 
     const fromAfterFirst = screen.getByTestId('feed-from').textContent;
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelIntersecting(topHook!);
     expect(screen.getByTestId('feed-from').textContent).toBe(fromAfterFirst);
   });
 
@@ -845,16 +847,15 @@ describe('Feed sentinel regression', () => {
     await flushObserversEnabled();
 
     const topHook = findObserverHook(hooks, 'feed-sentinel-top');
-    fireUserScroll(500, 400);
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
     await waitFor(() => {
       expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
     });
     const fromAfterFirst = screen.getByTestId('feed-from').textContent;
 
-    topHook!.cb([{ isIntersecting: false, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
-    fireUserScroll(400, 300);
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-from').textContent).not.toBe(fromAfterFirst);
@@ -887,7 +888,7 @@ describe('Feed sentinel regression', () => {
     scrollBy.mockRestore();
   });
 
-  it('scroll-anchor correction does not count as upward user intent for another prepend', async () => {
+  it('scroll-anchor correction does not trigger a second prepend while sentinel stays intersecting', async () => {
     const HEADER_BOTTOM = 100;
     const header = document.createElement('header');
     header.className = 'header';
@@ -931,9 +932,9 @@ describe('Feed sentinel regression', () => {
       },
     });
 
-    fireUserScroll(500, 400);
     const topHook = findObserverHook(hooks, 'feed-sentinel-top');
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
     await waitFor(() => {
       expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
     });
@@ -941,15 +942,15 @@ describe('Feed sentinel regression', () => {
 
     await waitFor(() => expect(scrollBy).toHaveBeenCalledWith(0, 80));
 
-    topHook!.cb([{ isIntersecting: false, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
-    topHook!.cb([{ isIntersecting: true, target: topHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(topHook!);
+    markSentinelIntersecting(topHook!);
     expect(screen.getByTestId('feed-from').textContent).toBe(fromAfterFirst);
 
     document.body.removeChild(header);
     scrollBy.mockRestore();
   });
 
-  it('downward user scroll and bottom intersection appends exactly one chunk', async () => {
+  it('bottom intersection after sentinel left viewport appends exactly one chunk', async () => {
     const { hooks } = installIntersectionObserverCapture(false);
     wrap(
       <>
@@ -959,17 +960,16 @@ describe('Feed sentinel regression', () => {
     );
     await flushObserversEnabled();
 
-    fireUserScroll(100, 200);
-
     const bottomHook = findObserverHook(hooks, 'feed-sentinel-bottom');
-    bottomHook!.cb([{ isIntersecting: true, target: bottomHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelOutside(bottomHook!);
+    markSentinelIntersecting(bottomHook!);
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-to').textContent).not.toBe(defaultTo);
     });
 
     const toAfterFirst = screen.getByTestId('feed-to').textContent;
-    bottomHook!.cb([{ isIntersecting: true, target: bottomHook!.target! } as IntersectionObserverEntry], {} as IntersectionObserver);
+    markSentinelIntersecting(bottomHook!);
     expect(screen.getByTestId('feed-to').textContent).toBe(toAfterFirst);
   });
 
@@ -1019,6 +1019,34 @@ describe('Feed sentinel regression', () => {
       expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
     });
     expect(factory.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('repositions today on feed remount like Mini App reopen', async () => {
+    const HEADER_BOTTOM = 100;
+    const header = document.createElement('header');
+    header.className = 'header';
+    Object.defineProperty(header, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => mockRect(HEADER_BOTTOM, 52),
+    });
+    document.body.appendChild(header);
+
+    installIntersectionObserverCapture(false);
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+
+    const { unmount } = wrap(<Feed />);
+    await flushObserversEnabled();
+    const callsAfterFirst = scrollBy.mock.calls.length;
+
+    simulateScrollY(800);
+    unmount();
+
+    wrap(<Feed />);
+    await flushObserversEnabled();
+
+    expect(scrollBy.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    document.body.removeChild(header);
+    scrollBy.mockRestore();
   });
 });
 

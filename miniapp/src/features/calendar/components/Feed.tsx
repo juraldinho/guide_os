@@ -13,22 +13,10 @@ import { useCalendar } from '../CalendarContext';
 /** Subpixel guard only — not a visible scroll delay. */
 export const HEADER_BOUNDARY_EPSILON = 1e-3;
 
-/** Survives React StrictMode remount within one Mini App session. */
-let feedInitialPositionSessionDone = false;
-
-/** Test-only: reset session initial-position flag between test runs. */
-export function resetFeedInitialPositionSessionForTests(): void {
-  feedInitialPositionSessionDone = false;
-}
-
 export function getStickyHeaderBottom(): number {
   const header = document.querySelector('.header');
   if (!header) return 0;
   return header.getBoundingClientRect().bottom;
-}
-
-function getScrollY(): number {
-  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
 }
 
 /**
@@ -76,6 +64,12 @@ function scrollTodayBelowHeader(smooth: boolean) {
   }
 }
 
+function resetDocumentScrollTop() {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
 export function Feed() {
   const {
     entries,
@@ -102,7 +96,8 @@ export function Feed() {
   const prependPendingRef = useRef(false);
   const extendPendingRef = useRef(false);
   const pendingPrependAnchorRef = useRef<{ iso: string; top: number } | null>(null);
-  const initialPositioningCompleteRef = useRef(feedInitialPositionSessionDone);
+  const initialPositioningDoneRef = useRef(false);
+  const initialPositioningCompleteRef = useRef(false);
   const [observersEnabled, setObserversEnabled] = useState(false);
 
   const feedFromRef = useRef(feedFrom);
@@ -112,9 +107,10 @@ export function Feed() {
   const monthExpandedRef = useRef(monthExpanded);
   monthExpandedRef.current = monthExpanded;
 
-  const lastScrollYRef = useRef(0);
-  const userIntentUpRef = useRef(false);
-  const userIntentDownRef = useRef(false);
+  /** Top sentinel must leave the viewport before prepend can fire (blocks initial intersect). */
+  const topSentinelReadyRef = useRef(false);
+  /** Bottom sentinel must leave the viewport before append can fire. */
+  const bottomSentinelReadyRef = useRef(false);
   const topSentinelArmedRef = useRef(true);
   const bottomSentinelArmedRef = useRef(true);
   const programmaticScrollRef = useRef(false);
@@ -129,26 +125,14 @@ export function Feed() {
     fn();
     if (!deferClear) {
       programmaticScrollRef.current = false;
-      lastScrollYRef.current = getScrollY();
       return;
     }
     window.requestAnimationFrame(() => {
       programmaticScrollClearRaf.current = window.requestAnimationFrame(() => {
         programmaticScrollClearRaf.current = 0;
         programmaticScrollRef.current = false;
-        lastScrollYRef.current = getScrollY();
       });
     });
-  }, []);
-
-  const trackUserScrollIntent = useCallback(() => {
-    if (programmaticScrollRef.current) return;
-
-    const y = getScrollY();
-    const delta = y - lastScrollYRef.current;
-    if (delta < -1) userIntentUpRef.current = true;
-    if (delta > 1) userIntentDownRef.current = true;
-    lastScrollYRef.current = y;
   }, []);
 
   const updateVisibleFromScroll = useCallback(() => {
@@ -233,32 +217,27 @@ export function Feed() {
 
   useLayoutEffect(() => {
     if (!dates.includes(MOCK_TODAY)) return;
+    if (initialPositioningDoneRef.current) return;
 
-    if (feedInitialPositionSessionDone) {
-      initialPositioningCompleteRef.current = true;
-      lastScrollYRef.current = getScrollY();
-      if (!observersEnabled) {
-        window.requestAnimationFrame(() => setObserversEnabled(true));
-      }
-      return;
-    }
-
-    runProgrammaticScroll(() => scrollTodayBelowHeader(false));
-    feedInitialPositionSessionDone = true;
+    runProgrammaticScroll(() => {
+      resetDocumentScrollTop();
+      scrollTodayBelowHeader(false);
+    });
+    initialPositioningDoneRef.current = true;
     initialPositioningCompleteRef.current = true;
-    lastScrollYRef.current = getScrollY();
+    topSentinelReadyRef.current = false;
+    bottomSentinelReadyRef.current = false;
+    topSentinelArmedRef.current = true;
+    bottomSentinelArmedRef.current = true;
     scheduleVisibleUpdate();
 
     window.requestAnimationFrame(() => {
       setObserversEnabled(true);
     });
-  }, [dates, observersEnabled, runProgrammaticScroll, scheduleVisibleUpdate]);
+  }, [dates, runProgrammaticScroll, scheduleVisibleUpdate]);
 
   useEffect(() => {
-    const onScroll = () => {
-      trackUserScrollIntent();
-      scheduleVisibleUpdate();
-    };
+    const onScroll = () => scheduleVisibleUpdate();
 
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -283,7 +262,7 @@ export function Feed() {
       if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
       scrollRaf.current = 0;
     };
-  }, [scheduleVisibleUpdate, trackUserScrollIntent]);
+  }, [scheduleVisibleUpdate]);
 
   useEffect(() => {
     scheduleVisibleUpdate();
@@ -304,19 +283,19 @@ export function Feed() {
         if (!entry) return;
 
         if (!entry.isIntersecting) {
+          topSentinelReadyRef.current = true;
           topSentinelArmedRef.current = true;
           return;
         }
 
         if (!initialPositioningCompleteRef.current) return;
+        if (!topSentinelReadyRef.current) return;
         if (!topSentinelArmedRef.current) return;
-        if (!userIntentUpRef.current) return;
         if (prependPendingRef.current) return;
         if (monthExpandedRef.current) return;
         if (feedFromRef.current <= ENTRIES_RANGE_FROM) return;
 
         topSentinelArmedRef.current = false;
-        userIntentUpRef.current = false;
         requestPrepend();
       },
       { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
@@ -334,19 +313,19 @@ export function Feed() {
         if (!entry) return;
 
         if (!entry.isIntersecting) {
+          bottomSentinelReadyRef.current = true;
           bottomSentinelArmedRef.current = true;
           return;
         }
 
         if (!initialPositioningCompleteRef.current) return;
+        if (!bottomSentinelReadyRef.current) return;
         if (!bottomSentinelArmedRef.current) return;
-        if (!userIntentDownRef.current) return;
         if (extendPendingRef.current) return;
         if (monthExpandedRef.current) return;
         if (feedToRef.current >= ENTRIES_RANGE_TO) return;
 
         bottomSentinelArmedRef.current = false;
-        userIntentDownRef.current = false;
         requestExtend();
       },
       { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
