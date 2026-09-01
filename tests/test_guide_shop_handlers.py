@@ -156,6 +156,7 @@ def test_main_menu_keeps_local_guide_shop_section_when_reads_are_disabled(monkey
         ["📊 Статистика"],
         ["👤 Профиль"],
     ]
+    expected.append(["⚙️ Команды"])
     expected.append(["🛍 GuideShop"])
     assert menu_texts(get_main_menu(reads_enabled=False)) == expected
     assert menu_texts(get_main_menu(reads_enabled=True)) == expected

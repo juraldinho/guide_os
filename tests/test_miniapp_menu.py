@@ -6,7 +6,7 @@ import pytest
 from aiogram.types import MenuButtonCommands, MenuButtonWebApp
 
 import bot as bot_module
-from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
+from keyboards.main_menu import COMMANDS_MENU_LABEL, configure_guide_shop_menu, get_main_menu
 from services.miniapp_api_settings import MiniAppMenuSettings, normalize_miniapp_public_url
 
 
@@ -66,6 +66,7 @@ def test_main_reply_keyboard_unchanged_when_mini_app_enabled_in_settings():
         ["🔔 Уведомления"],
         ["📊 Статистика"],
         ["👤 Профиль"],
+        [COMMANDS_MENU_LABEL],
         ["🛍 GuideShop"],
     ]
     assert menu_texts(get_main_menu()) == expected

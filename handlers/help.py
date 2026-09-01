@@ -1,8 +1,18 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from keyboards.main_menu import COMMANDS_MENU_LABEL
+
 router = Router()
+
+COMMANDS_MENU_TEXT = (
+    "⚙️ Команды Guide OS\n\n"
+    "/start — открыть главное меню\n"
+    "/help — помощь и описание возможностей\n\n"
+    "Основные функции также доступны кнопками в меню ниже.\n\n"
+    "📱 Guide OS Mini App открывается через синюю кнопку Menu."
+)
 
 
 @router.message(Command("help"))
@@ -44,3 +54,8 @@ async def help_command(message: Message) -> None:
     )
 
     await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.text == COMMANDS_MENU_LABEL)
+async def commands_menu_button(message: Message) -> None:
+    await message.answer(COMMANDS_MENU_TEXT)

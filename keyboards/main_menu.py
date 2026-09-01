@@ -1,5 +1,7 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
+COMMANDS_MENU_LABEL = "⚙️ Команды"
+
 _guide_shop_reads_enabled: bool | None = None
 
 
@@ -19,6 +21,7 @@ def get_main_menu(reads_enabled: bool | None = None):
         [KeyboardButton(text="🔔 Уведомления")],
         [KeyboardButton(text="📊 Статистика")],
         [KeyboardButton(text="👤 Профиль")],
+        [KeyboardButton(text=COMMANDS_MENU_LABEL)],
     ]
 
     if reads_enabled:
