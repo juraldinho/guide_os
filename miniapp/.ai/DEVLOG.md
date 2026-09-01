@@ -185,5 +185,17 @@
 - Post-MA10 UX checkpoint closed after owner manual review in dedicated local Telegram test bot;
 - React Mini App interface approved as working MVP; no known blocking UX issues;
 - Verified UX: sticky header with centered month/year and logo→Today; continuous feed; month-boundary title switching; seven-column month picker anchored to sticky header; Reports single title and bottom-safe scroll; `Telegram.WebApp.ready()` + `expand()` on startup;
-- MA10 remains validated local Telegram E2E stage; MA11 hosted staging **deferred**; production **unauthorized**;
+- MA10 remains validated local Telegram E2E stage; MA11 hosted staging **deferred**; production pilot not yet authorized at that date;
 - next product task defined by owner only.
+
+## 2026-09-01 — Public production Mini App pilot validated and left active
+
+- **Guide OS Mini App public production pilot — ACTIVE and owner-validated** on production Guide OS bot via `MenuButtonWebApp`;
+- Owner explicitly approved **keeping the reversible public pilot enabled** (no rollback performed);
+- **Primary production account (PASS):** bot opens Mini App; signed `initData` auth; existing bot tours visible; Mini App tours visible in bot; shared production data via services/database; tour CRUD, day off, reports, profile, calendar;
+- **Second real Telegram account (PASS):** `/start` + Mini App; personal empty calendar; no visibility of first account data; bidirectional bot ↔ Mini App sync for create/edit/delete; return to first account confirms isolation; cross-account IDOR manual verification PASS;
+- **Automated evidence on `main`:** Mini App security/API targeted **133 passed**; full backend **1167 passed, 1 skipped**; month-picker **32 passed**; feed **32 passed**; production frontend builds successful; `git diff --check` clean;
+- Checkpoints: `2eb02f2` (API auth/validation hardening), `e8aed0b` (month cell status colors), `0076101` (feed day status colors);
+- **Formal general production release** not separately declared; production gate docs retained for future review;
+- **MA11** hosted closed staging not active next step; **no active coding/deployment task** until owner defines next step;
+- Reversible rollback documented (`MINI_APP_ENABLED=false`, optional `MINI_APP_API_ENABLED=false`, redeploy) — **not executed** per owner decision.

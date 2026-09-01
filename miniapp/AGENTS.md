@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-> Обновлено: 2026-08-31. Этапы **MA0–MA10 complete**. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). Следующий: **MA11** (hosted closed staging deploy — deferred until owner approval).
+> Обновлено: 2026-09-01. Этапы **MA0–MA10** — завершённые исторические этапы. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). **Public production pilot — ACTIVE, owner-validated** (2026-09-01). **Нет активной coding/deployment задачи** — следующий шаг только по явному запросу владельца.
 
 | Этап | Статус | Артефакт |
 |------|--------|----------|
@@ -21,13 +21,19 @@
 | MA8 | ✅ | Reports/availability via API (HTTP mode) |
 | MA9 | ✅ | Staging smoke + production gate docs |
 | MA10 | ✅ | Local Telegram E2E PASS (real initData, local stack) |
-| MA11 | ⏸ | Hosted closed staging deploy — deferred |
+| MA11 | ⏸ | Hosted closed staging — **не** текущая задача; owner вместо этого авторизовал reversible public production pilot |
 
-**Post-MA10 checkpoint (2026-08-31):** Owner-approved Mini App MVP UX — complete. React interface owner-validated in dedicated local test bot; no known blocking UX issues. Further UX refinements may be requested later.
+**Post-MA10 UX checkpoint (2026-08-31):** Owner-approved Mini App MVP UX — complete. React interface owner-validated in dedicated local test bot; no known blocking UX issues.
 
-**Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Web API** с **real initData auth** (MA6).
+**Public production pilot (2026-09-01):** Mini App доступен через production Guide OS bot (`MenuButtonWebApp`). Owner explicitly approved **оставить pilot enabled**. Two real Telegram accounts: bot ↔ Mini App synchronization PASS; cross-account isolation / IDOR manual verification PASS. Automated security evidence on `main` (commits `2eb02f2`, `e8aed0b`, `0076101`): targeted Mini App security/API **133 passed**; full backend **1167 passed, 1 skipped**; month-picker **32 passed**; feed **32 passed**; production frontend builds successful.
 
-Главная следующая задача — только в `.ai/NEXT_TASK.md`.
+**Formal general production release** — не объявлен отдельно. Production gate docs (`PRODUCTION_GATE_MA9.md`) сохранены для будущего formal release review; не утверждать, что каждый formal gate item complete.
+
+**Агентам:** не отключать pilot, не redeploy, не расширять scope и не объявлять formal general release без **нового явного запроса владельца**. Rollback reversible: `MINI_APP_ENABLED=false`, при необходимости `MINI_APP_API_ENABLED=false`, redeploy bot — только когда owner попросит скрыть Mini App.
+
+**Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Production Web API** с **real initData auth**; production bot и Mini App используют общий Guide OS data layer через shared services/database.
+
+Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **нет активной задачи**).
 
 ## Цель и приоритет
 

@@ -1,10 +1,14 @@
 # Guide OS Mini App — Project State
 
-> Обновлено: 2026-08-29
+> Обновлено: 2026-09-01
 
 ## Статус
 
-Этап **MA3 complete** на mocks. **MA4–MA8 complete** (backend + HTTP frontend). **MA9 complete** (staging smoke + production gate docs). **MA10 complete — local Telegram E2E PASS** (2026-08-30). **MA11** hosted closed staging — deferred until owner approval.
+Этапы **MA0–MA10** — завершённые исторические этапы. **MA9** complete (staging smoke + production gate docs). **MA10** complete — local Telegram E2E PASS (2026-08-30). Post-MA10 UX checkpoint complete (2026-08-31).
+
+**Public production pilot — ACTIVE, owner-validated** (2026-09-01). Mini App доступен через production Guide OS bot (`MenuButtonWebApp`). Owner explicitly approved leaving pilot enabled. **Formal general production release** not separately declared.
+
+**MA11** hosted closed staging — **not** the active next step; owner authorized reversible public production pilot instead. **No active coding/deployment task** — next step defined by owner only.
 
 Не описывать планируемую архитектуру как существующий код.
 
@@ -43,23 +47,25 @@
 handlers -> services -> database
 ```
 
-Mini App target:
+Production Mini App (pilot):
 
 ```text
-frontend -> Web API -> те же services -> database
+hosted frontend -> production Web API -> те же services -> production database
 ```
+
+Production bot и Mini App используют общий Guide OS data layer. Two-account isolation validated in production pilot (2026-09-01).
 
 GuideShop remains optional read-only through existing Guide OS client.
 
 ## Critical constraints
 
-- не менять production или действующий bot на mock/prototype stages;
 - не создавать вторую calendar business logic;
 - не давать frontend direct DB/GuideShop access;
 - не доверять frontend user ID/initDataUnsafe;
 - не запускать два независимых SQLite writers на одном volume;
-- staging полностью изолирован;
-- production feature default off до отдельного gate.
+- staging и production изолированы;
+- public production pilot reversible via feature flags — rollback only on owner request;
+- formal production gate docs retained — not a claim every gate item is complete.
 
 ## Canonical documents
 
@@ -74,12 +80,14 @@ GuideShop remains optional read-only through existing Guide OS client.
 - Product docs: present.
 - Mini App AGENTS: present.
 - Official external SVG source: present in Tourism OS marketing folder.
-- Wireframes/Figma: not started.
-- Frontend manifest/source/tests: present in `miniapp/` (mock default; HTTP client ready).
-- Web API: present (`web_api/`, `guide_os_miniapp_api.py`; feature flag off by default).
-- Telegram Mini App auth: initData validation + SQLite sessions (MA6); dev stub gated by flag.
+- Frontend manifest/source/tests: present in `miniapp/` (mock default locally; production hosted frontend operating in pilot).
+- Web API: present (`web_api/`, `guide_os_miniapp_api.py`); **operating in production pilot** with real initData auth.
+- Telegram Mini App auth: initData validation + SQLite sessions; dev stub gated by flag (not production path).
 - Time/daily-location schema: present (MA4 migrations).
-- Staging Mini App bot/deployment: absent.
+- Production Mini App frontend + API + auth: **present and owner-validated in public pilot**.
+- Production bot `MenuButtonWebApp`: **enabled** (owner-approved pilot).
+- Two-account data isolation: **validated** in production pilot.
+- Hosted closed staging (MA11): not the active deployment path; separate staging stack may exist historically but pilot runs on production bot.
 
 ## Scope discipline
 

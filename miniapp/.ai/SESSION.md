@@ -1,6 +1,64 @@
 # Guide OS Mini App — Session
 
-> Обновлено: 2026-08-31
+> Обновлено: 2026-09-01
+
+## Public production pilot validation — **ACTIVE, owner-validated**
+
+| Item | Status |
+|------|--------|
+| Date | 2026-09-01 |
+| Environment | Production Guide OS bot + production Mini App (hosted frontend/API on production stack) |
+| Access | Telegram `MenuButtonWebApp` on production bot |
+| Accounts | Two real Telegram accounts (primary + second new user) |
+| Bot ↔ Mini App sync | **PASS** |
+| Cross-account isolation | **PASS** (IDOR manual verification) |
+| Pilot status | **ACTIVE** — owner explicitly approved leaving pilot enabled |
+| Formal general release | **Not** separately declared |
+
+No Telegram IDs, bot tokens, session tokens, Railway variable values, raw `initData`, private URLs, or other secrets recorded in this file.
+
+### Owner-validated production scenarios — primary account (PASS)
+
+- Production bot opens Mini App successfully
+- Telegram signed `initData` authentication succeeds
+- Existing bot tours appear in Mini App
+- Tours created in Mini App appear in bot
+- Bot and Mini App share production data through shared services/database
+- Tour create, edit, delete, day off, reports, profile, calendar operate correctly
+
+### Owner-validated production scenarios — second account (PASS)
+
+- New user `/start` and Mini App open
+- Second account receives own empty/personal calendar state
+- Second account does **not** see first account tours, reports, profile, or other private data
+- Mini App tours and day-offs appear in bot for same second account
+- Bot-created tours appear in Mini App for same second account
+- Edit and delete synchronize both directions
+- Return to first account confirms second-account data not visible
+- Cross-account ownership isolation / IDOR manual verification passed
+
+### Automated security evidence (latest verified on `main`)
+
+| Suite | Result |
+|-------|--------|
+| Mini App security/API targeted tests | **133 passed** |
+| Full backend suite | **1167 passed, 1 skipped** |
+| Frontend month-picker tests | **32 passed** |
+| Frontend feed tests | **32 passed** |
+| Production frontend builds | successful |
+| `git diff --check` | clean |
+
+Relevant committed checkpoints on `main`:
+
+- `2eb02f2` — Harden Mini App API authentication and validation
+- `e8aed0b` — Color Mini App month cells by availability status
+- `0076101` — Color Mini App calendar feed by day status
+
+### Reversibility
+
+Pilot remains reversible when owner later requests hide: `MINI_APP_ENABLED=false`, optionally `MINI_APP_API_ENABLED=false`, redeploy production bot, refresh menu/`/start`. **Not performed** — owner decided to keep pilot enabled.
+
+---
 
 ## Post-MA10 UX checkpoint: **Owner-approved Mini App MVP UX — complete**
 
@@ -19,11 +77,9 @@
 - Reports: single `Итоги` title (header only); bottom action reachable above fixed navigation
 - Automatic `Telegram.WebApp.ready()` + `expand()` on startup (owner device PASS)
 
-Further UX refinements may be requested; no active coding task until owner defines next step.
+## MA10 status: **complete — local Telegram E2E PASS** (historical)
 
-## MA10 status: **complete — local Telegram E2E PASS**
-
-### What was validated (local only)
+### What was validated (local only — MA10)
 
 | Layer | Setup |
 |-------|--------|
@@ -35,11 +91,9 @@ Further UX refinements may be requested; no active coding task until owner defin
 | Database | Local development SQLite |
 | Access control | Owner-only `MINI_APP_API_ALLOWLIST` |
 
-Railway deployment was **explicitly deferred**. Production was **unchanged**.
+At MA10 time Railway deployment was deferred and production was unchanged. **Subsequent 2026-09-01 public production pilot supersedes “production unchanged” for current operational state** — see section above.
 
-No secrets, Telegram IDs, tokens, tunnel URLs, or raw initData are stored in this documentation.
-
-### Owner-verified scenarios (PASS)
+### Owner-verified scenarios (MA10 local PASS)
 
 - Mini App opens from test bot; real session bootstrap
 - Settings; Telegram ID displayed
@@ -53,18 +107,10 @@ No secrets, Telegram IDs, tokens, tunnel URLs, or raw initData are stored in thi
 - Availability (August and September); clipboard copy
 - Profile/settings; light/dark theme
 
-### Not claimed
+### Railway note (historical)
 
-- **No** staging deployment PASS
-- **No** production deployment PASS
-- **No** Railway frontend service created for this validation
-
-### Railway note (historical, not part of MA10 PASS)
-
-Earlier MA10 attempt targeted Railway staging (`guide-os-staging-api`). That path was recovered with Mini App flag off and is **out of scope** for the MA10 local E2E result. Hosted staging remains **MA11**, deferred.
+Earlier MA10 attempt targeted Railway staging (`guide-os-staging-api`). Hosted closed staging checklist remains available for future owner-approved paths; **MA11 is not the active next step**.
 
 ### Next
 
-1. Owner approval required before **MA11** (hosted closed staging on Railway).
-2. When approved: follow [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md), then production gate still **not** approved until separate sign-off.
-3. No coding or deployment authorized until owner defines next product task.
+No coding or deployment authorized until owner defines next product, security, release, or rollback task. Public production pilot **remains enabled** by owner approval.
