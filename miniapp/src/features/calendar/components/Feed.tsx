@@ -13,33 +13,12 @@ import { useCalendar } from '../CalendarContext';
 /** Subpixel guard only — not a visible scroll delay. */
 export const HEADER_BOUNDARY_EPSILON = 1e-3;
 
-/** Matches legacy IntersectionObserver rootMargin top/bottom padding. */
-export const FEED_LOAD_MARGIN = 200;
+const FEED_IO_ROOT_MARGIN = '200px 0px 200px 0px';
 
 export function getStickyHeaderBottom(): number {
   const header = document.querySelector('.header');
   if (!header) return 0;
   return header.getBoundingClientRect().bottom;
-}
-
-function getViewportHeight(): number {
-  return window.innerHeight || document.documentElement.clientHeight || 0;
-}
-
-/**
- * Top sentinel entered the prepend band (near viewport top while scrolling up).
- */
-export function isTopSentinelInPrependZone(el: HTMLElement): boolean {
-  const { top, bottom } = el.getBoundingClientRect();
-  return bottom > 0 && top < FEED_LOAD_MARGIN;
-}
-
-/**
- * Bottom sentinel entered the extend band (near viewport bottom while scrolling down).
- */
-export function isBottomSentinelInExtendZone(el: HTMLElement): boolean {
-  const { top } = el.getBoundingClientRect();
-  return top < getViewportHeight() + FEED_LOAD_MARGIN;
 }
 
 /**
@@ -66,26 +45,15 @@ function monthYearKey(iso: string): string {
   return `${d.getFullYear()}-${d.getMonth()}`;
 }
 
-function applyScrollDelta(delta: number) {
+function scrollByDelta(delta: number) {
   if (delta === 0) return;
-  window.scrollBy(0, delta);
-  document.documentElement.scrollTop += delta;
-  document.body.scrollTop += delta;
-}
-
-function scrollTodayIntoView(smooth: boolean) {
-  const el = document.querySelector(`[data-feed-date="${MOCK_TODAY}"]`) as HTMLElement | null;
-  if (!el) return;
-  el.scrollIntoView({
-    block: 'start',
-    inline: 'nearest',
-    behavior: smooth ? 'smooth' : 'auto',
-  });
+  window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
 }
 
 export function Feed() {
   const {
     entries,
+    entriesReady,
     feedFrom,
     feedTo,
     scrollToTodaySignal,
@@ -109,9 +77,9 @@ export function Feed() {
   const prependPendingRef = useRef(false);
   const extendPendingRef = useRef(false);
   const pendingPrependAnchorRef = useRef<{ iso: string; top: number } | null>(null);
-  const initialPositioningDoneRef = useRef(false);
-  const initialPositioningCompleteRef = useRef(false);
-  const [chunkLoadingEnabled, setChunkLoadingEnabled] = useState(false);
+  const silentPreloadTopRef = useRef<number | null>(null);
+  const silentPreloadStartedRef = useRef(false);
+  const [feedObserversEnabled, setFeedObserversEnabled] = useState(false);
 
   const feedFromRef = useRef(feedFrom);
   feedFromRef.current = feedFrom;
@@ -119,43 +87,6 @@ export function Feed() {
   feedToRef.current = feedTo;
   const monthExpandedRef = useRef(monthExpanded);
   monthExpandedRef.current = monthExpanded;
-  const chunkLoadingEnabledRef = useRef(false);
-  chunkLoadingEnabledRef.current = chunkLoadingEnabled;
-
-  const topInZoneRef = useRef(false);
-  const bottomInZoneRef = useRef(false);
-  const programmaticScrollRef = useRef(false);
-  const programmaticScrollClearRaf = useRef(0);
-
-  const runProgrammaticScroll = useCallback((fn: () => void, deferClear = false) => {
-    programmaticScrollRef.current = true;
-    if (programmaticScrollClearRaf.current) {
-      window.cancelAnimationFrame(programmaticScrollClearRaf.current);
-      programmaticScrollClearRaf.current = 0;
-    }
-    fn();
-    if (!deferClear) {
-      programmaticScrollRef.current = false;
-      return;
-    }
-    window.requestAnimationFrame(() => {
-      programmaticScrollClearRaf.current = window.requestAnimationFrame(() => {
-        programmaticScrollClearRaf.current = 0;
-        programmaticScrollRef.current = false;
-      });
-    });
-  }, []);
-
-  const syncSentinelZoneState = useCallback(() => {
-    const topSentinel = topSentinelRef.current;
-    const bottomSentinel = bottomSentinelRef.current;
-    if (topSentinel) {
-      topInZoneRef.current = isTopSentinelInPrependZone(topSentinel);
-    }
-    if (bottomSentinel) {
-      bottomInZoneRef.current = isBottomSentinelInExtendZone(bottomSentinel);
-    }
-  }, []);
 
   const updateVisibleFromScroll = useCallback(() => {
     if (monthExpanded) return;
@@ -173,6 +104,14 @@ export function Feed() {
     lastReportedMonthYearRef.current = key;
     setVisibleFeedFromIso(iso);
   }, [dates, monthExpanded, setVisibleFeedFromIso]);
+
+  const scheduleVisibleUpdate = useCallback(() => {
+    if (scrollRaf.current) return;
+    scrollRaf.current = window.requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      updateVisibleFromScroll();
+    });
+  }, [updateVisibleFromScroll]);
 
   const requestPrepend = useCallback(() => {
     if (prependPendingRef.current || monthExpandedRef.current) return;
@@ -204,94 +143,54 @@ export function Feed() {
     extendFeed();
   }, [extendFeed]);
 
-  const runBoundaryCheck = useCallback(() => {
-    if (!chunkLoadingEnabledRef.current || monthExpandedRef.current) return;
-    if (programmaticScrollRef.current) return;
-
-    const topSentinel = topSentinelRef.current;
-    if (topSentinel && !prependPendingRef.current && feedFromRef.current > ENTRIES_RANGE_FROM) {
-      const inZone = isTopSentinelInPrependZone(topSentinel);
-      const enteredZone = inZone && !topInZoneRef.current;
-      topInZoneRef.current = inZone;
-      if (enteredZone) {
-        requestPrepend();
-      }
-    }
-
-    const bottomSentinel = bottomSentinelRef.current;
-    if (bottomSentinel && !extendPendingRef.current && feedToRef.current < ENTRIES_RANGE_TO) {
-      const inZone = isBottomSentinelInExtendZone(bottomSentinel);
-      const enteredZone = inZone && !bottomInZoneRef.current;
-      bottomInZoneRef.current = inZone;
-      if (enteredZone) {
-        requestExtend();
-      }
-    }
-  }, [requestExtend, requestPrepend]);
-
-  const scheduleScrollWork = useCallback(() => {
-    if (scrollRaf.current) return;
-    scrollRaf.current = window.requestAnimationFrame(() => {
-      scrollRaf.current = 0;
-      runBoundaryCheck();
-      updateVisibleFromScroll();
-    });
-  }, [runBoundaryCheck, updateVisibleFromScroll]);
+  const requestPrependRef = useRef(requestPrepend);
+  requestPrependRef.current = requestPrepend;
+  const requestExtendRef = useRef(requestExtend);
+  requestExtendRef.current = requestExtend;
 
   useLayoutEffect(() => {
-    const pending = pendingPrependAnchorRef.current;
-    if (!pending) {
-      if (prependPendingRef.current) {
-        prependPendingRef.current = false;
-        syncSentinelZoneState();
-        scheduleScrollWork();
-      }
-      return;
-    }
-
-    const anchorEl = rowRefs.current.get(pending.iso);
-    if (anchorEl) {
-      const delta = anchorEl.getBoundingClientRect().top - pending.top;
-      runProgrammaticScroll(() => applyScrollDelta(delta));
-    }
-
-    pendingPrependAnchorRef.current = null;
-    prependPendingRef.current = false;
-    syncSentinelZoneState();
-    scheduleScrollWork();
-  }, [feedFrom, runProgrammaticScroll, scheduleScrollWork, syncSentinelZoneState]);
-
-  useLayoutEffect(() => {
-    extendPendingRef.current = false;
-    syncSentinelZoneState();
-  }, [feedTo, syncSentinelZoneState]);
-
-  useLayoutEffect(() => {
+    if (!entriesReady || silentPreloadStartedRef.current) return;
     if (!dates.includes(MOCK_TODAY)) return;
 
     const todayEl = rowRefs.current.get(MOCK_TODAY);
     if (!todayEl) return;
-    if (initialPositioningDoneRef.current) return;
 
-    runProgrammaticScroll(() => scrollTodayIntoView(false));
-    initialPositioningDoneRef.current = true;
-    initialPositioningCompleteRef.current = true;
-    topInZoneRef.current = false;
-    bottomInZoneRef.current = false;
-    window.requestAnimationFrame(() => {
-      syncSentinelZoneState();
-      setChunkLoadingEnabled(true);
-    });
-  }, [dates, runProgrammaticScroll, syncSentinelZoneState]);
+    silentPreloadStartedRef.current = true;
+    silentPreloadTopRef.current = todayEl.getBoundingClientRect().top;
+    prependFeed();
+  }, [entriesReady, dates, prependFeed]);
+
+  useLayoutEffect(() => {
+    if (silentPreloadTopRef.current !== null) {
+      const todayEl = rowRefs.current.get(MOCK_TODAY);
+      if (todayEl) {
+        const delta = todayEl.getBoundingClientRect().top - silentPreloadTopRef.current;
+        scrollByDelta(delta);
+      }
+      silentPreloadTopRef.current = null;
+      setFeedObserversEnabled(true);
+    }
+
+    const pending = pendingPrependAnchorRef.current;
+    if (pending) {
+      const anchorEl = rowRefs.current.get(pending.iso);
+      if (anchorEl) {
+        const delta = anchorEl.getBoundingClientRect().top - pending.top;
+        scrollByDelta(delta);
+      }
+      pendingPrependAnchorRef.current = null;
+      prependPendingRef.current = false;
+    } else if (prependPendingRef.current) {
+      prependPendingRef.current = false;
+    }
+  }, [feedFrom]);
+
+  useLayoutEffect(() => {
+    extendPendingRef.current = false;
+  }, [feedTo]);
 
   useEffect(() => {
-    if (!chunkLoadingEnabled) return;
-    syncSentinelZoneState();
-    scheduleScrollWork();
-  }, [chunkLoadingEnabled, scheduleScrollWork, syncSentinelZoneState]);
-
-  useEffect(() => {
-    const onScroll = () => scheduleScrollWork();
+    const onScroll = () => scheduleVisibleUpdate();
 
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -303,7 +202,7 @@ export function Feed() {
       viewport.addEventListener('resize', onScroll);
     }
 
-    scheduleScrollWork();
+    scheduleVisibleUpdate();
 
     return () => {
       document.removeEventListener('scroll', onScroll, true);
@@ -316,33 +215,61 @@ export function Feed() {
       if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
       scrollRaf.current = 0;
     };
-  }, [scheduleScrollWork]);
+  }, [scheduleVisibleUpdate]);
 
   useEffect(() => {
-    scheduleScrollWork();
-  }, [dates.length, scheduleScrollWork]);
+    scheduleVisibleUpdate();
+  }, [dates.length, scheduleVisibleUpdate]);
 
   useEffect(() => {
     if (!monthExpanded) {
-      scheduleScrollWork();
+      scheduleVisibleUpdate();
     }
-  }, [monthExpanded, scheduleScrollWork]);
+  }, [monthExpanded, scheduleVisibleUpdate]);
+
+  useEffect(() => {
+    if (!feedObserversEnabled) return;
+
+    const bottomSentinel = bottomSentinelRef.current;
+    const topSentinel = topSentinelRef.current;
+    if (!bottomSentinel || !topSentinel) return;
+
+    const bottomObserver = new IntersectionObserver(
+      (entriesObserved) => {
+        if (entriesObserved.some((e) => e.isIntersecting)) {
+          requestExtendRef.current();
+        }
+      },
+      { root: null, rootMargin: FEED_IO_ROOT_MARGIN, threshold: 0 },
+    );
+    const topObserver = new IntersectionObserver(
+      (entriesObserved) => {
+        if (entriesObserved.some((e) => e.isIntersecting)) {
+          requestPrependRef.current();
+        }
+      },
+      { root: null, rootMargin: FEED_IO_ROOT_MARGIN, threshold: 0 },
+    );
+
+    bottomObserver.observe(bottomSentinel);
+    topObserver.observe(topSentinel);
+
+    return () => {
+      bottomObserver.disconnect();
+      topObserver.disconnect();
+    };
+  }, [feedObserversEnabled]);
 
   useEffect(() => {
     if (scrollToTodaySignal === 0) return;
-    runProgrammaticScroll(() => scrollTodayIntoView(true), true);
-    scheduleScrollWork();
-    const followUp = window.setInterval(scheduleScrollWork, 120);
+    const el = rowRefs.current.get(MOCK_TODAY);
+    if (el) {
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    scheduleVisibleUpdate();
+    const followUp = window.setInterval(scheduleVisibleUpdate, 120);
     window.setTimeout(() => window.clearInterval(followUp), 900);
-  }, [scrollToTodaySignal, runProgrammaticScroll, scheduleScrollWork]);
-
-  useEffect(() => {
-    return () => {
-      if (programmaticScrollClearRaf.current) {
-        window.cancelAnimationFrame(programmaticScrollClearRaf.current);
-      }
-    };
-  }, []);
+  }, [scrollToTodaySignal, scheduleVisibleUpdate]);
 
   const setRowRef = (iso: string, el: HTMLButtonElement | null) => {
     if (el) rowRefs.current.set(iso, el);

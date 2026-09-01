@@ -77,10 +77,10 @@ export function buildFeedDatesFromRange(fromIso: string, toIso: string): string[
   return daysInRange(fromIso, toIso);
 }
 
-/** Initial bidirectional window: one chunk into the past and the legacy forward span. */
+/** Initial forward window: today through FEED_INITIAL_DAYS consecutive days. */
 export function defaultFeedRange(todayIso: string): { from: string; to: string } {
   return {
-    from: shiftIso(todayIso, -FEED_CHUNK_DAYS),
+    from: todayIso,
     to: shiftIso(todayIso, FEED_INITIAL_DAYS - 1),
   };
 }

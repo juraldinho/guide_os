@@ -2,10 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { StrictMode } from 'react';
+import { guideOsClient } from '@/api/createClient';
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
-import { Feed, pickVisibleFeedIso, getStickyHeaderBottom, isTopSentinelInPrependZone, isBottomSentinelInExtendZone, FEED_LOAD_MARGIN } from '@/features/calendar/components/Feed';
+import { Feed, pickVisibleFeedIso, getStickyHeaderBottom } from '@/features/calendar/components/Feed';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { MOCK_TODAY, USE_MOCK_API, ENTRIES_RANGE_FROM, ENTRIES_RANGE_TO } from '@/config';
 import {
@@ -54,12 +55,13 @@ function HeaderFromContext() {
 }
 
 function FeedProbe() {
-  const { feedFrom, feedTo, feedDayCount, extendFeed, prependFeed } = useCalendar();
+  const { feedFrom, feedTo, feedDayCount, entriesReady, extendFeed, prependFeed } = useCalendar();
   return (
     <>
       <span data-testid="feed-from">{feedFrom}</span>
       <span data-testid="feed-to">{feedTo}</span>
       <span data-testid="feed-count">{feedDayCount}</span>
+      <span data-testid="entries-ready">{entriesReady ? 'yes' : 'no'}</span>
       <button type="button" onClick={extendFeed}>extend-feed</button>
       <button type="button" onClick={prependFeed}>prepend-feed</button>
     </>
@@ -118,11 +120,24 @@ function mockRowBottom(row: HTMLElement, bottom: number) {
   });
 }
 
-function mockSentinelRect(el: HTMLElement, top: number, height = 1) {
-  Object.defineProperty(el, 'getBoundingClientRect', {
-    configurable: true,
-    value: () => mockRect(top + height, top),
+async function waitForEntriesReady() {
+  await waitFor(() => {
+    expect(screen.getByTestId('entries-ready').textContent).toBe('yes');
   });
+}
+
+async function waitForFeedInitialized() {
+  await waitForEntriesReady();
+  await flushFeedRaf(2);
+}
+
+function silentPreloadFrom(): string {
+  const next = shiftIso(MOCK_TODAY, -FEED_CHUNK_DAYS);
+  return next < ENTRIES_RANGE_FROM ? ENTRIES_RANGE_FROM : next;
+}
+
+function countAfterSilentPreload(): number {
+  return FEED_INITIAL_DAYS + FEED_CHUNK_DAYS;
 }
 
 async function flushFeedRaf(times = 2) {
@@ -133,9 +148,61 @@ async function flushFeedRaf(times = 2) {
   }
 }
 
-async function triggerBoundaryCheck() {
-  fireEvent.scroll(window);
-  await flushFeedRaf();
+type ObserverHook = {
+  callback: IntersectionObserverCallback;
+  observe: ReturnType<typeof vi.fn>;
+};
+
+function installIntersectionObserverCapture() {
+  const hooks: ObserverHook[] = [];
+  vi.stubGlobal(
+    'IntersectionObserver',
+    vi.fn((callback: IntersectionObserverCallback) => {
+      const observe = vi.fn();
+      hooks.push({ callback, observe });
+      return {
+        observe,
+        disconnect: vi.fn(),
+        unobserve: vi.fn(),
+      };
+    }),
+  );
+  return hooks;
+}
+
+function observerForTarget(hooks: ObserverHook[], target: Element) {
+  return hooks.find((hook) =>
+    hook.observe.mock.calls.some((call) => call[0] === target),
+  );
+}
+
+function latestObserverForTarget(hooks: ObserverHook[], target: Element) {
+  const matched = hooks.filter((hook) =>
+    hook.observe.mock.calls.some((call) => call[0] === target),
+  );
+  return matched.at(-1);
+}
+
+async function fireObserverIntersecting(hooks: ObserverHook[], target: Element) {
+  const hook = latestObserverForTarget(hooks, target);
+  if (!hook) return;
+  await act(async () => {
+    hook.callback(
+      [{ isIntersecting: true, target } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+  });
+}
+
+async function fireObserverNotIntersecting(hooks: ObserverHook[], target: Element) {
+  const hook = latestObserverForTarget(hooks, target);
+  if (!hook) return;
+  await act(async () => {
+    hook.callback(
+      [{ isIntersecting: false, target } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+  });
 }
 
 function simulateScrollY(y: number) {
@@ -426,14 +493,13 @@ describe('Feed scroll month tracking', () => {
 });
 
 describe('defaultFeedRange', () => {
-  it('includes today with dates before and after for immediate bidirectional scroll', () => {
+  it('starts on today with forward initial span', () => {
     const { from, to } = defaultFeedRange(MOCK_TODAY);
     const dates = buildFeedDatesFromRange(from, to);
-    expect(dates.includes(MOCK_TODAY)).toBe(true);
-    expect(dates.some((d) => d < MOCK_TODAY)).toBe(true);
-    expect(dates.some((d) => d > MOCK_TODAY)).toBe(true);
-    expect(dates[0]).toBe(from);
-    expect(dates[dates.length - 1]).toBe(to);
+    expect(from).toBe(MOCK_TODAY);
+    expect(to).toBe(shiftIso(MOCK_TODAY, FEED_INITIAL_DAYS - 1));
+    expect(dates[0]).toBe(MOCK_TODAY);
+    expect(dates.length).toBe(FEED_INITIAL_DAYS);
   });
 
   it('prepend chunk math clamps at ENTRIES_RANGE_FROM', () => {
@@ -497,26 +563,46 @@ describe('Feed', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders bidirectional initial day count', () => {
+  it('renders forward initial day count from today', () => {
     wrap(<Feed />);
     const rows = screen.getAllByRole('button');
-    const expectedCount = buildFeedDatesFromRange(
-      defaultFeedRange(MOCK_TODAY).from,
-      defaultFeedRange(MOCK_TODAY).to,
-    ).length;
-    expect(rows.length).toBe(expectedCount);
-    expect(rows.length).toBeGreaterThan(FEED_INITIAL_DAYS);
+    expect(rows.length).toBe(FEED_INITIAL_DAYS);
+    expect(rows.length).toBe(
+      buildFeedDatesFromRange(
+        defaultFeedRange(MOCK_TODAY).from,
+        defaultFeedRange(MOCK_TODAY).to,
+      ).length,
+    );
   });
 
-  it('includes today with earlier dates in the feed', () => {
+  it('first row is mock today', () => {
     wrap(<Feed />);
+    const rows = screen.getAllByRole('button');
+    expect(rows[0].getAttribute('data-feed-date')).toBe(MOCK_TODAY);
+  });
+
+  it('includes today without prepended past days before entries settle', () => {
+    let resolveEntries!: (value: unknown[]) => void;
+    const entriesPromise = new Promise<unknown[]>((resolve) => {
+      resolveEntries = resolve;
+    });
+    vi.spyOn(guideOsClient, 'listEntries').mockReturnValue(entriesPromise as never);
+
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    expect(screen.getByTestId('entries-ready').textContent).toBe('no');
     const isos = screen
       .getAllByRole('button')
       .map((r) => r.getAttribute('data-feed-date'))
       .filter(Boolean) as string[];
-    expect(isos.includes(MOCK_TODAY)).toBe(true);
-    expect(isos.some((iso) => iso < MOCK_TODAY)).toBe(true);
-    expect(isos[0] < MOCK_TODAY).toBe(true);
+    expect(isos[0]).toBe(MOCK_TODAY);
+    expect(isos.some((iso) => iso < MOCK_TODAY)).toBe(false);
+
+    resolveEntries([]);
   });
 
   it('keeps chronological ascending DOM order', () => {
@@ -588,6 +674,7 @@ describe('Feed', () => {
   });
 
   it('prepending preserves visible row position via scroll correction', async () => {
+    const observerHooks = installIntersectionObserverCapture();
     const HEADER_BOTTOM = 100;
     const header = document.createElement('header');
     header.className = 'header';
@@ -597,8 +684,14 @@ describe('Feed', () => {
     });
     document.body.appendChild(header);
 
-    wrap(<Feed />);
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
     await flushFeedRaf();
+    await waitForFeedInitialized();
 
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
 
@@ -625,18 +718,14 @@ describe('Feed', () => {
       },
     });
 
-    const topSentinel = screen.getByTestId('feed-sentinel-top');
-    mockSentinelRect(topSentinel, 500);
-    await triggerBoundaryCheck();
     todayRectReads = 0;
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
+    await fireObserverIntersecting(observerHooks, screen.getByTestId('feed-sentinel-top'));
 
     await waitFor(() => {
       expect(screen.getAllByRole('button').length).toBeGreaterThan(rows.length);
     });
     await waitFor(() => {
-      expect(scrollBy).toHaveBeenCalledWith(0, 80);
+      expect(scrollBy).toHaveBeenCalledWith({ top: 80, left: 0, behavior: 'auto' });
     });
     document.body.removeChild(header);
     scrollBy.mockRestore();
@@ -709,32 +798,15 @@ describe('Feed', () => {
   });
 });
 
-describe('Feed chunk loading geometry', () => {
-  it('detects top sentinel inside prepend margin band', () => {
-    const el = document.createElement('div');
-    mockSentinelRect(el, FEED_LOAD_MARGIN - 10);
-    expect(isTopSentinelInPrependZone(el)).toBe(true);
-    mockSentinelRect(el, FEED_LOAD_MARGIN + 10);
-    expect(isTopSentinelInPrependZone(el)).toBe(false);
-  });
-
-  it('detects bottom sentinel inside extend margin band', () => {
-    const el = document.createElement('div');
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
-    mockSentinelRect(el, 850);
-    expect(isBottomSentinelInExtendZone(el)).toBe(true);
-    mockSentinelRect(el, 1200);
-    expect(isBottomSentinelInExtendZone(el)).toBe(false);
-  });
-});
-
 describe('Feed sentinel regression', () => {
-  const defaultFrom = defaultFeedRange(MOCK_TODAY).from;
-  const defaultTo = defaultFeedRange(MOCK_TODAY).to;
+  const initialTo = defaultFeedRange(MOCK_TODAY).to;
+  const afterSilentFrom = silentPreloadFrom();
+  let observerHooks: ObserverHook[];
 
   beforeEach(() => {
     simulateScrollY(0);
     Element.prototype.scrollIntoView = vi.fn();
+    observerHooks = installIntersectionObserverCapture();
   });
 
   afterEach(() => {
@@ -742,84 +814,166 @@ describe('Feed sentinel regression', () => {
     vi.restoreAllMocks();
   });
 
-  it('initial render does not prepend or extend before chunk loading is enabled', async () => {
+  it('initial mount does not call scrollIntoView', () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
     wrap(
       <>
         <FeedProbe />
         <Feed />
       </>,
     );
-    const topSentinel = screen.getByTestId('feed-sentinel-top');
-    mockSentinelRect(topSentinel, 10);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollIntoView.mockRestore();
+  });
+
+  it('sentinel observers are not active before entriesReady', async () => {
+    let resolveEntries!: (value: unknown[]) => void;
+    const entriesPromise = new Promise<unknown[]>((resolve) => {
+      resolveEntries = resolve;
+    });
+    vi.spyOn(guideOsClient, 'listEntries').mockReturnValue(entriesPromise as never);
+
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    expect(screen.getByTestId('entries-ready').textContent).toBe('no');
+    expect(observerForTarget(observerHooks, screen.getByTestId('feed-sentinel-top'))).toBeUndefined();
+    expect(observerForTarget(observerHooks, screen.getByTestId('feed-sentinel-bottom'))).toBeUndefined();
+
+    await act(async () => {
+      resolveEntries([]);
+      await entriesPromise;
+    });
+  });
+
+  it('silently preloads exactly one past chunk after entries become ready', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    await waitForFeedInitialized();
+    expect(screen.getByTestId('feed-from').textContent).toBe(afterSilentFrom);
+    expect(Number(screen.getByTestId('feed-count').textContent)).toBe(countAfterSilentPreload());
+  });
+
+  it('silent preload keeps today at the same visual top with one scrollBy', async () => {
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    let todayTop = 120;
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+
+    const todayRow = document.querySelector(`[data-feed-date="${MOCK_TODAY}"]`) as HTMLElement;
+    Object.defineProperty(todayRow, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => {
+        const top = todayTop;
+        todayTop += 80;
+        return mockRect(top + 48, top);
+      },
+    });
+
+    await waitForEntriesReady();
+    await flushFeedRaf(2);
+
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollBy).toHaveBeenCalledWith({ top: 80, left: 0, behavior: 'auto' });
+    scrollBy.mockRestore();
+  });
+
+  it('entries height changes after init do not move today or call scrollIntoView', async () => {
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    await waitForFeedInitialized();
+
+    const todayTop = 100;
+    const todayRow = document.querySelector(`[data-feed-date="${MOCK_TODAY}"]`) as HTMLElement;
+    Object.defineProperty(todayRow, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => mockRect(todayTop + 48, todayTop),
+    });
+
+    const scrollCallsAfterInit = scrollBy.mock.calls.length;
+    await act(async () => {
+      await guideOsClient.listEntries();
+    });
+    await flushFeedRaf();
+
+    expect(scrollBy.mock.calls.length).toBe(scrollCallsAfterInit);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(todayRow.getBoundingClientRect().top).toBe(todayTop);
+
+    scrollBy.mockRestore();
+    scrollIntoView.mockRestore();
+  });
+
+  it('after initialization, repeated scroll does not prepend again', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    await waitForFeedInitialized();
+    const fromAfterInit = screen.getByTestId('feed-from').textContent;
+
     fireEvent.scroll(window);
-    expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
-    expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
-  });
-
-  it('after initial positioning, sentinel in zone without zone entry does not load', async () => {
-    wrap(
-      <>
-        <FeedProbe />
-        <Feed />
-      </>,
-    );
-    await flushFeedRaf(5);
-    expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
-    expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
-
-    await triggerBoundaryCheck();
-
-    expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
-    expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
-  });
-
-  it('top sentinel entering prepend zone prepends exactly one chunk', async () => {
-    wrap(
-      <>
-        <FeedProbe />
-        <Feed />
-      </>,
-    );
     await flushFeedRaf();
+    expect(screen.getByTestId('feed-from').textContent).toBe(fromAfterInit);
+  });
+
+  it('top sentinel intersection prepends exactly one chunk', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    await waitForFeedInitialized();
 
     const topSentinel = screen.getByTestId('feed-sentinel-top');
-    mockSentinelRect(topSentinel, 500);
-    await triggerBoundaryCheck();
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
-
+    await fireObserverIntersecting(observerHooks, topSentinel);
     await waitFor(() => {
-      expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
+      expect(screen.getByTestId('feed-from').textContent).not.toBe(afterSilentFrom);
     });
-
-    const fromAfterFirst = screen.getByTestId('feed-from').textContent;
-    await triggerBoundaryCheck();
-    expect(screen.getByTestId('feed-from').textContent).toBe(fromAfterFirst);
+    expect(Number(screen.getByTestId('feed-count').textContent)).toBe(
+      countAfterSilentPreload() + FEED_CHUNK_DAYS,
+    );
   });
 
-  it('leaving and re-entering prepend zone loads the next backward chunk', async () => {
+  it('leaving and re-entering top sentinel loads the next backward chunk', async () => {
     wrap(
       <>
         <FeedProbe />
         <Feed />
       </>,
     );
-    await flushFeedRaf();
+    await waitForFeedInitialized();
 
     const topSentinel = screen.getByTestId('feed-sentinel-top');
-    mockSentinelRect(topSentinel, 500);
-    await triggerBoundaryCheck();
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
+    await fireObserverIntersecting(observerHooks, topSentinel);
     await waitFor(() => {
-      expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
+      expect(screen.getByTestId('feed-from').textContent).not.toBe(afterSilentFrom);
     });
     const fromAfterFirst = screen.getByTestId('feed-from').textContent;
 
-    mockSentinelRect(topSentinel, 500);
-    await triggerBoundaryCheck();
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
+    await fireObserverNotIntersecting(observerHooks, topSentinel);
+    await fireObserverIntersecting(observerHooks, topSentinel);
     await waitFor(() => {
       expect(screen.getByTestId('feed-from').textContent).not.toBe(fromAfterFirst);
     });
@@ -833,16 +987,16 @@ describe('Feed sentinel regression', () => {
         <Feed />
       </>,
     );
-    await flushFeedRaf();
+    await waitForFeedInitialized();
 
     fireEvent.click(screen.getByLabelText('Сегодня'));
     await waitFor(() => {
       expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
     });
-    expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
+    expect(screen.getByTestId('feed-from').textContent).toBe(afterSilentFrom);
   });
 
-  it('scroll-anchor correction does not trigger a second prepend without zone re-entry', async () => {
+  it('scroll-anchor correction uses one scrollBy after user prepend', async () => {
     const HEADER_BOTTOM = 100;
     const header = document.createElement('header');
     header.className = 'header';
@@ -858,7 +1012,7 @@ describe('Feed sentinel regression', () => {
         <Feed />
       </>,
     );
-    await flushFeedRaf();
+    await waitForFeedInitialized();
 
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
     const rows = screen.getAllByRole('button');
@@ -885,64 +1039,63 @@ describe('Feed sentinel regression', () => {
     });
 
     const topSentinel = screen.getByTestId('feed-sentinel-top');
-    mockSentinelRect(topSentinel, 500);
-    await triggerBoundaryCheck();
-    todayRectReads = 0;
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
+    const scrollCallsAfterInit = scrollBy.mock.calls.length;
+    await fireObserverIntersecting(observerHooks, topSentinel);
     await waitFor(() => {
-      expect(screen.getByTestId('feed-from').textContent).not.toBe(defaultFrom);
+      expect(screen.getByTestId('feed-from').textContent).not.toBe(afterSilentFrom);
     });
-    const fromAfterFirst = screen.getByTestId('feed-from').textContent;
-    await waitFor(() => expect(scrollBy).toHaveBeenCalledWith(0, 80));
-
-    mockSentinelRect(topSentinel, 50);
-    await triggerBoundaryCheck();
-    expect(screen.getByTestId('feed-from').textContent).toBe(fromAfterFirst);
+    await waitFor(() => {
+      expect(scrollBy.mock.calls.length).toBe(scrollCallsAfterInit + 1);
+    });
+    expect(scrollBy).toHaveBeenCalledWith({ top: 80, left: 0, behavior: 'auto' });
 
     document.body.removeChild(header);
     scrollBy.mockRestore();
   });
 
-  it('bottom sentinel entering extend zone appends exactly one chunk', async () => {
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+  it('bottom sentinel intersection extends exactly one chunk', async () => {
     wrap(
       <>
         <FeedProbe />
         <Feed />
       </>,
     );
-    await flushFeedRaf();
+    await waitForFeedInitialized();
 
     const bottomSentinel = screen.getByTestId('feed-sentinel-bottom');
-    mockSentinelRect(bottomSentinel, 1200);
-    await triggerBoundaryCheck();
-    mockSentinelRect(bottomSentinel, 850);
-    await triggerBoundaryCheck();
-
+    await fireObserverIntersecting(observerHooks, bottomSentinel);
     await waitFor(() => {
-      expect(screen.getByTestId('feed-to').textContent).not.toBe(defaultTo);
+      expect(screen.getByTestId('feed-to').textContent).not.toBe(initialTo);
     });
+    expect(Number(screen.getByTestId('feed-count').textContent)).toBe(
+      countAfterSilentPreload() + FEED_CHUNK_DAYS,
+    );
+  });
 
+  it('bottom sentinel repeatedly extends future chunks', async () => {
+    wrap(
+      <>
+        <FeedProbe />
+        <Feed />
+      </>,
+    );
+    await waitForFeedInitialized();
+
+    const bottomSentinel = screen.getByTestId('feed-sentinel-bottom');
+    await fireObserverIntersecting(observerHooks, bottomSentinel);
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-to').textContent).not.toBe(initialTo);
+    });
     const toAfterFirst = screen.getByTestId('feed-to').textContent;
-    await triggerBoundaryCheck();
-    expect(screen.getByTestId('feed-to').textContent).toBe(toAfterFirst);
-  });
 
-  it('positions today with scrollIntoView on first open', async () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
-    wrap(<Feed />);
-    await flushFeedRaf();
-
-    expect(scrollIntoView).toHaveBeenCalledWith({
-      block: 'start',
-      inline: 'nearest',
-      behavior: 'auto',
+    await fireObserverNotIntersecting(observerHooks, bottomSentinel);
+    await fireObserverIntersecting(observerHooks, bottomSentinel);
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-to').textContent).not.toBe(toAfterFirst);
     });
-    scrollIntoView.mockRestore();
   });
 
-  it('StrictMode does not auto-prepend on mount', async () => {
+  it('StrictMode does not auto-prepend beyond silent preload on mount', async () => {
     render(
       <StrictMode>
         <ToastProvider>
@@ -953,14 +1106,13 @@ describe('Feed sentinel regression', () => {
         </ToastProvider>
       </StrictMode>,
     );
-    await flushFeedRaf();
-    await waitFor(() => {
-      expect(screen.getByTestId('feed-from').textContent).toBe(defaultFrom);
-      expect(screen.getByTestId('feed-to').textContent).toBe(defaultTo);
-    });
+    await waitForFeedInitialized();
+    expect(screen.getByTestId('feed-from').textContent).toBe(afterSilentFrom);
+    expect(screen.getByTestId('feed-to').textContent).toBe(initialTo);
+    expect(Number(screen.getByTestId('feed-count').textContent)).toBe(countAfterSilentPreload());
   });
 
-  it('repositions today on feed remount like Mini App reopen', async () => {
+  it('feed remount does not call scrollIntoView on open', async () => {
     const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
 
     const { unmount } = wrap(<Feed />);
@@ -973,7 +1125,7 @@ describe('Feed sentinel regression', () => {
     wrap(<Feed />);
     await flushFeedRaf();
 
-    expect(scrollIntoView.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    expect(scrollIntoView.mock.calls.length).toBe(callsAfterFirst);
     scrollIntoView.mockRestore();
   });
 });

@@ -31,8 +31,8 @@ import {
   countDaysInclusive,
   daysInRange,
   FEED_CHUNK_DAYS,
+  FEED_INITIAL_DAYS,
   parseDate,
-  defaultFeedRange,
   shiftIso,
 } from '@/features/calendar/lib/dates';
 import type {
@@ -66,6 +66,7 @@ function defaultTourForm(selectedDate: string, prefill?: Partial<TourFormValues>
 
 interface CalendarContextValue {
   entries: CalendarEntry[];
+  entriesReady: boolean;
   activeTab: TabId;
   calendarScreen: CalendarScreen;
   monthExpanded: boolean;
@@ -158,6 +159,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     return { month: d.getMonth(), year: d.getFullYear() };
   }, []);
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
+  const [entriesReady, setEntriesReady] = useState(false);
   const [activeTab, setActiveTabState] = useState<TabId>('calendar');
   const [calendarScreen, setCalendarScreen] = useState<CalendarScreen>('feed');
   const [monthExpanded, setMonthExpanded] = useState(false);
@@ -166,14 +168,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [viewYear, setViewYear] = useState(todayMonthYear.year);
   const [visibleFeedMonth, setVisibleFeedMonth] = useState(todayMonthYear.month);
   const [visibleFeedYear, setVisibleFeedYear] = useState(todayMonthYear.year);
-  const initialFeed = useMemo(() => {
-    const range = defaultFeedRange(MOCK_TODAY);
-    const from = range.from < ENTRIES_RANGE_FROM ? ENTRIES_RANGE_FROM : range.from;
-    const to = range.to > ENTRIES_RANGE_TO ? ENTRIES_RANGE_TO : range.to;
-    return { from, to };
-  }, []);
-  const [feedFrom, setFeedFrom] = useState(initialFeed.from);
-  const [feedTo, setFeedTo] = useState(initialFeed.to);
+  const initialFeedTo = useMemo(
+    () => shiftIso(MOCK_TODAY, FEED_INITIAL_DAYS - 1),
+    [],
+  );
+  const [feedFrom, setFeedFrom] = useState(() =>
+    MOCK_TODAY < ENTRIES_RANGE_FROM ? ENTRIES_RANGE_FROM : MOCK_TODAY,
+  );
+  const [feedTo, setFeedTo] = useState(() =>
+    initialFeedTo > ENTRIES_RANGE_TO ? ENTRIES_RANGE_TO : initialFeedTo,
+  );
   const [scrollToTodaySignal, setScrollToTodaySignal] = useState(0);
   const [overlay, setOverlay] = useState<OverlayKind | null>(null);
   const [overlayData, setOverlayData] = useState<OverlayData>({});
@@ -203,9 +207,20 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshEntries();
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await guideOsClient.listEntries();
+        if (!cancelled) setEntries(list);
+      } finally {
+        if (!cancelled) setEntriesReady(true);
+      }
+    })();
     guideOsClient.getProfile().then(setProfile);
-  }, [refreshEntries]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const feedDayCount = useMemo(
     () => countDaysInclusive(feedFrom, feedTo),
@@ -713,6 +728,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CalendarContextValue>(
     () => ({
       entries,
+      entriesReady,
       activeTab,
       calendarScreen,
       monthExpanded,
@@ -831,6 +847,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     }),
     [
       entries,
+      entriesReady,
       activeTab,
       calendarScreen,
       monthExpanded,
