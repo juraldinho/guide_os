@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 from aiohttp import web
 
@@ -20,11 +19,27 @@ from services.tour_service import (
     update_tour_entry,
 )
 from web_api.auth import idempotency_lookup, idempotency_store, read_json_body
-from web_api.dto import conflict_to_error, entry_to_api, tour_draft_from_body
+from web_api.dto import (
+    conflict_to_error,
+    entry_to_api,
+    parse_entry_id,
+    normalize_day_locations,
+    tour_draft_from_body,
+    validate_date_range,
+)
 from web_api.errors import error_response, success_response
 from web_api.routes.session import _auth_or_error
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+def _entry_id_not_found_response(rid: str) -> web.Response:
+    return error_response("not_found", "Запись не найдена.", rid, 404)
+
+
+def _resolve_entry_id(request: web.Request, rid: str) -> tuple[str | None, web.Response | None]:
+    parsed = parse_entry_id(request.match_info["entry_id"])
+    if parsed is None:
+        return None, _entry_id_not_found_response(rid)
+    return str(parsed), None
 
 
 def _parse_date_range(request: web.Request) -> tuple[str, str] | None:
@@ -32,11 +47,10 @@ def _parse_date_range(request: web.Request) -> tuple[str, str] | None:
     to_date = request.rel_url.query.get("to")
     if not from_date or not to_date:
         return None
-    if _DATE_RE.fullmatch(from_date) is None or _DATE_RE.fullmatch(to_date) is None:
+    try:
+        return validate_date_range(from_date, to_date)
+    except ValueError:
         return None
-    if from_date > to_date:
-        return None
-    return from_date, to_date
 
 
 async def _idempotent(
@@ -96,10 +110,12 @@ def register_entries_routes(app: web.Application) -> None:
         rid, user_id, failure = _auth_or_error(request)
         if failure is not None:
             return failure
-        entry_id = request.match_info["entry_id"]
+        entry_id, entry_failure = _resolve_entry_id(request, rid)
+        if entry_failure is not None:
+            return entry_failure
         entry = get_entry(user_id, entry_id)
         if entry is None:
-            return error_response("not_found", "Запись не найдена.", rid, 404)
+            return _entry_id_not_found_response(rid)
         return success_response(entry_to_api(entry), rid)
 
     async def create_tour_handler(request: web.Request) -> web.Response:
@@ -139,13 +155,15 @@ def register_entries_routes(app: web.Application) -> None:
         if failure is not None:
             return failure
         request["request_id"] = rid
-        entry_id = request.match_info["entry_id"]
+        entry_id, entry_failure = _resolve_entry_id(request, rid)
+        if entry_failure is not None:
+            return entry_failure
         body_bytes = await request.read()
         endpoint = f"PATCH /app/v1/entries/{entry_id}"
 
         async def build():
             if get_entry(user_id, entry_id) is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             try:
                 data = json.loads(body_bytes or b"{}")
                 if not isinstance(data, dict):
@@ -167,7 +185,7 @@ def register_entries_routes(app: web.Application) -> None:
             except ValueError as exc:
                 return error_response("validation_error", str(exc), rid, 400)
             if updated is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             return success_response(entry_to_api(updated), rid)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)
@@ -188,6 +206,7 @@ def register_entries_routes(app: web.Application) -> None:
                 end_date = data.get("endDate") or start_date
                 if not isinstance(start_date, str) or not isinstance(end_date, str):
                     raise ValueError
+                start_date, end_date = validate_date_range(start_date, end_date)
             except (ValueError, TypeError, json.JSONDecodeError):
                 return error_response("validation_error", "Некорректные даты выходного.", rid, 400)
 
@@ -219,16 +238,18 @@ def register_entries_routes(app: web.Application) -> None:
         if failure is not None:
             return failure
         request["request_id"] = rid
-        entry_id = request.match_info["entry_id"]
+        entry_id, entry_failure = _resolve_entry_id(request, rid)
+        if entry_failure is not None:
+            return entry_failure
         body_bytes = b""
         endpoint = f"DELETE /app/v1/entries/{entry_id}"
 
         async def build():
             if get_entry(user_id, entry_id) is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             deleted = delete_tour(user_id, int(entry_id))
             if not deleted:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             return success_response({}, rid)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)
@@ -238,7 +259,9 @@ def register_entries_routes(app: web.Application) -> None:
         if failure is not None:
             return failure
         request["request_id"] = rid
-        entry_id = request.match_info["entry_id"]
+        entry_id, entry_failure = _resolve_entry_id(request, rid)
+        if entry_failure is not None:
+            return entry_failure
         body_bytes = await request.read()
         endpoint = f"POST /app/v1/entries/{entry_id}/copy"
 
@@ -251,12 +274,13 @@ def register_entries_routes(app: web.Application) -> None:
                 new_end = data.get("endDate") or new_start
                 if not isinstance(new_start, str) or not isinstance(new_end, str):
                     raise ValueError
+                new_start, new_end = validate_date_range(new_start, new_end)
             except (ValueError, TypeError, json.JSONDecodeError):
                 return error_response("validation_error", "Некорректные даты.", rid, 400)
 
             source = get_entry(user_id, entry_id)
             if source is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
 
             draft = tour_draft_from_body(
                 {
@@ -284,7 +308,7 @@ def register_entries_routes(app: web.Application) -> None:
 
             copied = copy_tour_entry(user_id, entry_id, new_start, new_end)
             if copied is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             return success_response(entry_to_api(copied), rid, status=201)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)
@@ -294,19 +318,19 @@ def register_entries_routes(app: web.Application) -> None:
         if failure is not None:
             return failure
         request["request_id"] = rid
-        entry_id = request.match_info["entry_id"]
+        entry_id, entry_failure = _resolve_entry_id(request, rid)
+        if entry_failure is not None:
+            return entry_failure
         body_bytes = await request.read()
         endpoint = f"PATCH /app/v1/entries/{entry_id}/day-locations"
 
         async def build():
             if get_entry(user_id, entry_id) is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             try:
                 data = json.loads(body_bytes or b"{}")
                 locations = data.get("locations")
-                if not isinstance(locations, dict):
-                    raise ValueError
-                normalized = {str(k): str(v) for k, v in locations.items()}
+                normalized = normalize_day_locations(locations)
             except (ValueError, TypeError, json.JSONDecodeError):
                 return error_response(
                     "validation_error",
@@ -317,7 +341,7 @@ def register_entries_routes(app: web.Application) -> None:
 
             updated = update_day_locations(user_id, entry_id, normalized)
             if updated is None:
-                return error_response("not_found", "Запись не найдена.", rid, 404)
+                return _entry_id_not_found_response(rid)
             return success_response(entry_to_api(updated), rid)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)

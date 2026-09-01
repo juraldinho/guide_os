@@ -6,6 +6,8 @@ import json
 from urllib.parse import parse_qsl
 
 _MAX_SQLITE_INTEGER = 2**63 - 1
+MAX_FUTURE_CLOCK_SKEW_SECONDS = 30
+_SENSITIVE_INIT_DATA_KEYS = frozenset({"hash", "auth_date", "user"})
 
 
 class InitDataValidationError(Exception):
@@ -20,6 +22,30 @@ def _telegram_secret_key(bot_token: str) -> bytes:
     return hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
 
 
+def _parse_init_data_pairs(init_data: str) -> tuple[str, dict[str, str]]:
+    pairs = parse_qsl(init_data, keep_blank_values=True)
+    counts = {key: 0 for key in _SENSITIVE_INIT_DATA_KEYS}
+    received_hash: str | None = None
+    fields: dict[str, str] = {}
+
+    for key, value in pairs:
+        if key in _SENSITIVE_INIT_DATA_KEYS:
+            counts[key] += 1
+            if counts[key] > 1:
+                raise InitDataValidationError
+        if key == "hash":
+            received_hash = value
+        else:
+            fields[key] = value
+
+    if counts["hash"] != 1 or counts["auth_date"] != 1 or counts["user"] != 1:
+        raise InitDataValidationError
+    if received_hash is None or not received_hash:
+        raise InitDataValidationError
+
+    return received_hash, fields
+
+
 def validate_telegram_init_data(
     init_data: str,
     bot_token: str,
@@ -31,10 +57,7 @@ def validate_telegram_init_data(
     if not bot_token:
         raise InitDataValidationError
 
-    parsed = dict(parse_qsl(init_data, keep_blank_values=True))
-    received_hash = parsed.pop("hash", None)
-    if not received_hash:
-        raise InitDataValidationError
+    received_hash, parsed = _parse_init_data_pairs(init_data)
 
     data_check_string = _build_data_check_string(parsed)
     secret_key = _telegram_secret_key(bot_token)
@@ -43,7 +66,7 @@ def validate_telegram_init_data(
         data_check_string.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
-    if calculated_hash != received_hash:
+    if not hmac.compare_digest(calculated_hash, received_hash):
         raise InitDataValidationError
 
     auth_date_raw = parsed.get("auth_date")
@@ -51,7 +74,11 @@ def validate_telegram_init_data(
         auth_date = int(auth_date_raw)
     except (TypeError, ValueError):
         raise InitDataValidationError
-    if auth_date <= 0 or now_timestamp - auth_date > max_age_seconds:
+    if auth_date <= 0:
+        raise InitDataValidationError
+    if auth_date > now_timestamp + MAX_FUTURE_CLOCK_SKEW_SECONDS:
+        raise InitDataValidationError
+    if now_timestamp - auth_date > max_age_seconds:
         raise InitDataValidationError
 
     user_raw = parsed.get("user")
