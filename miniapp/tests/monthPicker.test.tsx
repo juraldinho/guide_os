@@ -240,7 +240,7 @@ describe('MonthPicker header anchoring', () => {
     scrollToSpy = vi.fn();
     window.scrollTo = scrollToSpy as typeof window.scrollTo;
     scrollIntoViewSpy = vi.fn();
-    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy;
+    Element.prototype.scrollIntoView = scrollIntoViewSpy;
   });
 
   afterEach(() => {

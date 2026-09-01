@@ -13,10 +13,33 @@ import { useCalendar } from '../CalendarContext';
 /** Subpixel guard only — not a visible scroll delay. */
 export const HEADER_BOUNDARY_EPSILON = 1e-3;
 
+/** Matches legacy IntersectionObserver rootMargin top/bottom padding. */
+export const FEED_LOAD_MARGIN = 200;
+
 export function getStickyHeaderBottom(): number {
   const header = document.querySelector('.header');
   if (!header) return 0;
   return header.getBoundingClientRect().bottom;
+}
+
+function getViewportHeight(): number {
+  return window.innerHeight || document.documentElement.clientHeight || 0;
+}
+
+/**
+ * Top sentinel entered the prepend band (near viewport top while scrolling up).
+ */
+export function isTopSentinelInPrependZone(el: HTMLElement): boolean {
+  const { top, bottom } = el.getBoundingClientRect();
+  return bottom > 0 && top < FEED_LOAD_MARGIN;
+}
+
+/**
+ * Bottom sentinel entered the extend band (near viewport bottom while scrolling down).
+ */
+export function isBottomSentinelInExtendZone(el: HTMLElement): boolean {
+  const { top } = el.getBoundingClientRect();
+  return top < getViewportHeight() + FEED_LOAD_MARGIN;
 }
 
 /**
@@ -50,24 +73,14 @@ function applyScrollDelta(delta: number) {
   document.body.scrollTop += delta;
 }
 
-function scrollTodayBelowHeader(smooth: boolean) {
+function scrollTodayIntoView(smooth: boolean) {
   const el = document.querySelector(`[data-feed-date="${MOCK_TODAY}"]`) as HTMLElement | null;
   if (!el) return;
-  const headerBottom = getStickyHeaderBottom();
-  const top = el.getBoundingClientRect().top;
-  const delta = top - headerBottom;
-  if (delta === 0) return;
-  if (smooth) {
-    window.scrollBy({ top: delta, left: 0, behavior: 'smooth' });
-  } else {
-    applyScrollDelta(delta);
-  }
-}
-
-function resetDocumentScrollTop() {
-  window.scrollTo(0, 0);
-  document.documentElement.scrollTop = 0;
-  document.body.scrollTop = 0;
+  el.scrollIntoView({
+    block: 'start',
+    inline: 'nearest',
+    behavior: smooth ? 'smooth' : 'auto',
+  });
 }
 
 export function Feed() {
@@ -98,7 +111,7 @@ export function Feed() {
   const pendingPrependAnchorRef = useRef<{ iso: string; top: number } | null>(null);
   const initialPositioningDoneRef = useRef(false);
   const initialPositioningCompleteRef = useRef(false);
-  const [observersEnabled, setObserversEnabled] = useState(false);
+  const [chunkLoadingEnabled, setChunkLoadingEnabled] = useState(false);
 
   const feedFromRef = useRef(feedFrom);
   feedFromRef.current = feedFrom;
@@ -106,13 +119,11 @@ export function Feed() {
   feedToRef.current = feedTo;
   const monthExpandedRef = useRef(monthExpanded);
   monthExpandedRef.current = monthExpanded;
+  const chunkLoadingEnabledRef = useRef(false);
+  chunkLoadingEnabledRef.current = chunkLoadingEnabled;
 
-  /** Top sentinel must leave the viewport before prepend can fire (blocks initial intersect). */
-  const topSentinelReadyRef = useRef(false);
-  /** Bottom sentinel must leave the viewport before append can fire. */
-  const bottomSentinelReadyRef = useRef(false);
-  const topSentinelArmedRef = useRef(true);
-  const bottomSentinelArmedRef = useRef(true);
+  const topInZoneRef = useRef(false);
+  const bottomInZoneRef = useRef(false);
   const programmaticScrollRef = useRef(false);
   const programmaticScrollClearRaf = useRef(0);
 
@@ -135,6 +146,17 @@ export function Feed() {
     });
   }, []);
 
+  const syncSentinelZoneState = useCallback(() => {
+    const topSentinel = topSentinelRef.current;
+    const bottomSentinel = bottomSentinelRef.current;
+    if (topSentinel) {
+      topInZoneRef.current = isTopSentinelInPrependZone(topSentinel);
+    }
+    if (bottomSentinel) {
+      bottomInZoneRef.current = isBottomSentinelInExtendZone(bottomSentinel);
+    }
+  }, []);
+
   const updateVisibleFromScroll = useCallback(() => {
     if (monthExpanded) return;
 
@@ -151,14 +173,6 @@ export function Feed() {
     lastReportedMonthYearRef.current = key;
     setVisibleFeedFromIso(iso);
   }, [dates, monthExpanded, setVisibleFeedFromIso]);
-
-  const scheduleVisibleUpdate = useCallback(() => {
-    if (scrollRaf.current) return;
-    scrollRaf.current = window.requestAnimationFrame(() => {
-      scrollRaf.current = 0;
-      updateVisibleFromScroll();
-    });
-  }, [updateVisibleFromScroll]);
 
   const requestPrepend = useCallback(() => {
     if (prependPendingRef.current || monthExpandedRef.current) return;
@@ -190,12 +204,47 @@ export function Feed() {
     extendFeed();
   }, [extendFeed]);
 
+  const runBoundaryCheck = useCallback(() => {
+    if (!chunkLoadingEnabledRef.current || monthExpandedRef.current) return;
+    if (programmaticScrollRef.current) return;
+
+    const topSentinel = topSentinelRef.current;
+    if (topSentinel && !prependPendingRef.current && feedFromRef.current > ENTRIES_RANGE_FROM) {
+      const inZone = isTopSentinelInPrependZone(topSentinel);
+      const enteredZone = inZone && !topInZoneRef.current;
+      topInZoneRef.current = inZone;
+      if (enteredZone) {
+        requestPrepend();
+      }
+    }
+
+    const bottomSentinel = bottomSentinelRef.current;
+    if (bottomSentinel && !extendPendingRef.current && feedToRef.current < ENTRIES_RANGE_TO) {
+      const inZone = isBottomSentinelInExtendZone(bottomSentinel);
+      const enteredZone = inZone && !bottomInZoneRef.current;
+      bottomInZoneRef.current = inZone;
+      if (enteredZone) {
+        requestExtend();
+      }
+    }
+  }, [requestExtend, requestPrepend]);
+
+  const scheduleScrollWork = useCallback(() => {
+    if (scrollRaf.current) return;
+    scrollRaf.current = window.requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      runBoundaryCheck();
+      updateVisibleFromScroll();
+    });
+  }, [runBoundaryCheck, updateVisibleFromScroll]);
+
   useLayoutEffect(() => {
     const pending = pendingPrependAnchorRef.current;
     if (!pending) {
       if (prependPendingRef.current) {
         prependPendingRef.current = false;
-        scheduleVisibleUpdate();
+        syncSentinelZoneState();
+        scheduleScrollWork();
       }
       return;
     }
@@ -208,36 +257,41 @@ export function Feed() {
 
     pendingPrependAnchorRef.current = null;
     prependPendingRef.current = false;
-    scheduleVisibleUpdate();
-  }, [feedFrom, runProgrammaticScroll, scheduleVisibleUpdate]);
+    syncSentinelZoneState();
+    scheduleScrollWork();
+  }, [feedFrom, runProgrammaticScroll, scheduleScrollWork, syncSentinelZoneState]);
 
   useLayoutEffect(() => {
     extendPendingRef.current = false;
-  }, [feedTo]);
+    syncSentinelZoneState();
+  }, [feedTo, syncSentinelZoneState]);
 
   useLayoutEffect(() => {
     if (!dates.includes(MOCK_TODAY)) return;
+
+    const todayEl = rowRefs.current.get(MOCK_TODAY);
+    if (!todayEl) return;
     if (initialPositioningDoneRef.current) return;
 
-    runProgrammaticScroll(() => {
-      resetDocumentScrollTop();
-      scrollTodayBelowHeader(false);
-    });
+    runProgrammaticScroll(() => scrollTodayIntoView(false));
     initialPositioningDoneRef.current = true;
     initialPositioningCompleteRef.current = true;
-    topSentinelReadyRef.current = false;
-    bottomSentinelReadyRef.current = false;
-    topSentinelArmedRef.current = true;
-    bottomSentinelArmedRef.current = true;
-    scheduleVisibleUpdate();
-
+    topInZoneRef.current = false;
+    bottomInZoneRef.current = false;
     window.requestAnimationFrame(() => {
-      setObserversEnabled(true);
+      syncSentinelZoneState();
+      setChunkLoadingEnabled(true);
     });
-  }, [dates, runProgrammaticScroll, scheduleVisibleUpdate]);
+  }, [dates, runProgrammaticScroll, syncSentinelZoneState]);
 
   useEffect(() => {
-    const onScroll = () => scheduleVisibleUpdate();
+    if (!chunkLoadingEnabled) return;
+    syncSentinelZoneState();
+    scheduleScrollWork();
+  }, [chunkLoadingEnabled, scheduleScrollWork, syncSentinelZoneState]);
+
+  useEffect(() => {
+    const onScroll = () => scheduleScrollWork();
 
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -249,7 +303,7 @@ export function Feed() {
       viewport.addEventListener('resize', onScroll);
     }
 
-    scheduleVisibleUpdate();
+    scheduleScrollWork();
 
     return () => {
       document.removeEventListener('scroll', onScroll, true);
@@ -262,85 +316,25 @@ export function Feed() {
       if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
       scrollRaf.current = 0;
     };
-  }, [scheduleVisibleUpdate]);
+  }, [scheduleScrollWork]);
 
   useEffect(() => {
-    scheduleVisibleUpdate();
-  }, [dates.length, scheduleVisibleUpdate]);
+    scheduleScrollWork();
+  }, [dates.length, scheduleScrollWork]);
 
   useEffect(() => {
     if (!monthExpanded) {
-      scheduleVisibleUpdate();
+      scheduleScrollWork();
     }
-  }, [monthExpanded, scheduleVisibleUpdate]);
-
-  useEffect(() => {
-    if (!observersEnabled || !topSentinelRef.current) return;
-    const sentinel = topSentinelRef.current;
-    const observer = new IntersectionObserver(
-      (entriesObserved) => {
-        const entry = entriesObserved.find((e) => e.target === sentinel) ?? entriesObserved[0];
-        if (!entry) return;
-
-        if (!entry.isIntersecting) {
-          topSentinelReadyRef.current = true;
-          topSentinelArmedRef.current = true;
-          return;
-        }
-
-        if (!initialPositioningCompleteRef.current) return;
-        if (!topSentinelReadyRef.current) return;
-        if (!topSentinelArmedRef.current) return;
-        if (prependPendingRef.current) return;
-        if (monthExpandedRef.current) return;
-        if (feedFromRef.current <= ENTRIES_RANGE_FROM) return;
-
-        topSentinelArmedRef.current = false;
-        requestPrepend();
-      },
-      { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [observersEnabled, requestPrepend]);
-
-  useEffect(() => {
-    if (!observersEnabled || !bottomSentinelRef.current) return;
-    const sentinel = bottomSentinelRef.current;
-    const observer = new IntersectionObserver(
-      (entriesObserved) => {
-        const entry = entriesObserved.find((e) => e.target === sentinel) ?? entriesObserved[0];
-        if (!entry) return;
-
-        if (!entry.isIntersecting) {
-          bottomSentinelReadyRef.current = true;
-          bottomSentinelArmedRef.current = true;
-          return;
-        }
-
-        if (!initialPositioningCompleteRef.current) return;
-        if (!bottomSentinelReadyRef.current) return;
-        if (!bottomSentinelArmedRef.current) return;
-        if (extendPendingRef.current) return;
-        if (monthExpandedRef.current) return;
-        if (feedToRef.current >= ENTRIES_RANGE_TO) return;
-
-        bottomSentinelArmedRef.current = false;
-        requestExtend();
-      },
-      { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [observersEnabled, requestExtend]);
+  }, [monthExpanded, scheduleScrollWork]);
 
   useEffect(() => {
     if (scrollToTodaySignal === 0) return;
-    runProgrammaticScroll(() => scrollTodayBelowHeader(true), true);
-    scheduleVisibleUpdate();
-    const followUp = window.setInterval(scheduleVisibleUpdate, 120);
+    runProgrammaticScroll(() => scrollTodayIntoView(true), true);
+    scheduleScrollWork();
+    const followUp = window.setInterval(scheduleScrollWork, 120);
     window.setTimeout(() => window.clearInterval(followUp), 900);
-  }, [scrollToTodaySignal, runProgrammaticScroll, scheduleVisibleUpdate]);
+  }, [scrollToTodaySignal, runProgrammaticScroll, scheduleScrollWork]);
 
   useEffect(() => {
     return () => {
