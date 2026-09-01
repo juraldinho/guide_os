@@ -1,6 +1,7 @@
 import { Chip } from '@/components/ui/Chip';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '@/features/calendar/CalendarContext';
+import { ProfessionalProfileEditor } from '@/features/settings/ProfessionalProfileEditor';
 
 export function SettingsOverlay() {
   const {
@@ -9,6 +10,7 @@ export function SettingsOverlay() {
     closeSettings,
     updateProfileName,
     copyTelegramId,
+    saveProfessionalProfile,
     toggleNotif,
     updateNotifTime,
     setThemeMode,
@@ -54,17 +56,10 @@ export function SettingsOverlay() {
               </button>
             </div>
 
-            <div className="section-title" style={{ padding: '12px 16px 0' }}>{t.settingsTypes}</div>
-            <div style={{ padding: '8px 16px 12px' }}>
-              {profile.types.map((type) => (
-                <div key={type.type} className="card" style={{ marginBottom: 8 }}>
-                  <strong>{type.label}</strong>
-                  <br />
-                  <span className="text-muted">{type.geo.join(', ')}</span>
-                </div>
-              ))}
-              <p className="text-muted" style={{ fontSize: 12 }}>{t.settingsTypesHint}</p>
-            </div>
+            <ProfessionalProfileEditor
+              profile={profile}
+              saveProfessionalProfile={saveProfessionalProfile}
+            />
 
             <div className="section-title" style={{ padding: '12px 16px 0' }}>{t.settingsNotifications}</div>
             <div style={{ padding: '12px 16px' }}>

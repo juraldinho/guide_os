@@ -341,6 +341,16 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
             "ALTER TABLE users ADD COLUMN display_name TEXT"
         )
 
+    if "guide_types_json" not in user_columns:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN guide_types_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
+    if "guide_languages_json" not in user_columns:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN guide_languages_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
     _migrate_guide_os_identity(conn, cursor)
 
     cursor.execute("""

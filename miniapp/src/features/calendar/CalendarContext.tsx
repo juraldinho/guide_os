@@ -16,6 +16,7 @@ import type {
   DayOffFormValues,
   DetailOverlayData,
   GuideProfile,
+  GuideTypeInput,
   MultiLocationOverlayData,
   OverlayData,
   OverlayKind,
@@ -130,6 +131,7 @@ interface CalendarContextValue {
   copyFreeDates: () => void;
   copyTelegramId: () => void;
   updateProfileName: (name: string) => void;
+  saveProfessionalProfile: (types: GuideTypeInput[], languages: string[]) => Promise<boolean>;
   toggleNotif: () => void;
   updateNotifTime: (time: string) => void;
   setThemeMode: (mode: ThemeMode) => void;
@@ -620,21 +622,34 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     setProfile(updated);
   }, []);
 
+  const saveProfessionalProfile = useCallback(
+    async (types: GuideTypeInput[], languages: string[]): Promise<boolean> => {
+      try {
+        const updated = await guideOsClient.updateProfile({ types, languages });
+        setProfile(updated);
+        return true;
+      } catch {
+        showToast(t.demoErrorTitle);
+        return false;
+      }
+    },
+    [showToast],
+  );
+
   const toggleNotif = useCallback(async () => {
     if (!profile) return;
     const updated = await guideOsClient.updateProfile({
-      notifications: { ...profile.notifications, enabled: !profile.notifications.enabled },
+      notifications: { enabled: !profile.notifications.enabled },
     });
     setProfile(updated);
   }, [profile]);
 
   const updateNotifTime = useCallback(async (time: string) => {
-    if (!profile) return;
     const updated = await guideOsClient.updateProfile({
-      notifications: { ...profile.notifications, time },
+      notifications: { time },
     });
     setProfile(updated);
-  }, [profile]);
+  }, []);
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
@@ -776,6 +791,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       copyFreeDates,
       copyTelegramId,
       updateProfileName,
+      saveProfessionalProfile,
       toggleNotif,
       updateNotifTime,
       setThemeMode,
@@ -850,6 +866,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       copyFreeDates,
       copyTelegramId,
       updateProfileName,
+      saveProfessionalProfile,
       toggleNotif,
       updateNotifTime,
       setThemeMode,

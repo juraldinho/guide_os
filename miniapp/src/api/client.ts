@@ -4,6 +4,7 @@ import type {
   CalendarEntry,
   DayOffFormValues,
   GuideProfile,
+  GuideProfilePatch,
   ReportsSummary,
   ReportsSummaryParams,
   TourFormValues,
@@ -22,7 +23,7 @@ export interface GuideOsClient {
   deleteEntry(id: string): Promise<void>;
   updateDayLocations(id: string, locations: Record<string, string>): Promise<CalendarEntry>;
   getProfile(): Promise<GuideProfile>;
-  updateProfile(patch: Partial<GuideProfile>): Promise<GuideProfile>;
+  updateProfile(patch: GuideProfilePatch): Promise<GuideProfile>;
   getReportsSummary(params: ReportsSummaryParams): Promise<ReportsSummary>;
   previewAvailability(params: AvailabilityPreviewParams): Promise<AvailabilityPreview>;
 }

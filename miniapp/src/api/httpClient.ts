@@ -11,6 +11,7 @@ import type {
   CalendarEntry,
   DayOffFormValues,
   GuideProfile,
+  GuideProfilePatch,
   ReportsSummary,
   ReportsSummaryParams,
   TourFormValues,
@@ -292,7 +293,7 @@ export function createHttpClient(): GuideOsClient {
       return apiRequest<GuideProfile>('/app/v1/profile');
     },
 
-    async updateProfile(patch: Partial<GuideProfile>) {
+    async updateProfile(patch: GuideProfilePatch) {
       return apiRequest<GuideProfile>('/app/v1/profile', {
         method: 'PATCH',
         headers: { 'Idempotency-Key': newIdempotencyKey() },

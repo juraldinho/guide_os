@@ -680,6 +680,104 @@ a { color: var(--color-action-primary); }
 }
 .settings-list .settings-item:active { background: var(--color-bg-secondary); }
 .settings-item .arrow { color: var(--color-text-secondary); }
+
+.prof-profile-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.prof-profile-summary,
+.prof-profile-edit {
+  min-width: 0;
+}
+.prof-summary-empty {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-md);
+}
+.prof-summary-type {
+  margin-bottom: var(--space-sm);
+  padding: var(--space-md);
+}
+.prof-summary-type p {
+  margin-top: 4px;
+  font-size: 14px;
+}
+.prof-summary-languages {
+  margin: var(--space-md) 0;
+}
+.prof-summary-languages p {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.prof-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  min-width: 0;
+}
+.prof-fieldset-legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding: 0 var(--space-xs);
+}
+.prof-check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+.prof-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  flex: 1 1 calc(50% - var(--space-sm));
+  min-width: 0;
+  max-width: 100%;
+}
+.prof-check-label-block {
+  flex: 1 1 100%;
+  margin-bottom: var(--space-sm);
+}
+.prof-check-label input {
+  min-height: auto;
+  min-width: auto;
+  accent-color: var(--color-action-primary);
+}
+.prof-check-label:has(input:checked) {
+  border-color: var(--color-action-primary);
+  background: var(--color-primary-subtle);
+  color: var(--color-action-primary);
+}
+.prof-check-label span {
+  font-size: 14px;
+  line-height: 1.3;
+}
+.prof-validation-error {
+  color: var(--color-status-error);
+  font-size: 13px;
+  margin-top: var(--space-sm);
+  line-height: 1.35;
+}
+.prof-language-custom-row {
+  margin-top: var(--space-md);
+}
+.prof-language-custom-row .form-row {
+  align-items: stretch;
+}
+.prof-language-custom-row .btn {
+  flex-shrink: 0;
+}
+.prof-editor-footer {
+  padding-bottom: calc(var(--space-md) + var(--safe-bottom));
+}
 .demo-note {
   font-size: 11px;
   color: var(--color-text-secondary);

@@ -4,9 +4,20 @@ export const MOCK_PROFILE: GuideProfile = {
   name: 'Алишер Каримов',
   telegramId: '3847291056',
   types: [
-    { type: 'local', label: 'Локальный гид', geo: ['Самарканд'] },
-    { type: 'route', label: 'Маршрутный гид', geo: ['Самарканд', 'Бухара'] },
+    {
+      type: 'local',
+      label: 'Локальный гид',
+      geo: ['Самарканд'],
+      allUzbekistan: false,
+    },
+    {
+      type: 'route',
+      label: 'Маршрутный гид',
+      geo: [],
+      allUzbekistan: true,
+    },
   ],
+  languages: ['Русский', 'Английский'],
   notifications: { enabled: true, time: '08:00' },
 };
 

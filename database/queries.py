@@ -1,4 +1,6 @@
+import json
 import sqlite3
+from typing import Any
 
 from database.db import (
     ensure_db_ready,
@@ -1991,7 +1993,7 @@ def get_user_profile(user_id: int) -> dict | None:
 
     cursor.execute(
         """
-        SELECT user_id, display_name, first_seen
+        SELECT user_id, display_name, first_seen, guide_types_json, guide_languages_json
         FROM users
         WHERE user_id = ?
         LIMIT 1
@@ -2021,3 +2023,61 @@ def update_user_display_name(user_id: int, display_name: str) -> bool:
         return cursor.rowcount > 0
 
     return run_write_with_retry(operation)
+
+
+def apply_user_profile_patch(
+    user_id: int,
+    *,
+    display_name: str | None = None,
+    guide_types: list[dict] | None = None,
+    guide_languages: list[str] | None = None,
+    notifications_enabled: bool | None = None,
+    notification_time: str | None = None,
+) -> bool:
+    guide_types_json: str | None = None
+    guide_languages_json: str | None = None
+    if guide_types is not None:
+        guide_types_json = json.dumps(guide_types, ensure_ascii=False, separators=(",", ":"))
+    if guide_languages is not None:
+        guide_languages_json = json.dumps(
+            guide_languages, ensure_ascii=False, separators=(",", ":")
+        )
+
+    def operation(conn):
+        cursor = conn.cursor()
+        updates: list[str] = []
+        params: list[Any] = []
+        if display_name is not None:
+            updates.append("display_name = ?")
+            params.append(display_name)
+        if guide_types_json is not None:
+            updates.append("guide_types_json = ?")
+            params.append(guide_types_json)
+        if guide_languages_json is not None:
+            updates.append("guide_languages_json = ?")
+            params.append(guide_languages_json)
+        if notifications_enabled is not None:
+            updates.append("notifications_enabled = ?")
+            params.append(int(notifications_enabled))
+        if notification_time is not None:
+            updates.append("notification_time = ?")
+            params.append(notification_time)
+            updates.append("last_tour_reminder_date = NULL")
+        if not updates:
+            return True
+        params.append(user_id)
+        cursor.execute(
+            f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",
+            params,
+        )
+        return cursor.rowcount > 0
+
+    return run_write_with_retry(operation)
+
+
+def update_user_guide_types(user_id: int, guide_types: list[dict]) -> bool:
+    return apply_user_profile_patch(user_id, guide_types=guide_types)
+
+
+def update_user_guide_languages(user_id: int, languages: list[str]) -> bool:
+    return apply_user_profile_patch(user_id, guide_languages=languages)

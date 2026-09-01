@@ -122,20 +122,40 @@ export type OverlayData =
   | DayOffOverlayData
   | Record<string, never>;
 
+export type GuideTypeCode = 'local' | 'route' | 'accompanying';
+
 export interface GuideType {
-  type: string;
+  type: GuideTypeCode;
   label: string;
   geo: string[];
+  allUzbekistan: boolean;
 }
 
-export interface UserProfile {
+export interface GuideTypeInput {
+  type: GuideTypeCode;
+  geo: string[];
+  allUzbekistan: boolean;
+}
+
+export interface GuideProfile {
   name: string;
   telegramId: string;
+  types: GuideType[];
+  languages: string[];
+  notifications: {
+    enabled: boolean;
+    time: string;
+  };
 }
 
-export interface GuideProfile extends UserProfile {
-  types: GuideType[];
-  notifications: { enabled: boolean; time: string };
+export interface GuideProfilePatch {
+  name?: string;
+  types?: GuideTypeInput[];
+  languages?: string[];
+  notifications?: {
+    enabled?: boolean;
+    time?: string;
+  };
 }
 
 export interface ReportsSummaryPeriod {

@@ -4,19 +4,6 @@ export type ThemeMode = 'telegram' | 'light' | 'dark';
 export type FilterStatus = 'all' | 'reserved' | 'confirmed';
 export type FilterPayment = 'all' | 'paid' | 'unpaid';
 
-export interface GuideType {
-  type: string;
-  label: string;
-  geo: string[];
-}
-
-export interface GuideProfile {
-  name: string;
-  telegramId: string;
-  types: GuideType[];
-  notifications: { enabled: boolean; time: string };
-}
-
 export interface DateRange {
   from: string;
   to: string;

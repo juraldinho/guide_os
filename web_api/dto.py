@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import json
 import math
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from utils.constants import (
@@ -16,10 +18,26 @@ from utils.constants import (
 from services.tour_service import TourEntryDraft, SOURCE_MINI_APP
 
 
-GUIDE_TYPES_STUB: list[dict[str, Any]] = [
-    {"type": "local", "label": "Локальный гид", "geo": ["Самарканд"]},
-    {"type": "route", "label": "Маршрутный гид", "geo": ["Самарканд", "Бухара"]},
-]
+GUIDE_TYPE_CODES = frozenset({"local", "route", "accompanying"})
+GUIDE_TYPE_LABELS: dict[str, str] = {
+    "local": "Локальный гид",
+    "route": "Маршрутный гид",
+    "accompanying": "Сопровождающий гид",
+}
+CANONICAL_GEOGRAPHY = frozenset(
+    {
+        "Самарканд",
+        "Ташкент",
+        "Бухара",
+        "Хива",
+        "Каракалпакстан",
+        "Сурхандарья",
+        "Шахрисабз",
+        "Ферганская долина",
+    }
+)
+MAX_GUIDE_LANGUAGES = 20
+MAX_GUIDE_LANGUAGE_LENGTH = 50
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -179,11 +197,225 @@ def availability_preview_to_api(preview: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def profile_to_api(user_id: int, display_name: str | None, notifications: dict[str, Any]) -> dict[str, Any]:
+def _normalize_guide_type_entry(item: Any) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        raise ValueError("invalid types")
+    if "label" in item:
+        raise ValueError("invalid types")
+    type_code = item.get("type")
+    if not isinstance(type_code, str) or type_code not in GUIDE_TYPE_CODES:
+        raise ValueError("invalid types")
+    all_uzbekistan = item.get("allUzbekistan", False)
+    if not isinstance(all_uzbekistan, bool):
+        raise ValueError("invalid types")
+    geo_raw = item.get("geo")
+    if not isinstance(geo_raw, list):
+        raise ValueError("invalid types")
+    geo: list[str] = []
+    for value in geo_raw:
+        if not isinstance(value, str):
+            raise ValueError("invalid types")
+        if value not in CANONICAL_GEOGRAPHY:
+            raise ValueError("invalid types")
+        geo.append(value)
+    if len(geo) != len(set(geo)):
+        raise ValueError("invalid types")
+    if type_code == "local":
+        if all_uzbekistan:
+            raise ValueError("invalid types")
+        if len(geo) != 1:
+            raise ValueError("invalid types")
+    else:
+        if all_uzbekistan and geo:
+            raise ValueError("invalid types")
+        if not all_uzbekistan and not geo:
+            raise ValueError("invalid types")
+    return {
+        "type": type_code,
+        "label": GUIDE_TYPE_LABELS[type_code],
+        "geo": geo,
+        "allUzbekistan": all_uzbekistan,
+    }
+
+
+def normalize_guide_types(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ValueError("invalid types")
+    seen_types: set[str] = set()
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        entry = _normalize_guide_type_entry(item)
+        if entry["type"] in seen_types:
+            raise ValueError("invalid types")
+        seen_types.add(entry["type"])
+        normalized.append(entry)
+    return normalized
+
+
+def normalize_guide_languages(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError("invalid languages")
+    if len(value) > MAX_GUIDE_LANGUAGES:
+        raise ValueError("invalid languages")
+    seen_lower: set[str] = set()
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError("invalid languages")
+        cleaned = item.strip()
+        if not cleaned:
+            raise ValueError("invalid languages")
+        if len(cleaned) > MAX_GUIDE_LANGUAGE_LENGTH:
+            raise ValueError("invalid languages")
+        key = cleaned.casefold()
+        if key in seen_lower:
+            raise ValueError("invalid languages")
+        seen_lower.add(key)
+        normalized.append(cleaned)
+    return normalized
+
+
+def guide_types_for_storage(normalized: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": item["type"],
+            "geo": list(item["geo"]),
+            "allUzbekistan": item["allUzbekistan"],
+        }
+        for item in normalized
+    ]
+
+
+def _guide_types_storage_to_api_input(data: list[Any]) -> list[dict[str, Any]]:
+    api_input: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("invalid types")
+        api_input.append(
+            {
+                "type": item.get("type"),
+                "geo": item.get("geo", []),
+                "allUzbekistan": item.get("allUzbekistan", False),
+            }
+        )
+    return api_input
+
+
+def decode_guide_types_json(raw: str | None) -> list[dict[str, Any]]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    try:
+        return normalize_guide_types(_guide_types_storage_to_api_input(data))
+    except ValueError:
+        return []
+
+
+def decode_guide_languages_json(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    try:
+        return normalize_guide_languages(data)
+    except ValueError:
+        return []
+
+
+@dataclass(frozen=True)
+class ProfilePatchUpdate:
+    display_name: str | None = None
+    guide_types: list[dict[str, Any]] | None = None
+    guide_languages: list[str] | None = None
+    notifications_enabled: bool | None = None
+    notification_time: str | None = None
+
+
+def _validate_notification_time(value: Any) -> str:
+    try:
+        return _validate_time_value(value)
+    except ValueError:
+        raise ValueError("invalid notifications")
+
+
+def normalize_profile_notifications(value: Any) -> tuple[bool | None, str | None]:
+    if value is None:
+        raise ValueError("invalid notifications")
+    if not isinstance(value, dict):
+        raise ValueError("invalid notifications")
+    enabled: bool | None = None
+    time_value: str | None = None
+    if "enabled" in value:
+        enabled_raw = value["enabled"]
+        if not isinstance(enabled_raw, bool):
+            raise ValueError("invalid notifications")
+        enabled = enabled_raw
+    if "time" in value:
+        time_value = _validate_notification_time(value["time"])
+    return enabled, time_value
+
+
+def parse_profile_patch_body(data: dict[str, Any]) -> ProfilePatchUpdate:
+    if "telegramId" in data:
+        raise ValueError("invalid telegramId")
+
+    display_name: str | None = None
+    guide_types: list[dict[str, Any]] | None = None
+    guide_languages: list[str] | None = None
+    notifications_enabled: bool | None = None
+    notification_time: str | None = None
+
+    if "name" in data:
+        name = data["name"]
+        if name is None or not isinstance(name, str):
+            raise ValueError("invalid name")
+        display_name = name.strip()
+
+    if "types" in data:
+        types_value = data["types"]
+        if types_value is None:
+            raise ValueError("invalid types")
+        guide_types = guide_types_for_storage(normalize_guide_types(types_value))
+
+    if "languages" in data:
+        languages_value = data["languages"]
+        if languages_value is None:
+            raise ValueError("invalid languages")
+        guide_languages = normalize_guide_languages(languages_value)
+
+    if "notifications" in data:
+        enabled, time_value = normalize_profile_notifications(data["notifications"])
+        notifications_enabled = enabled
+        notification_time = time_value
+
+    return ProfilePatchUpdate(
+        display_name=display_name,
+        guide_types=guide_types,
+        guide_languages=guide_languages,
+        notifications_enabled=notifications_enabled,
+        notification_time=notification_time,
+    )
+
+
+def profile_to_api(
+    user_id: int,
+    display_name: str | None,
+    notifications: dict[str, Any],
+    types: list[dict[str, Any]],
+    languages: list[str],
+) -> dict[str, Any]:
     return {
         "name": display_name or "",
         "telegramId": str(user_id),
-        "types": [dict(item) for item in GUIDE_TYPES_STUB],
+        "types": [dict(item) for item in types],
+        "languages": list(languages),
         "notifications": {
             "enabled": bool(notifications.get("notifications_enabled")),
             "time": notifications.get("notification_time") or "21:00",

@@ -4,6 +4,8 @@ import type {
   CalendarEntry,
   DayOffFormValues,
   GuideProfile,
+  GuideProfilePatch,
+  GuideTypeCode,
   ReportsSummaryParams,
   TourFormValues,
 } from '../types';
@@ -11,9 +13,24 @@ import { buildAvailabilityPreview } from '@/features/reports/lib/availability';
 import { calcSummary } from '@/features/reports/lib/summary';
 import { INITIAL_ENTRIES, MOCK_PROFILE } from './data';
 
+const MOCK_GUIDE_TYPE_LABELS: Record<GuideTypeCode, string> = {
+  local: 'Локальный гид',
+  route: 'Маршрутный гид',
+  accompanying: 'Сопровождающий гид',
+};
+
+function cloneProfile(source: GuideProfile): GuideProfile {
+  return {
+    ...source,
+    types: source.types.map((t) => ({ ...t, geo: [...t.geo] })),
+    languages: [...source.languages],
+    notifications: { ...source.notifications },
+  };
+}
+
 let nextId = 10;
 const entries: CalendarEntry[] = INITIAL_ENTRIES.map((e) => ({ ...e }));
-let profile: GuideProfile = { ...MOCK_PROFILE, types: MOCK_PROFILE.types.map((t) => ({ ...t, geo: [...t.geo] })) };
+let profile: GuideProfile = cloneProfile(MOCK_PROFILE);
 
 function tourFromForm(form: TourFormValues): Omit<CalendarEntry, 'id'> {
   return {
@@ -85,17 +102,20 @@ export const mockClient: GuideOsClient = {
   },
 
   async getProfile() {
-    return {
-      ...profile,
-      types: profile.types.map((t) => ({ ...t, geo: [...t.geo] })),
-      notifications: { ...profile.notifications },
-    };
+    return cloneProfile(profile);
   },
 
-  async updateProfile(patch: Partial<GuideProfile>) {
+  async updateProfile(patch: GuideProfilePatch) {
     if (patch.name !== undefined) profile.name = patch.name;
-    if (patch.telegramId !== undefined) profile.telegramId = patch.telegramId;
-    if (patch.types !== undefined) profile.types = patch.types.map((t) => ({ ...t, geo: [...t.geo] }));
+    if (patch.types !== undefined) {
+      profile.types = patch.types.map((t) => ({
+        type: t.type,
+        label: MOCK_GUIDE_TYPE_LABELS[t.type],
+        geo: [...t.geo],
+        allUzbekistan: t.allUzbekistan,
+      }));
+    }
+    if (patch.languages !== undefined) profile.languages = [...patch.languages];
     if (patch.notifications !== undefined) {
       profile.notifications = { ...profile.notifications, ...patch.notifications };
     }
@@ -129,9 +149,5 @@ export function __resetMockStore() {
   entries.length = 0;
   entries.push(...INITIAL_ENTRIES.map((e) => ({ ...e })));
   nextId = 10;
-  profile = {
-    ...MOCK_PROFILE,
-    types: MOCK_PROFILE.types.map((t) => ({ ...t, geo: [...t.geo] })),
-    notifications: { ...MOCK_PROFILE.notifications },
-  };
+  profile = cloneProfile(MOCK_PROFILE);
 }
