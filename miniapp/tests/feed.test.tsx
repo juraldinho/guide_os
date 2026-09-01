@@ -4,7 +4,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import type { CalendarEntry } from '@/api/types';
+import { guideOsClient } from '@/api/createClient';
+import { INITIAL_ENTRIES, MOCK_PROFILE } from '@/api/mock/data';
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
@@ -345,6 +347,126 @@ describe('Feed virtual list', () => {
   it('feed does not introduce horizontal overflow', () => {
     wrap(<Feed />);
     expect(screen.getByTestId('feed-virtuoso')).toBeTruthy();
+  });
+});
+
+describe('Feed day status rows', () => {
+  beforeEach(() => {
+    lastVirtuosoProps = null;
+    virtuosoScrollToIndex.mockClear();
+    vi.spyOn(guideOsClient, 'getProfile').mockResolvedValue(MOCK_PROFILE);
+    vi.spyOn(guideOsClient, 'listEntries').mockResolvedValue(INITIAL_ENTRIES);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function waitForFeedRow(iso: string) {
+    await waitFor(() => {
+      expect(document.querySelector(`[data-feed-date="${iso}"]`)).toBeTruthy();
+    });
+    return document.querySelector(`[data-feed-date="${iso}"]`) as HTMLButtonElement;
+  }
+
+  function tourEntry(
+    id: string,
+    date: string,
+    status: 'reserved' | 'confirmed',
+  ): CalendarEntry {
+    return {
+      id,
+      type: 'tour',
+      title: `Tour ${id}`,
+      startDate: date,
+      endDate: date,
+      startTime: null,
+      endTime: null,
+      status,
+      payment: 'unpaid',
+      income: 100,
+    };
+  }
+
+  function dayOffEntry(id: string, date: string): CalendarEntry {
+    return {
+      id,
+      type: 'day_off',
+      title: 'Выходной',
+      startDate: date,
+      endDate: date,
+      startTime: null,
+      endTime: null,
+      income: 0,
+    };
+  }
+
+  it('applies status-free to empty dates', async () => {
+    wrap(<Feed />);
+    const row = await waitForFeedRow('2026-08-01');
+    expect(row.classList.contains('status-free')).toBe(true);
+    expect(row.classList.contains('is-empty')).toBe(true);
+    expect(row.textContent).toContain(t.dayFree);
+    expect(row.getAttribute('style')).toBeNull();
+  });
+
+  it('applies status-reserved for reserved tours', async () => {
+    wrap(<Feed />);
+    const row = await waitForFeedRow('2026-08-05');
+    expect(row.classList.contains('status-reserved')).toBe(true);
+    expect(row.textContent).toContain('Вечерний Самарканд');
+  });
+
+  it('applies status-confirmed for confirmed tours', async () => {
+    wrap(<Feed />);
+    const row = await waitForFeedRow('2026-08-15');
+    expect(row.classList.contains('status-confirmed')).toBe(true);
+    expect(row.textContent).toContain('Бухара классика');
+  });
+
+  it('applies status-dayoff for day-off entries', async () => {
+    wrap(<Feed />);
+    const row = await waitForFeedRow('2026-08-10');
+    expect(row.classList.contains('status-dayoff')).toBe(true);
+    expect(row.textContent).toContain(t.dayOff);
+  });
+
+  it('uses effective status priority for mixed entries on one date', async () => {
+    const mixedDate = '2026-08-20';
+    vi.spyOn(guideOsClient, 'listEntries').mockResolvedValue([
+      tourEntry('r1', mixedDate, 'reserved'),
+      tourEntry('c1', mixedDate, 'confirmed'),
+      dayOffEntry('d1', mixedDate),
+    ]);
+    wrap(<Feed />);
+    const row = await waitForFeedRow(mixedDate);
+    expect(row.classList.contains('status-dayoff')).toBe(true);
+    expect(row.classList.contains('status-confirmed')).toBe(false);
+    expect(row.classList.contains('status-reserved')).toBe(false);
+  });
+
+  it('keeps today class alongside status class', async () => {
+    wrap(<Feed />);
+    const row = await waitForFeedRow(MOCK_TODAY);
+    expect(row.classList.contains('today')).toBe(true);
+    expect(row.classList.contains('status-reserved')).toBe(true);
+    expect(row.textContent).toContain('09:00');
+    expect(row.textContent).toContain('Обзорный Самарканд');
+  });
+
+  it('uses month-picker semantic tokens in feed row CSS', () => {
+    expect(GLOBAL_CSS).toMatch(
+      /\.feed-day-row\.status-reserved\s*\{[^}]*background:\s*var\(--color-day-cell-reserved-bg\)/s,
+    );
+    expect(GLOBAL_CSS).toMatch(
+      /\.feed-day-row\.status-confirmed\s*\{[^}]*background:\s*var\(--color-day-cell-confirmed-bg\)/s,
+    );
+    expect(GLOBAL_CSS).toMatch(
+      /\.feed-day-row\.status-dayoff\s*\{[^}]*background:\s*var\(--color-day-cell-dayoff-bg\)/s,
+    );
+    expect(GLOBAL_CSS).toMatch(
+      /\.feed-day-row\.status-free\s*\{[^}]*background:\s*var\(--color-surface\)/s,
+    );
   });
 });
 

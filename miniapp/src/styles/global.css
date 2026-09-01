@@ -315,6 +315,10 @@ a { color: var(--color-action-primary); }
   transition: border-color var(--transition-fast);
   scroll-margin-top: calc(var(--safe-top) + var(--header-bar-height) + 12px);
 }
+.feed-day-row.status-free { background: var(--color-surface); }
+.feed-day-row.status-reserved { background: var(--color-day-cell-reserved-bg); }
+.feed-day-row.status-confirmed { background: var(--color-day-cell-confirmed-bg); }
+.feed-day-row.status-dayoff { background: var(--color-day-cell-dayoff-bg); }
 .feed-load-sentinel {
   min-height: 1px;
   padding: var(--space-sm) 0;

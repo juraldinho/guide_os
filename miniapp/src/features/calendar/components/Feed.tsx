@@ -49,7 +49,7 @@ function FeedDayRow({
     <button
       type="button"
       data-feed-date={iso}
-      className={`feed-day-row${isToday ? ' today' : ''}${empty ? ' is-empty' : ''}`}
+      className={`feed-day-row status-${status}${isToday ? ' today' : ''}${empty ? ' is-empty' : ''}`}
       onClick={() => onOpen(iso)}
     >
       <div className="feed-day-meta">
