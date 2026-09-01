@@ -3,8 +3,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import type { CalendarEntry } from '@/api/types';
+import { guideOsClient } from '@/api/createClient';
+import { INITIAL_ENTRIES, MOCK_PROFILE } from '@/api/mock/data';
+import { MOCK_TODAY } from '@/config';
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { MonthPicker } from '@/features/calendar/components/MonthPicker';
@@ -110,6 +114,53 @@ function headerMonthLabelText() {
 
 function monthPickerTitleText() {
   return document.querySelector('.month-picker-title')?.textContent ?? '';
+}
+
+function dayCellByIso(iso: string): HTMLButtonElement | undefined {
+  return Array.from(document.querySelectorAll('.day-cell')).find(
+    (el) => el.getAttribute('aria-label')?.startsWith(`${iso},`),
+  ) as HTMLButtonElement | undefined;
+}
+
+async function renderMonthPickerWithEntries(entries: CalendarEntry[]) {
+  vi.spyOn(guideOsClient, 'listEntries').mockResolvedValue(entries);
+  vi.spyOn(guideOsClient, 'getProfile').mockResolvedValue(MOCK_PROFILE);
+  wrap(<MonthPicker />);
+  await waitFor(() => {
+    expect(dayCellByIso('2026-08-01')).toBeTruthy();
+  });
+}
+
+function tourEntry(
+  id: string,
+  date: string,
+  status: 'reserved' | 'confirmed',
+): CalendarEntry {
+  return {
+    id,
+    type: 'tour',
+    title: `Tour ${id}`,
+    startDate: date,
+    endDate: date,
+    startTime: null,
+    endTime: null,
+    status,
+    payment: 'unpaid',
+    income: 100,
+  };
+}
+
+function dayOffEntry(id: string, date: string): CalendarEntry {
+  return {
+    id,
+    type: 'day_off',
+    title: 'Выходной',
+    startDate: date,
+    endDate: date,
+    startTime: null,
+    endTime: null,
+    income: 0,
+  };
 }
 
 describe('month calendar CSS', () => {
@@ -220,6 +271,107 @@ describe('MonthPicker layout', () => {
     const dayCells = document.querySelectorAll('.day-cell:not(.other-month)');
     fireEvent.click(dayCells[0]);
     expect(screen.getByLabelText('Назад к ленте')).toBeTruthy();
+  });
+});
+
+describe('MonthPicker day status cells', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn(() => ({
+        observe: vi.fn(),
+        disconnect: vi.fn(),
+        unobserve: vi.fn(),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('applies free status class without marker dots on empty dates', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    const cell = dayCellByIso('2026-08-01')!;
+    expect(cell.classList.contains('status-free')).toBe(true);
+    expect(cell.querySelector('.markers')).toBeNull();
+    expect(cell.getAttribute('aria-label')).toBe('2026-08-01, Свободен');
+  });
+
+  it('applies reserved status class for reserved tours', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    const cell = dayCellByIso('2026-08-05')!;
+    expect(cell.classList.contains('status-reserved')).toBe(true);
+    expect(cell.getAttribute('aria-label')).toBe('2026-08-05, Бронь');
+  });
+
+  it('applies confirmed status class for confirmed tours', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    const cell = dayCellByIso('2026-08-15')!;
+    expect(cell.classList.contains('status-confirmed')).toBe(true);
+    expect(cell.getAttribute('aria-label')).toBe('2026-08-15, Занято');
+  });
+
+  it('applies day-off status class for day-off entries', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    const cell = dayCellByIso('2026-08-10')!;
+    expect(cell.classList.contains('status-dayoff')).toBe(true);
+    expect(cell.getAttribute('aria-label')).toBe('2026-08-10, Выходной');
+  });
+
+  it('uses effective status priority when multiple entries share a date', async () => {
+    const mixedDate = '2026-08-20';
+    await renderMonthPickerWithEntries([
+      tourEntry('r1', mixedDate, 'reserved'),
+      tourEntry('c1', mixedDate, 'confirmed'),
+      dayOffEntry('d1', mixedDate),
+    ]);
+    const cell = dayCellByIso(mixedDate)!;
+    expect(cell.classList.contains('status-dayoff')).toBe(true);
+    expect(cell.classList.contains('status-confirmed')).toBe(false);
+    expect(cell.getAttribute('aria-label')).toBe(`${mixedDate}, Выходной`);
+
+    vi.spyOn(guideOsClient, 'listEntries').mockResolvedValue([
+      tourEntry('r2', mixedDate, 'reserved'),
+      tourEntry('c2', mixedDate, 'confirmed'),
+    ]);
+    cleanup();
+    wrap(<MonthPicker />);
+    await waitFor(() => {
+      const updated = dayCellByIso(mixedDate);
+      expect(updated?.classList.contains('status-confirmed')).toBe(true);
+    });
+    expect(dayCellByIso(mixedDate)?.classList.contains('status-reserved')).toBe(false);
+  });
+
+  it('does not render marker containers inside day cells', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    expect(document.querySelectorAll('.day-cell .markers').length).toBe(0);
+  });
+
+  it('shows legend labels with color swatches instead of dots', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    expect(screen.getByText('Бронь')).toBeTruthy();
+    expect(screen.getByText('Занято')).toBeTruthy();
+    expect(screen.getByText('Выходной')).toBeTruthy();
+    expect(screen.getByText('Свободен')).toBeTruthy();
+    expect(document.querySelectorAll('.legend-swatch').length).toBe(4);
+    expect(document.querySelectorAll('.marker-legend .marker').length).toBe(0);
+    expect(document.querySelector('.legend-swatch-free')).toBeTruthy();
+  });
+
+  it('keeps today and selected classes alongside status classes', async () => {
+    await renderMonthPickerWithEntries(INITIAL_ENTRIES);
+    const todayCell = dayCellByIso(MOCK_TODAY)!;
+    expect(todayCell.classList.contains('today')).toBe(true);
+    expect(todayCell.classList.contains('selected')).toBe(true);
+    expect(todayCell.classList.contains('status-reserved')).toBe(true);
+
+    const confirmedCell = dayCellByIso('2026-08-15')!;
+    expect(confirmedCell.classList.contains('status-confirmed')).toBe(true);
+    expect(confirmedCell.classList.contains('today')).toBe(false);
+    expect(confirmedCell.classList.contains('selected')).toBe(false);
   });
 });
 

@@ -1,9 +1,17 @@
 import { MOCK_TODAY } from '@/config';
 import { MONTH_NAMES_CAP, DOW_SHORT } from '@/i18n/ru';
 import { t } from '@/i18n/strings';
-import { markersForDate } from '@/features/calendar/lib/dayStatus';
+import { dayStatus } from '@/features/calendar/lib/dayStatus';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { IconChevronLeft, IconChevronRight } from '@/components/ui/Icons';
+import type { DayStatusKind } from '@/api/types';
+
+const STATUS_LABEL: Record<DayStatusKind, string> = {
+  free: t.markerFree,
+  reserved: t.markerReserved,
+  confirmed: t.markerConfirmed,
+  dayoff: t.markerDayOff,
+};
 
 export function MonthPicker() {
   const {
@@ -58,10 +66,10 @@ export function MonthPicker() {
         </button>
       </div>
       <div className="marker-legend" aria-hidden="true">
-        <span><span className="marker marker-reserved" /> {t.markerReserved}</span>
-        <span><span className="marker marker-confirmed" /> {t.markerConfirmed}</span>
-        <span><span className="marker marker-dayoff" /> {t.markerDayOff}</span>
-        <span><span className="marker marker-free" /> {t.markerFree}</span>
+        <span><span className="legend-swatch legend-swatch-reserved" /> {t.markerReserved}</span>
+        <span><span className="legend-swatch legend-swatch-confirmed" /> {t.markerConfirmed}</span>
+        <span><span className="legend-swatch legend-swatch-dayoff" /> {t.markerDayOff}</span>
+        <span><span className="legend-swatch legend-swatch-free" /> {t.markerFree}</span>
       </div>
       <div className="card card-pad-sm">
         <div className="month-grid">
@@ -71,21 +79,16 @@ export function MonthPicker() {
           {cells.map((cell) => {
             const today = cell.iso === MOCK_TODAY;
             const sel = cell.iso === selectedDate;
-            const markers = markersForDate(cell.iso, entries);
+            const status = dayStatus(cell.iso, entries);
             return (
               <button
                 key={cell.iso}
                 type="button"
-                className={`day-cell${today ? ' today' : ''}${sel ? ' selected' : ''}${cell.other ? ' other-month' : ''}`}
+                className={`day-cell status-${status}${today ? ' today' : ''}${sel ? ' selected' : ''}${cell.other ? ' other-month' : ''}`}
                 onClick={() => selectDateFromMonth(cell.iso)}
-                aria-label={String(cell.num)}
+                aria-label={`${cell.iso}, ${STATUS_LABEL[status]}`}
               >
                 <span>{cell.num}</span>
-                <span className="markers">
-                  {markers.map((m: string) => (
-                    <span key={m} className={`marker marker-${m}`} />
-                  ))}
-                </span>
               </button>
             );
           })}

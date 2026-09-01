@@ -23,6 +23,9 @@
   --color-status-success: #4a8f6a;
   --color-status-success-bg: rgba(74, 143, 106, 0.12);
   --color-status-info-bg: rgba(82, 179, 183, 0.12);
+  --color-day-cell-reserved-bg: rgba(82, 179, 183, 0.2);
+  --color-day-cell-confirmed-bg: rgba(78, 132, 130, 0.34);
+  --color-day-cell-dayoff-bg: rgba(255, 169, 102, 0.42);
   --color-focus: #52B3B7;
   --color-disabled: #a8b0b8;
   --color-overlay: rgba(0, 0, 0, 0.45);
@@ -72,6 +75,9 @@
   --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
   --color-status-success-bg: rgba(74, 143, 106, 0.18);
   --color-status-info-bg: rgba(82, 179, 183, 0.18);
+  --color-day-cell-reserved-bg: rgba(82, 179, 183, 0.24);
+  --color-day-cell-confirmed-bg: rgba(78, 132, 130, 0.44);
+  --color-day-cell-dayoff-bg: rgba(255, 169, 102, 0.3);
   --color-primary-subtle: rgba(78, 132, 130, 0.22);
   --color-overlay: rgba(0, 0, 0, 0.55);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -94,6 +100,9 @@
     --color-status-dayoff-bg: rgba(138, 147, 155, 0.18);
     --color-status-success-bg: rgba(74, 143, 106, 0.18);
     --color-status-info-bg: rgba(82, 179, 183, 0.18);
+    --color-day-cell-reserved-bg: rgba(82, 179, 183, 0.24);
+    --color-day-cell-confirmed-bg: rgba(78, 132, 130, 0.44);
+    --color-day-cell-dayoff-bg: rgba(255, 169, 102, 0.3);
     --color-primary-subtle: rgba(78, 132, 130, 0.22);
     --color-overlay: rgba(0, 0, 0, 0.55);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
