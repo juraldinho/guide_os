@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { ENTRIES_RANGE_FROM, MOCK_TODAY } from '@/config';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ENTRIES_RANGE_FROM, ENTRIES_RANGE_TO, MOCK_TODAY } from '@/config';
 import { t } from '@/i18n/strings';
 import {
   buildFeedDatesFromRange,
@@ -13,10 +13,22 @@ import { useCalendar } from '../CalendarContext';
 /** Subpixel guard only — not a visible scroll delay. */
 export const HEADER_BOUNDARY_EPSILON = 1e-3;
 
+/** Survives React StrictMode remount within one Mini App session. */
+let feedInitialPositionSessionDone = false;
+
+/** Test-only: reset session initial-position flag between test runs. */
+export function resetFeedInitialPositionSessionForTests(): void {
+  feedInitialPositionSessionDone = false;
+}
+
 export function getStickyHeaderBottom(): number {
   const header = document.querySelector('.header');
   if (!header) return 0;
   return header.getBoundingClientRect().bottom;
+}
+
+function getScrollY(): number {
+  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
 }
 
 /**
@@ -88,8 +100,56 @@ export function Feed() {
   const scrollRaf = useRef(0);
   const lastReportedMonthYearRef = useRef<string | null>(null);
   const prependPendingRef = useRef(false);
+  const extendPendingRef = useRef(false);
   const pendingPrependAnchorRef = useRef<{ iso: string; top: number } | null>(null);
-  const initialScrollDoneRef = useRef(false);
+  const initialPositioningCompleteRef = useRef(feedInitialPositionSessionDone);
+  const [observersEnabled, setObserversEnabled] = useState(false);
+
+  const feedFromRef = useRef(feedFrom);
+  feedFromRef.current = feedFrom;
+  const feedToRef = useRef(feedTo);
+  feedToRef.current = feedTo;
+  const monthExpandedRef = useRef(monthExpanded);
+  monthExpandedRef.current = monthExpanded;
+
+  const lastScrollYRef = useRef(0);
+  const userIntentUpRef = useRef(false);
+  const userIntentDownRef = useRef(false);
+  const topSentinelArmedRef = useRef(true);
+  const bottomSentinelArmedRef = useRef(true);
+  const programmaticScrollRef = useRef(false);
+  const programmaticScrollClearRaf = useRef(0);
+
+  const runProgrammaticScroll = useCallback((fn: () => void, deferClear = false) => {
+    programmaticScrollRef.current = true;
+    if (programmaticScrollClearRaf.current) {
+      window.cancelAnimationFrame(programmaticScrollClearRaf.current);
+      programmaticScrollClearRaf.current = 0;
+    }
+    fn();
+    if (!deferClear) {
+      programmaticScrollRef.current = false;
+      lastScrollYRef.current = getScrollY();
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      programmaticScrollClearRaf.current = window.requestAnimationFrame(() => {
+        programmaticScrollClearRaf.current = 0;
+        programmaticScrollRef.current = false;
+        lastScrollYRef.current = getScrollY();
+      });
+    });
+  }, []);
+
+  const trackUserScrollIntent = useCallback(() => {
+    if (programmaticScrollRef.current) return;
+
+    const y = getScrollY();
+    const delta = y - lastScrollYRef.current;
+    if (delta < -1) userIntentUpRef.current = true;
+    if (delta > 1) userIntentDownRef.current = true;
+    lastScrollYRef.current = y;
+  }, []);
 
   const updateVisibleFromScroll = useCallback(() => {
     if (monthExpanded) return;
@@ -117,8 +177,8 @@ export function Feed() {
   }, [updateVisibleFromScroll]);
 
   const requestPrepend = useCallback(() => {
-    if (prependPendingRef.current || monthExpanded) return;
-    if (feedFrom <= ENTRIES_RANGE_FROM) return;
+    if (prependPendingRef.current || monthExpandedRef.current) return;
+    if (feedFromRef.current <= ENTRIES_RANGE_FROM) return;
 
     const anchorIso = pickVisibleFeedIso(
       dates,
@@ -137,7 +197,14 @@ export function Feed() {
       pendingPrependAnchorRef.current = null;
     }
     prependFeed();
-  }, [dates, feedFrom, monthExpanded, prependFeed]);
+  }, [dates, prependFeed]);
+
+  const requestExtend = useCallback(() => {
+    if (extendPendingRef.current || monthExpandedRef.current) return;
+    if (feedToRef.current >= ENTRIES_RANGE_TO) return;
+    extendPendingRef.current = true;
+    extendFeed();
+  }, [extendFeed]);
 
   useLayoutEffect(() => {
     const pending = pendingPrependAnchorRef.current;
@@ -152,24 +219,46 @@ export function Feed() {
     const anchorEl = rowRefs.current.get(pending.iso);
     if (anchorEl) {
       const delta = anchorEl.getBoundingClientRect().top - pending.top;
-      applyScrollDelta(delta);
+      runProgrammaticScroll(() => applyScrollDelta(delta));
     }
 
     pendingPrependAnchorRef.current = null;
     prependPendingRef.current = false;
     scheduleVisibleUpdate();
-  }, [feedFrom, scheduleVisibleUpdate]);
+  }, [feedFrom, runProgrammaticScroll, scheduleVisibleUpdate]);
 
   useLayoutEffect(() => {
-    if (initialScrollDoneRef.current) return;
+    extendPendingRef.current = false;
+  }, [feedTo]);
+
+  useLayoutEffect(() => {
     if (!dates.includes(MOCK_TODAY)) return;
-    scrollTodayBelowHeader(false);
-    initialScrollDoneRef.current = true;
+
+    if (feedInitialPositionSessionDone) {
+      initialPositioningCompleteRef.current = true;
+      lastScrollYRef.current = getScrollY();
+      if (!observersEnabled) {
+        window.requestAnimationFrame(() => setObserversEnabled(true));
+      }
+      return;
+    }
+
+    runProgrammaticScroll(() => scrollTodayBelowHeader(false));
+    feedInitialPositionSessionDone = true;
+    initialPositioningCompleteRef.current = true;
+    lastScrollYRef.current = getScrollY();
     scheduleVisibleUpdate();
-  }, [dates, scheduleVisibleUpdate]);
+
+    window.requestAnimationFrame(() => {
+      setObserversEnabled(true);
+    });
+  }, [dates, observersEnabled, runProgrammaticScroll, scheduleVisibleUpdate]);
 
   useEffect(() => {
-    const onScroll = () => scheduleVisibleUpdate();
+    const onScroll = () => {
+      trackUserScrollIntent();
+      scheduleVisibleUpdate();
+    };
 
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -194,7 +283,7 @@ export function Feed() {
       if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
       scrollRaf.current = 0;
     };
-  }, [scheduleVisibleUpdate]);
+  }, [scheduleVisibleUpdate, trackUserScrollIntent]);
 
   useEffect(() => {
     scheduleVisibleUpdate();
@@ -207,42 +296,80 @@ export function Feed() {
   }, [monthExpanded, scheduleVisibleUpdate]);
 
   useEffect(() => {
-    if (!topSentinelRef.current) return;
+    if (!observersEnabled || !topSentinelRef.current) return;
     const sentinel = topSentinelRef.current;
     const observer = new IntersectionObserver(
       (entriesObserved) => {
-        if (entriesObserved.some((e) => e.isIntersecting)) {
-          requestPrepend();
+        const entry = entriesObserved.find((e) => e.target === sentinel) ?? entriesObserved[0];
+        if (!entry) return;
+
+        if (!entry.isIntersecting) {
+          topSentinelArmedRef.current = true;
+          return;
         }
+
+        if (!initialPositioningCompleteRef.current) return;
+        if (!topSentinelArmedRef.current) return;
+        if (!userIntentUpRef.current) return;
+        if (prependPendingRef.current) return;
+        if (monthExpandedRef.current) return;
+        if (feedFromRef.current <= ENTRIES_RANGE_FROM) return;
+
+        topSentinelArmedRef.current = false;
+        userIntentUpRef.current = false;
+        requestPrepend();
       },
       { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [requestPrepend, feedFrom]);
+  }, [observersEnabled, requestPrepend]);
 
   useEffect(() => {
-    if (!bottomSentinelRef.current) return;
+    if (!observersEnabled || !bottomSentinelRef.current) return;
     const sentinel = bottomSentinelRef.current;
     const observer = new IntersectionObserver(
       (entriesObserved) => {
-        if (entriesObserved.some((e) => e.isIntersecting)) {
-          extendFeed();
+        const entry = entriesObserved.find((e) => e.target === sentinel) ?? entriesObserved[0];
+        if (!entry) return;
+
+        if (!entry.isIntersecting) {
+          bottomSentinelArmedRef.current = true;
+          return;
         }
+
+        if (!initialPositioningCompleteRef.current) return;
+        if (!bottomSentinelArmedRef.current) return;
+        if (!userIntentDownRef.current) return;
+        if (extendPendingRef.current) return;
+        if (monthExpandedRef.current) return;
+        if (feedToRef.current >= ENTRIES_RANGE_TO) return;
+
+        bottomSentinelArmedRef.current = false;
+        userIntentDownRef.current = false;
+        requestExtend();
       },
       { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [extendFeed, feedTo]);
+  }, [observersEnabled, requestExtend]);
 
   useEffect(() => {
     if (scrollToTodaySignal === 0) return;
-    scrollTodayBelowHeader(true);
+    runProgrammaticScroll(() => scrollTodayBelowHeader(true), true);
     scheduleVisibleUpdate();
     const followUp = window.setInterval(scheduleVisibleUpdate, 120);
     window.setTimeout(() => window.clearInterval(followUp), 900);
-  }, [scrollToTodaySignal, scheduleVisibleUpdate]);
+  }, [scrollToTodaySignal, runProgrammaticScroll, scheduleVisibleUpdate]);
+
+  useEffect(() => {
+    return () => {
+      if (programmaticScrollClearRaf.current) {
+        window.cancelAnimationFrame(programmaticScrollClearRaf.current);
+      }
+    };
+  }, []);
 
   const setRowRef = (iso: string, el: HTMLButtonElement | null) => {
     if (el) rowRefs.current.set(iso, el);
