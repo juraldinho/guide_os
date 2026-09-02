@@ -143,11 +143,11 @@ a { color: var(--color-action-primary); }
   flex-shrink: 0;
 }
 .logo-mark {
-  height: 22px;
+  height: 30px;
   width: auto;
-  max-width: 120px;
+  max-width: 30px;
   object-fit: contain;
-  object-position: left center;
+  object-position: center;
   display: block;
 }
 .header-row {
@@ -833,7 +833,6 @@ a { color: var(--color-action-primary); }
   }
 }
 @media (max-width: 360px) {
-  .logo-mark { max-width: 96px; height: 20px; min-height: 20px; }
   .main {
     padding-inline: 10px;
     padding-top: 10px;
