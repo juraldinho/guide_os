@@ -71,7 +71,7 @@ export interface ConflictWarn {
 
 export type ConflictResult = ConflictBlock | ConflictWarn | null;
 
-export type TabId = 'calendar' | 'reports';
+export type TabId = 'calendar' | 'reports' | 'guideshop';
 export type CalendarScreen = 'feed' | 'day';
 
 export interface TourFormOverlayData {

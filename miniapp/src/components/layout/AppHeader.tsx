@@ -2,9 +2,10 @@ import { MonthPicker } from '@/features/calendar/components/MonthPicker';
 import { MONTH_NAMES_CAP } from '@/i18n/ru';
 import { t } from '@/i18n/strings';
 import { IconChevronDown, IconChevronUp, IconSettings } from '@/components/ui/Icons';
+import type { TabId } from '@/api/types';
 
 interface AppHeaderProps {
-  activeTab: 'calendar' | 'reports';
+  activeTab: TabId;
   headerMonth: number;
   headerYear: number;
   monthExpanded: boolean;
@@ -52,7 +53,9 @@ export function AppHeader({
               <span className="month-chevron">{chevron}</span>
             </button>
           ) : (
-            <span className="header-title-static">{t.reportsTitle}</span>
+            <span className="header-title-static">
+              {activeTab === 'reports' ? t.reportsTitle : t.guideShop}
+            </span>
           )}
         </div>
 

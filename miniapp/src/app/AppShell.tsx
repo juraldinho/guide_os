@@ -3,6 +3,7 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { ReportsPage } from '@/features/reports/ReportsPage';
+import { GuideShopPage } from '@/features/guideshop/GuideShopPage';
 import { GlobalOverlays } from './GlobalOverlays';
 import { DemoErrorScreen, DemoLoadingScreen, DemoOfflineScreen } from './DemoScreens';
 
@@ -42,7 +43,13 @@ export function AppShell() {
           onToggleMonthPicker={toggleMonthPicker}
           onSettings={openSettings}
         />
-        {activeTab === 'calendar' ? <CalendarPage /> : <ReportsPage />}
+        {activeTab === 'calendar' ? (
+          <CalendarPage />
+        ) : activeTab === 'reports' ? (
+          <ReportsPage />
+        ) : (
+          <GuideShopPage />
+        )}
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
       <GlobalOverlays />

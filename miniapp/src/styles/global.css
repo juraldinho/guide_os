@@ -216,15 +216,25 @@ a { color: var(--color-action-primary); }
   right: 0;
   max-width: 480px;
   margin: 0 auto;
-  display: flex;
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   padding-bottom: var(--safe-bottom);
   z-index: 60;
   box-shadow: 0 -1px 0 var(--color-border);
 }
+.bottom-nav-track {
+  display: flex;
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.bottom-nav-track::-webkit-scrollbar { display: none; }
 .nav-item {
-  flex: 1;
+  flex: 1 0 112px;
+  scroll-snap-align: nearest;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -238,6 +248,18 @@ a { color: var(--color-action-primary); }
 }
 .nav-item.active { color: var(--color-action-primary); font-weight: 600; }
 .nav-icon { width: 22px; height: 22px; }
+
+.guideshop-page {
+  width: 100%;
+}
+.guideshop-placeholder {
+  min-height: 120px;
+}
+.guideshop-section-title {
+  margin-bottom: var(--space-sm);
+  font-size: 17px;
+  font-weight: 700;
+}
 
 .card {
   background: var(--color-surface);
