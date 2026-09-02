@@ -176,3 +176,11 @@ GuideShop linking request
 5. CI/staging evidence с exact commit;
 6. этот файл как краткая карта проекта;
 7. README, roadmap и старые документы только как исторический контекст.
+
+## Future daily tips roadmap
+
+Утверждена, но не реализована модель дневных чаевых: одна сумма на `user_id + calendar_date`, независимо от туров; сначала Telegram-бот, затем общий API и Mini App. Канонический план: `TIPS_ROADMAP.md`.
+
+## Active GuideShop Mini App roadmap
+
+GSMA0 активирован владельцем. Official GuideShop остаётся read-only; personal companies/commissions переиспользуют существующий Guide OS data layer. План: `mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

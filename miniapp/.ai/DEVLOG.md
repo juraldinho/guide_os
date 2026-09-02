@@ -2,6 +2,35 @@
 
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
+## 2026-09-02 — Future Google Calendar roadmap approved (not implemented)
+
+- утверждён one-way import `Google Calendar → Guide OS`;
+- external event показывается как заготовка и блокирует занятость без дохода/statistics;
+- пользователь может дополнить запись и сохранить через общий `tour_service` как полноценный тур;
+- преобразованный тур не перезаписывается и не удаляется автоматически источником;
+- Apple/iCloud и обратная запись в Google исключены из первого scope;
+- GC0–GC13 зафиксированы в `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`;
+- код, schema, OAuth, Railway и production не изменялись.
+
+## 2026-09-02 — Future tips roadmap approved (not implemented)
+
+- утверждена одна сумма чаевых на пользователя и календарную дату, отдельно от tours/daily income;
+- чаевые можно добавить в любой день; multi-day, day off, copy/delete tour на них не влияют;
+- порядок реализации: shared foundation → Telegram bot → bot validation → Web API → Mini App → E2E;
+- отчёты должны разделять доход от туров, чаевые и общий доход;
+- payments/эквайринг, разные валюты и GuideShop mutations вне scope;
+- TIP0–TIP10 зафиксированы в `docs/TIPS_ROADMAP.md`;
+- код, schema, Railway и production не изменялись.
+
+## 2026-09-02 — GuideShop Mini App workstream activated (GSMA0 docs)
+
+- утверждён третий нижний раздел после Calendar/Reports и масштабируемая horizontal nav;
+- official GuideShop companies остаются read-only;
+- personal companies/commissions переиспользуют существующие personal-place services/data;
+- зафиксированы этапы GSMA0–GSMA10 в `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`;
+- активный следующий этап — GSMA0 audit/contract;
+- application code, schema, API, Railway и production не изменялись.
+
 ## 2026-08-28 — MA0 product discovery completed
 
 - определена основная формулировка: быстрый профессиональный календарь гида;
@@ -199,3 +228,19 @@
 - **Formal general production release** not separately declared; production gate docs retained for future review;
 - **MA11** hosted closed staging not active next step; **no active coding/deployment task** until owner defines next step;
 - Reversible rollback documented (`MINI_APP_ENABLED=false`, optional `MINI_APP_API_ENABLED=false`, redeploy) — **not executed** per owner decision.
+## 2026-09-02 — GSMA0 GuideShop Mini App audit/contract
+
+- GSMA0 завершён документационно; application code и production не менялись;
+- Утверждён третий `guideshop` tab и горизонтально масштабируемая bottom navigation без full-page swipe;
+- Personal companies/commissions переиспользуют существующие user-scoped services/tables;
+- Official GuideShop остаётся read-only и изолированным degraded section;
+- Зафиксированы API schemas, errors, idempotency/security invariants и targeted test matrix;
+- next: GSMA1 navigation shell only.
+
+## 2026-09-02 — GSMA1 GuideShop navigation foundation
+
+- Added canonical `guideshop` tab, page placeholder and static header title;
+- Bottom nav now uses a horizontally scrollable/snap track with active-item auto-scroll and `aria-current`;
+- Calendar/Reports state and behavior retained; no GuideShop data API, backend or deploy changes;
+- Frontend tests: 162 passed; production build passed;
+- next: GSMA2 Personal Places Web API.

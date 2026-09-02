@@ -140,3 +140,11 @@ Stages 0–18 завершены и работают в production. Текущи
 - Этот чат анализирует, проектирует, проверяет и обновляет Markdown.
 - Git branch/add/commit/push и простые terminal-запуски выполняет владелец по готовым командам этого чата.
 - Minimal Change; никаких несвязанных изменений.
+
+## Future daily tips roadmap
+
+Owner approved a not-yet-implemented bot-first daily tips feature: one amount per `user_id + calendar_date`, independent of tours. Canonical plan: `docs/TIPS_ROADMAP.md`.
+
+## Active GuideShop Mini App workstream
+
+Owner activated GSMA0 documentation/product/API audit. Official GuideShop remains read-only; personal companies and commissions reuse existing Guide OS services. Canonical plan: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

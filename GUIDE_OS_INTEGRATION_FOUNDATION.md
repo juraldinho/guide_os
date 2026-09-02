@@ -1128,3 +1128,11 @@ Verification:
 ### Sign-off statement
 
 Я, Product Owner, подтверждаю предложенные в этом документе product и architecture решения, принимаю ответственность по перечисленным направлениям и разрешаю начать подготовку и реализацию интеграции Guide OS ↔ GuideShop в пределах Track A и доступной части Track B. Это подтверждение не разрешает production activation до получения и фиксации evidence из раздела 14.1.
+
+## Future daily tips roadmap
+
+Дневные чаевые являются отдельной будущей функцией Guide OS и не относятся к GuideShop income/points integration: одна сумма на `user_id + calendar_date`, bot-first, затем Mini App. Реализация не начата; см. `docs/TIPS_ROADMAP.md`.
+
+## Active GuideShop Mini App composition
+
+Mini App workstream использует существующий request-scoped read-only GuideShop runtime и существующие personal-place services. Source ownership не меняется. GSMA0–GSMA10: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

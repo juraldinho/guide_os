@@ -666,3 +666,11 @@ Resolve only at their stage:
 - pagination/caching details.
 
 Each decision needs smallest viable option, tests and compatibility analysis. Do not use open items to expand MVP.
+
+## Future daily tips integration
+
+Daily tips are approved but not implemented: one amount per authenticated user/calendar date, stored outside tours. Telegram bot delivery precedes Web API and Mini App parity. Canonical plan: `../docs/TIPS_ROADMAP.md`.
+
+## Active GuideShop Mini App composition
+
+The owner activated GSMA0. Compose existing personal-place services and request-scoped official read-only GuideShop data through the Guide OS API; do not create a parallel frontend model. See `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

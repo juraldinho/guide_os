@@ -223,3 +223,9 @@ cd miniapp && npm test && npm run build
 ```
 
 All green does **not** replace Telegram WebView smoke — initData and WebView UX require manual §3.
+
+## Future roadmap note
+
+Daily tips are approved but not part of this historical MA9 smoke: one amount per user/calendar date, bot-first and then Mini App. When implemented, use the separate gates in `../TIPS_ROADMAP.md`.
+
+GuideShop Mini App is a later active workstream and is not covered by this historical smoke. Its release checks are defined in `GUIDESHOP_MINIAPP_ROADMAP.md`.

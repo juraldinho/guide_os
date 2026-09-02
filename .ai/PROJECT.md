@@ -239,3 +239,11 @@ Guide OS production работает на commit `930759340a867113c6a78da6455293
 - Название личного места не обязано передаваться в GuideShop.
 - Автоматическая связь с официальной компанией запрещена; возможна только после надёжного подтверждения.
 - Юридическая, налоговая, anti-fraud и redemption-модель баллов должна быть утверждена до реализации write API или начисления доступных баллов.
+
+## Future daily tips roadmap
+
+Дневные чаевые утверждены как будущая функция: одна сумма на пользователя и календарную дату, независимо от туров. Реализация не начата. Канонический bot-first план: `docs/TIPS_ROADMAP.md`.
+
+## Active GuideShop Mini App roadmap
+
+GSMA0 product/API audit активирован. План: horizontal third module, existing personal companies/commissions, затем official read-only catalog. Канонический документ: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

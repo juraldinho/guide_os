@@ -122,6 +122,28 @@ GuideShop (`services/guide_shop_*`):
 - **User stats:** `handlers/stats.py` + `services/stats_service.py`
 - **CSV export:** в репозитории **нет** отдельного CSV export; не добавлять без явного scope
 
+### Future Google Calendar roadmap
+
+- Утверждён будущий one-way flow `Google Calendar → Guide OS`: external event → editable draft → полноценный Guide OS tour.
+- Реализация **не начата** и не является активной задачей без нового явного запроса владельца.
+- Канонический план GC0–GC13: `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`.
+- Обратная запись в Google и Apple/iCloud integration не входят в утверждённый первый scope.
+
+### Future tips roadmap
+
+- Утверждена будущая bot-first функция дневных чаевых: одна общая сумма на `user_id + calendar_date`, независимо от туров.
+- Сначала shared storage/service и Telegram bot UX, после owner validation — Web API и Mini App на тех же данных.
+- Реализация **не начата** без нового явного запроса владельца.
+- Канонический план TIP0–TIP10: `docs/TIPS_ROADMAP.md`.
+
+### Active GuideShop Mini App roadmap
+
+- Владелец активировал добавление третьего раздела `GuideShop` в Mini App после `Календарь` и `Итоги`.
+- Нижняя навигация проектируется как горизонтально прокручиваемая панель будущих модулей; full-page swipe не входит в первый scope.
+- Official GuideShop companies остаются read-only; личные компании переиспользуют `personal_places`, комиссии — `personal_place_entries`/`ExternalSalesService`.
+- Следующий этап — GSMA0 product/API audit; application code ещё не изменён.
+- Канонический план GSMA0–GSMA10: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+
 ### Tests (`tests/`)
 
 - `conftest.py` — isolated temp DB per test (`DATABASE_PATH`)
@@ -322,7 +344,7 @@ Git branch, add, commit and push commands are owner-run Terminal operations by d
 
 **In scope:** calendar, add/edit/delete tour, day off, income, stats, profile, notifications, personal places, feature-gated GuideShop reads.
 
-**Out of scope unless requested:** AI features, marketplace, CRM, roles, shared calendars, Google Calendar, multi-language, multi-currency, complex analytics, новые external integrations.
+**Out of scope unless activated by owner:** AI features, marketplace, CRM, roles, shared calendars, multi-language, multi-currency, complex analytics, новые external integrations. Google Calendar зафиксирован как отдельный будущий roadmap в `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`, но не активен автоматически.
 
 ---
 

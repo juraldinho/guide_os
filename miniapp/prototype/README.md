@@ -45,3 +45,9 @@ Settings → **Тема (демо)**: Как в Telegram / Светлая / Тё
 
 - No dependencies, no network, no backend
 - Do not edit for new features — port changes to `miniapp/src/` instead
+
+## Future roadmap note
+
+Daily tips are approved for the production architecture, not this disposable prototype: one amount per user/calendar date, bot-first and then Mini App. See `../../docs/TIPS_ROADMAP.md`.
+
+GuideShop Mini App is an active production-architecture workstream, not a reason to extend this disposable prototype. Use `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md` and implement in `miniapp/src/`.

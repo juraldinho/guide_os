@@ -570,3 +570,9 @@ Step 2 migrations must be additive, backup-tested, default null for legacy rows.
 - `miniapp/src/api/types.ts`
 - `miniapp/src/features/reports/lib/summary.ts`
 - `miniapp/src/features/reports/lib/availability.ts`
+
+## Future contract extension — not implemented
+
+Daily tips will require a day-scoped API and separate report fields. The approved rule is one amount per authenticated user and calendar date, independent of tours. This v1 contract is unchanged until the workstream begins; see `../TIPS_ROADMAP.md`.
+
+GuideShop Mini App requires additive personal-place/commission and official read-only composition endpoints. Exact contracts are a GSMA0 deliverable; see `GUIDESHOP_MINIAPP_ROADMAP.md`. This existing v1 contract is not silently changed by the roadmap note.

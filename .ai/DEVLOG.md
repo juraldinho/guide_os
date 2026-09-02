@@ -1006,3 +1006,14 @@ Read-only preflight подтвердил:
 - owner notification/deep-link smoke и Visit back-navigation smoke — PASS;
 - production/staging health, database quick checks, key compatibility, allowlist, rate limit, recovery, backup/restore, observability, security, load и shared E2E evidence — green;
 - implementation gates отсутствуют; следующая деятельность — routine post-launch monitoring и incident response.
+
+## 2026-09-02 — Future daily tips roadmap recorded
+
+- one amount per user/calendar date, independent of tours;
+- bot-first, then shared Web API and Mini App;
+- implementation not started; canonical plan: `docs/TIPS_ROADMAP.md`.
+
+## 2026-09-02 — GuideShop Mini App GSMA0 activated
+
+- roadmap documented; application implementation not started;
+- canonical plan: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

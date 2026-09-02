@@ -102,14 +102,18 @@ Telegram-бот и Mini App остаются двумя равноценными
 - расширяемый список географии;
 - QR для Guide ID/linking;
 - Tourism OS Mini App Starter.
+- односторонний импорт Google Calendar с преобразованием external event в полноценный Guide OS tour — отдельный утверждённый roadmap `../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`, реализация не начата;
+- дневные чаевые — отдельный утверждённый bot-first roadmap `../docs/TIPS_ROADMAP.md`: одна сумма на пользователя и дату независимо от туров; shared foundation и бот сначала, затем Web API/Mini App; реализация не начата;
+- GuideShop Mini App — активированный roadmap `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`: третий нижний раздел, personal companies/commissions, затем official read-only catalog; текущий этап GSMA0;
 
 ### 5.3 Не входит
 
 - полный GuideShop кабинет;
-- Google Calendar;
+- обратная синхронизация Guide OS → Google Calendar;
+- Apple/iCloud Calendar в первой версии Google Calendar workstream;
 - публичные booking slots;
 - recurring rules;
-- чаевые и payments;
+- приём payments/эквайринг для чаевых (учёт введённой гидом суммы чаевых вынесен в будущий `../docs/TIPS_ROADMAP.md`);
 - квизы;
 - marketplace/social feed;
 - admin, broadcast и backup UI;
@@ -791,7 +795,7 @@ DoD: guides complete primary scenarios without explanation.
 - read-only GuideShop calendar events after integration gate;
 - localization;
 - starter kit extraction;
-- separate discovery for tips/quizzes/operator.
+- tips delivery follows the approved `../docs/TIPS_ROADMAP.md`; separate discovery remains for quizzes/operator.
 
 ## 21. Test matrix
 

@@ -2,6 +2,8 @@
 
 Concise summary derived from the **current codebase**, tests, README, folder structure, and existing documentation (`docs/project_context.md`, `.cursor/rules/`). Intended as input for a future `DECISION_LOG.md`.
 
+Later owner-approved future work is recorded separately from the original MVP evidence. Tips follow the not-yet-implemented bot-first roadmap in `docs/TIPS_ROADMAP.md`.
+
 **Evidence date:** inferred from repository state; no git history was used for this document.
 
 ---
@@ -14,7 +16,7 @@ Guide OS is a **Telegram bot MVP for tourist guides** to plan tours, view a pers
 |---|---|
 | **Problem** | Guides need a simple tool to manage bookings, availability, and earnings without CRM/marketplace complexity |
 | **Users** | Individual guides (Telegram private chats); one optional admin (`ADMIN_ID`) |
-| **Explicit non-goals** | Marketplace, AI, Google Calendar sync, CRM, user roles, shared calendars, multi-language, multi-currency (`docs/project_context.md`, `.cursor/rules/guide_os_rules.mdc`) |
+| **Explicit original-MVP non-goals** | Marketplace, AI, Google Calendar sync, CRM, user roles, shared calendars, multi-language, multi-currency (`docs/project_context.md`, `.cursor/rules/guide_os_rules.mdc`). Later owner decision: one-way Google Calendar import is an approved future roadmap, not implemented; see `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`. |
 
 ---
 
@@ -539,7 +541,7 @@ Below are **recommended DECISION_LOG entries** with the standard fields. Copy/ad
 
 | Field | Content |
 |---|---|
-| **Decision** | Ship calendar, tours, income, stats, delete, day-off only; explicitly exclude AI, marketplace, CRM, Google Calendar |
+| **Decision** | Ship the original MVP with calendar, tours, income, stats, delete and day-off; Google Calendar was excluded from that MVP. A later owner decision approved a separate future one-way import roadmap (`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`), still not implemented. |
 | **Why** | Fast launch for guides; avoid platform scope creep |
 | **Evidence** | `docs/project_context.md`, `.cursor/rules/guide_os_rules.mdc` |
 | **Consequences** | Feature requests outside list require explicit scope change |
@@ -717,3 +719,7 @@ Below are **recommended DECISION_LOG entries** with the standard fields. Copy/ad
 ---
 
 *Generated for Decision Log intake. Do not treat inferred "why" as confirmed team history unless validated by maintainers.*
+
+## Later active roadmap
+
+The owner activated the GuideShop Mini App workstream: scalable third bottom module, personal companies/commissions first, official GuideShop read-only. Current stage is GSMA0; see `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

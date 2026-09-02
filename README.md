@@ -3,6 +3,14 @@
 Guide OS is a Telegram bot for guides to manage tours, schedules, income,
 notifications, and optional GuideShop views.
 
+## Future roadmap
+
+The owner-approved, not-yet-implemented one-way Google Calendar import roadmap is documented in [`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`](docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md). It covers importing external events, supplementing them in Guide OS, and converting them into native tours without writing back to Google.
+
+The owner-approved, not-yet-implemented bot-first tips roadmap is documented in [`docs/TIPS_ROADMAP.md`](docs/TIPS_ROADMAP.md). Tips are planned as one total amount per user and calendar date, independent of tours, implemented in the bot first and then exposed through the shared API to the Mini App.
+
+The active GuideShop Mini App workstream is documented in [`docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md). It adds scalable bottom navigation, personal companies and commissions first, then composes the official read-only GuideShop catalog.
+
 ## Prerequisites
 
 - Python 3.13.14

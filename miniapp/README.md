@@ -165,3 +165,11 @@ Guide OS SQLite
 - Russian UI, USD only
 - Bot handlers unchanged
 - No production Mini App until staging gate (**MA11+** when approved)
+
+## Future daily tips roadmap
+
+Owner approved a not-yet-implemented bot-first daily tips feature: one amount per user and calendar date, independent of tours. After bot validation, the shared API will expose it to this Mini App. See [`../docs/TIPS_ROADMAP.md`](../docs/TIPS_ROADMAP.md).
+
+## Active GuideShop Mini App roadmap
+
+Owner activated the GuideShop Mini App workstream. The planned third bottom module combines user-owned personal companies/commissions with the official read-only GuideShop catalog through the Guide OS API. Current stage is GSMA0 contract/audit; implementation has not started. See [`../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).

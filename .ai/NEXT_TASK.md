@@ -33,3 +33,15 @@ Stage 19 завершён и выпущен в Guide OS production.
 ## Единственная следующая задача
 
 Routine post-launch monitoring и incident response. Новая product-разработка начинается только после выбора владельцем следующего roadmap item.
+
+## Зафиксированный будущий roadmap
+
+Google Calendar one-way import для Mini App утверждён как будущая функция, но ещё не активирован для разработки. Импортированное событие сможет стать полноценным Guide OS туром после дополнения пользователем. Канонический план GC0–GC13: `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`.
+
+Дневные чаевые утверждены как отдельный будущий bot-first roadmap: одна сумма на пользователя и календарную дату, независимо от туров; shared foundation → Telegram bot → owner validation → Web API → Mini App. Реализация не начата. Канонический план TIP0–TIP10: `docs/TIPS_ROADMAP.md`.
+
+## Активированный Mini App workstream
+
+Владелец активировал GuideShop Mini App. Следующий этап — **GSMA0: product/API audit и точный contract**, без немедленного изменения application code. Затем отдельным change выполняется GSMA1 horizontal scalable bottom navigation.
+
+Official GuideShop остаётся read-only; личные компании и комиссии должны переиспользовать существующие `personal_places`, `personal_place_entries` и shared services. Канонический план GSMA0–GSMA10: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

@@ -208,3 +208,9 @@ Contract conformance (MA5): API route tests against golden JSON fixtures from `A
 - `services/tour_service.py`, `stats_service.py`, `calendar_service.py`
 - `database/db.py` (schema)
 - `handlers/add_tour.py` (date conflict UX)
+
+## Future roadmap note
+
+Daily tips were approved after MA4 and are not part of this historical gap analysis. They are independent of tours and follow `../TIPS_ROADMAP.md`.
+
+GuideShop Mini App was activated later and requires a fresh GSMA0 audit; see `GUIDESHOP_MINIAPP_ROADMAP.md` rather than extending this historical MA4 analysis.

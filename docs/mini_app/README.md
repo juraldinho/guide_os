@@ -22,3 +22,6 @@ Telegram-бот (handlers) **не изменён**. Production rollout **вык�
 
 - [`../../miniapp/.ai/NEXT_TASK.md`](../../miniapp/.ai/NEXT_TASK.md) — **MA11** (deferred)
 - [`../../miniapp/README.md`](../../miniapp/README.md) — quick start
+- [`GOOGLE_CALENDAR_ROADMAP.md`](GOOGLE_CALENDAR_ROADMAP.md) — утверждённая будущая односторонняя интеграция Google Calendar; реализация не начата
+- [`../TIPS_ROADMAP.md`](../TIPS_ROADMAP.md) — утверждённая будущая bot-first функция чаевых; реализация не начата
+- [`GUIDESHOP_MINIAPP_ROADMAP.md`](GUIDESHOP_MINIAPP_ROADMAP.md) — активированный GuideShop Mini App workstream; следующий этап GSMA0

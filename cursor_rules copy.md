@@ -180,7 +180,7 @@ keyboards/
 - CRM
 - роли пользователей
 - совместные календари
-- Google Calendar
+- Google Calendar не входит в исходный MVP; будущий one-way roadmap утверждён отдельно в `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md` и не запускается без явной задачи владельца
 - multi-language
 - multi-currency
 - аналитика будущих версий
@@ -190,6 +190,8 @@ keyboards/
 Если появляется идея вне MVP:
 
 Не реализовывай её.
+
+Позднее владелец отдельно утвердил будущую функцию чаевых. Она не активируется автоматически; при явном запросе следовать bot-first плану `docs/TIPS_ROADMAP.md`.
 
 Пометь как:
 
@@ -363,3 +365,5 @@ CODE
 Не строй платформу.
 
 Строй только то, что нужно, чтобы сегодня работал MVP Guide OS.
+
+Активное исключение, явно утверждённое владельцем: GuideShop Mini App, начиная с GSMA0. Следовать `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`; official data остаётся read-only.

@@ -145,3 +145,9 @@ After **MA11+** hosted staging deploy only, repeat subset of staging smoke on **
 5. DELETE session
 
 Record pass/fail privately; do not commit evidence with tokens.
+
+## Future roadmap note
+
+Daily tips are not covered by this historical MA9 gate. Before their release, complete the bot/API/Mini App security and E2E gates defined in `../TIPS_ROADMAP.md`.
+
+GuideShop Mini App is also outside this historical gate. Use the GSMA9/GSMA10 gates in `GUIDESHOP_MINIAPP_ROADMAP.md` before its release.

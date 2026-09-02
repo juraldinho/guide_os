@@ -426,3 +426,11 @@ Together with GuideShop, it creates a bridge between guides and tourism partner 
 The current product and integration foundation are already implemented and are being validated through controlled staging. Future development can expand Guide OS into knowledge management, AI assistance, partner discovery, operator tools, analytics, marketplace capabilities, external-sale workflows, and a wider Tourism OS ecosystem.
 
 The central idea is simple: **professional tourism should operate through better structure, trusted information, transparency, and intelligent tools—not through fragmented chats, memory, and disconnected spreadsheets.**
+
+## Approved future daily tips roadmap
+
+A bot-first daily tips feature is approved but not implemented: one amount per user and calendar date, independent of tours, followed by shared API and Mini App parity. See [`TIPS_ROADMAP.md`](TIPS_ROADMAP.md).
+
+## Active GuideShop Mini App roadmap
+
+The owner activated GSMA0 for a scalable third Mini App module combining user-owned personal companies/commissions with the official read-only GuideShop catalog. See [`mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).

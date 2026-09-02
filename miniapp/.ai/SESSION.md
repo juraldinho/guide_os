@@ -2,6 +2,24 @@
 
 > Обновлено: 2026-09-01
 
+## Active workstream — GuideShop Mini App (2026-09-02)
+
+Owner activated the GuideShop Mini App roadmap. Planned UX: horizontally scrollable bottom module navigation `Calendar → Reports → GuideShop → future`; GuideShop page groups official read-only GuideShop companies and user-owned personal companies with commission records. Existing `personal_places`, `personal_place_entries`, `PersonalPlacesService`, `ExternalSalesService` and request-scoped GuideShop runtime are authoritative; no parallel frontend data model.
+
+Current stage is **GSMA0–GSMA1 complete; GSMA2 Personal Places Web API next**. GuideShop navigation shell exists; personal/official data API, Railway and production remain unchanged. Canonical plan: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`; approved contract: `../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md`.
+
+## Future roadmap decision — Google Calendar (2026-09-02)
+
+Owner approved the product concept and staged roadmap for one-way `Google Calendar → Guide OS` import. Imported events remain external drafts until the guide opens one, supplements price/status/payment/company/route/notes, and saves it as a native Guide OS tour. Native converted tours are not automatically overwritten or deleted by Google changes. Apple/iCloud and reverse synchronization are excluded from the first scope.
+
+Implementation has **not started** and no deployment/configuration is authorized. Canonical GC0–GC13 plan: `../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`.
+
+## Future roadmap decision — tips (2026-09-02)
+
+Owner simplified the bot-first tips feature: tips are one total USD amount per `user_id + calendar_date`, independent of tours. They may be entered on any date, including a free day, day off, a day with multiple tours, or any date inside a multi-day tour. The shared schema/service and Telegram bot must be implemented and validated first; Web API and Mini App then use the same data and calculations. Tips remain separate from tour payment status and contribute to separate `tips` and combined earnings metrics.
+
+Implementation has **not started** and no deployment is authorized. Canonical TIP0–TIP10 plan: `../../docs/TIPS_ROADMAP.md`.
+
 ## Public production pilot validation — **ACTIVE, owner-validated**
 
 | Item | Status |
@@ -114,3 +132,20 @@ Earlier MA10 attempt targeted Railway staging (`guide-os-staging-api`). Hosted c
 ### Next
 
 No coding or deployment authorized until owner defines next product, security, release, or rollback task. Public production pilot **remains enabled** by owner approval.
+## 2026-09-02 — GSMA0 GuideShop Mini App contract complete
+
+- Проведён audit текущих frontend tabs/shell/nav, `PersonalPlacesService`, `ExternalSalesService`, database queries и request-scoped `GuideShopClient`;
+- Подтверждено: новая база и новая business model не нужны; личные компании используют `personal_places`, комиссии — `personal_place_entries`, official companies — существующий read-only GuideShop client;
+- Зафиксирован contract list/detail/create/update/deactivate, ownership/idempotency/error/degraded rules и отсутствие прямых GuideShop calls из frontend;
+- Первый official scope ограничен companies list/detail; visits/sales/points/history отложены до GSMA7;
+- Следующий этап: GSMA1 navigation foundation с GuideShop placeholder, без data API и deploy;
+- Contract: [`../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md).
+
+## 2026-09-02 — GSMA1 GuideShop navigation foundation complete
+
+- `TabId` расширен значением `guideshop`;
+- Добавлена третья кнопка после Calendar/Reports и отдельный GuideShop placeholder с двумя будущими группами;
+- Bottom navigation получила внутреннюю horizontal scroll/snap дорожку и auto-scroll active tab;
+- Header показывает `GuideShop`; logo → Today, Calendar и Reports behavior сохранены;
+- Full frontend: 162 passed; HTTP-mode production build successful; backend/API/deploy не менялись;
+- Следующий этап: GSMA2 Personal Places Web API.

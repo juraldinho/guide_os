@@ -8,7 +8,13 @@
 
 **Public production pilot — ACTIVE, owner-validated** (2026-09-01). Mini App доступен через production Guide OS bot (`MenuButtonWebApp`). Owner explicitly approved leaving pilot enabled. **Formal general production release** not separately declared.
 
-**MA11** hosted closed staging — **not** the active next step; owner authorized reversible public production pilot instead. **No active coding/deployment task** — next step defined by owner only.
+**MA11** hosted closed staging — **not** the active next step; owner authorized reversible public production pilot instead.
+
+**Active next product stage: GSMA0** — GuideShop Mini App product/API audit and contract. Third bottom module, personal companies/commissions, then official read-only catalog. Application code and deployment have not started. Canonical plan: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+
+**Google Calendar** утверждён как будущий отдельный workstream: read-only import в Guide OS с последующим ручным преобразованием external event в полноценный native tour. Реализация не начата. Канонический план: `../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`.
+
+**Дневные чаевые** утверждены как будущий bot-first workstream: одна сумма на `user_id + calendar_date`, независимо от туров; shared foundation и Telegram bot сначала, затем Web API/Mini App parity. Реализация не начата. Канонический план: `../../docs/TIPS_ROADMAP.md`.
 
 Не описывать планируемую архитектуру как существующий код.
 
@@ -74,6 +80,9 @@ GuideShop remains optional read-only through existing Guide OS client.
 3. `../GUIDE_OS_miniapp_INTEGRATION_FOUNDATION.md`
 4. `../../docs/mini_app/DECISIONS.md`
 5. `NEXT_TASK.md`
+6. `../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md` — future Google Calendar stages GC0–GC13
+7. `../../docs/TIPS_ROADMAP.md` — future tips stages TIP0–TIP10
+8. `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md` — active GuideShop Mini App stages GSMA0–GSMA10
 
 ## Current implementation inventory
 

@@ -29,11 +29,17 @@
 
 **Formal general production release** — не объявлен отдельно. Production gate docs (`PRODUCTION_GATE_MA9.md`) сохранены для будущего formal release review; не утверждать, что каждый formal gate item complete.
 
+**Future Google Calendar workstream (approved concept, not started):** one-way import `Google Calendar → Guide OS`, external event → editable draft → native tour. Canonical stages GC0–GC13: `../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`. Не начинать без нового явного запроса владельца; Apple/iCloud и обратная запись в Google вне первого scope.
+
+**Future tips workstream (approved concept, not started):** one total tips amount per `user_id + calendar_date`, independent of tours; shared foundation and Telegram bot first, then Web API and Mini App parity. Canonical stages TIP0–TIP10: `../docs/TIPS_ROADMAP.md`. Не начинать без нового явного запроса владельца.
+
+**Active GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0 contract and GSMA1 navigation foundation are complete. Third `guideshop` tab, scalable horizontal bottom nav and placeholder exist. Personal companies will use existing `personal_places`, commissions use `personal_place_entries`/`ExternalSalesService`, official GuideShop remains request-scoped read-only. Next stage: GSMA2 Personal Places Web API. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+
 **Агентам:** не отключать pilot, не redeploy, не расширять scope и не объявлять formal general release без **нового явного запроса владельца**. Rollback reversible: `MINI_APP_ENABLED=false`, при необходимости `MINI_APP_API_ENABLED=false`, redeploy bot — только когда owner попросит скрыть Mini App.
 
 **Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Production Web API** с **real initData auth**; production bot и Mini App используют общий Guide OS data layer через shared services/database.
 
-Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **нет активной задачи**).
+Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **GSMA2 Personal Places Web API**).
 
 ## Цель и приоритет
 
@@ -115,6 +121,9 @@ database/             # schema + SQL boundary
 | Нужно понять или изменить | Где смотреть сначала |
 |---|---|
 | Утверждённый продукт и экраны | `miniapp/GuideOS_miniapp_Development_Operating_System.md` |
+| Future Google Calendar roadmap | `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md` |
+| Future tips roadmap | `docs/TIPS_ROADMAP.md` |
+| Active GuideShop Mini App roadmap | `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md` |
 | API contract v1 | `docs/mini_app/API_CONTRACT_v1.md` |
 | Service gap / MA4 mapping | `docs/mini_app/SERVICE_GAP_ANALYSIS_MA4.md` |
 | Web API routes | `web_api/`, `guide_os_miniapp_api.py` |
