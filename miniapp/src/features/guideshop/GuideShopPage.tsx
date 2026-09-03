@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { t } from '@/i18n/strings';
+import { OfficialCompaniesSection } from './OfficialCompaniesSection';
 import { PersonalPlacesSection } from './PersonalPlacesSection';
 
 export function GuideShopPage() {
@@ -22,12 +23,7 @@ export function GuideShopPage() {
         />
       </div>
 
-      <section className="card guideshop-placeholder" aria-labelledby="guideshop-official-title">
-        <h2 id="guideshop-official-title" className="guideshop-section-title">
-          {t.guideShopOfficial}
-        </h2>
-        <p className="text-muted">{t.guideShopComingSoon}</p>
-      </section>
+      <OfficialCompaniesSection searchQuery={searchQuery} />
 
       <PersonalPlacesSection
         searchQuery={searchQuery}

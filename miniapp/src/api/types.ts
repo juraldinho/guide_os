@@ -248,3 +248,126 @@ export interface PersonalCommissionInput {
 export interface ListPersonalCommissionsOptions {
   includeInactive?: boolean;
 }
+
+export type OfficialCompanyStatus = 'active' | 'inactive' | string;
+
+export interface OfficialCompany {
+  id: string;
+  displayName: string;
+  status: OfficialCompanyStatus;
+  phone: string | null;
+  address: string | null;
+  description: string | null;
+  type: string | null;
+}
+
+export interface OfficialCompaniesPage {
+  nextCursor: string | null;
+}
+
+export interface OfficialCompaniesResult {
+  companies: OfficialCompany[];
+  page: OfficialCompaniesPage;
+}
+
+export type OfficialVisitStatus = 'active' | 'completed' | 'cancelled' | string;
+
+export type OfficialVisitPaymentStatus = 'unpaid' | 'paid' | string;
+
+export interface OfficialVisit {
+  id: string;
+  companyId: string;
+  visitAt: string;
+  status: OfficialVisitStatus;
+  touristCount: number;
+  customerPaymentStatus: OfficialVisitPaymentStatus;
+  customerPaidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialVisitsPage {
+  nextCursor: string | null;
+}
+
+export interface OfficialVisitsResult {
+  visits: OfficialVisit[];
+  page: OfficialVisitsPage;
+}
+
+export interface ListOfficialVisitsOptions {
+  cursor?: string;
+}
+
+export interface OfficialPointsCompanySummary {
+  companyId: string;
+  displayName: string;
+  pendingTotal: string;
+  creditedTotal: string;
+}
+
+export interface OfficialPointsSummary {
+  unit: 'PTS' | string;
+  pendingTotal: string;
+  creditedTotal: string;
+  companies: OfficialPointsCompanySummary[];
+}
+
+export type OfficialSalePaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'transfer'
+  | 'unknown'
+  | string;
+
+export interface OfficialSale {
+  id: string;
+  visitId: string;
+  companyId: string;
+  amount: string;
+  currency: 'USD' | string;
+  status: string;
+  paymentMethod: OfficialSalePaymentMethod;
+  comment: string | null;
+  categoryId: string | null;
+  categoryName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialSalesPage {
+  nextCursor: string | null;
+}
+
+export interface OfficialSalesResult {
+  sales: OfficialSale[];
+  page: OfficialSalesPage;
+}
+
+export interface ListOfficialSalesOptions {
+  cursor?: string;
+}
+
+export interface OfficialHistoryItem {
+  id: string;
+  pointsAccrualId: string;
+  companyId: string;
+  visitId: string;
+  amount: string;
+  unit: 'PTS' | string;
+  paidAt: string;
+  createdAt: string;
+}
+
+export interface OfficialHistoryPage {
+  nextCursor: string | null;
+}
+
+export interface OfficialHistoryResult {
+  history: OfficialHistoryItem[];
+  page: OfficialHistoryPage;
+}
+
+export interface ListOfficialHistoryOptions {
+  cursor?: string;
+}

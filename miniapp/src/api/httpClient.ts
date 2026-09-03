@@ -14,6 +14,17 @@ import type {
   GuideProfilePatch,
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
+  ListOfficialVisitsOptions,
+  ListOfficialSalesOptions,
+  ListOfficialHistoryOptions,
+  OfficialCompaniesResult,
+  OfficialCompany,
+  OfficialHistoryResult,
+  OfficialPointsSummary,
+  OfficialSale,
+  OfficialSalesResult,
+  OfficialVisit,
+  OfficialVisitsResult,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -426,6 +437,74 @@ export function createHttpClient(): GuideOsClient {
           method: 'POST',
           headers: { 'Idempotency-Key': newIdempotencyKey() },
         },
+      );
+    },
+
+    async listOfficialCompanies() {
+      return apiRequest<OfficialCompaniesResult>('/app/v1/guideshop/companies');
+    },
+
+    async getOfficialCompany(id: string) {
+      try {
+        return await apiRequest<OfficialCompany>(
+          `/app/v1/guideshop/companies/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async listOfficialVisits(options?: ListOfficialVisitsOptions) {
+      const params = new URLSearchParams();
+      if (options?.cursor) params.set('cursor', options.cursor);
+      const query = params.toString();
+      return apiRequest<OfficialVisitsResult>(
+        `/app/v1/guideshop/visits${query ? `?${query}` : ''}`,
+      );
+    },
+
+    async getOfficialVisit(id: string) {
+      try {
+        return await apiRequest<OfficialVisit>(
+          `/app/v1/guideshop/visits/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async getOfficialPointsSummary() {
+      return apiRequest<OfficialPointsSummary>('/app/v1/guideshop/points/summary');
+    },
+
+    async listOfficialSales(options?: ListOfficialSalesOptions) {
+      const params = new URLSearchParams();
+      if (options?.cursor) params.set('cursor', options.cursor);
+      const query = params.toString();
+      return apiRequest<OfficialSalesResult>(
+        `/app/v1/guideshop/sales${query ? `?${query}` : ''}`,
+      );
+    },
+
+    async getOfficialSale(id: string) {
+      try {
+        return await apiRequest<OfficialSale>(
+          `/app/v1/guideshop/sales/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async listOfficialHistory(options?: ListOfficialHistoryOptions) {
+      const params = new URLSearchParams();
+      if (options?.cursor) params.set('cursor', options.cursor);
+      const query = params.toString();
+      return apiRequest<OfficialHistoryResult>(
+        `/app/v1/guideshop/history${query ? `?${query}` : ''}`,
       );
     },
   };

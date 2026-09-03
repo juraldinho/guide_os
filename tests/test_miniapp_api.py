@@ -25,7 +25,23 @@ from services.miniapp_api_settings import (
     derive_miniapp_allowed_origin,
     normalize_miniapp_public_url,
 )
+from services.guide_shop_client import (
+    DisabledGuideShopClient,
+    GuideShopAccessDeniedError,
+    GuideShopAuthenticationError,
+    GuideShopClientError,
+    GuideShopObjectNotFoundError,
+    GuideShopTemporarilyUnavailableError,
+    InMemoryGuideShopClient,
+)
+from services.guide_shop_contracts import CompanyDTO
+from services.guide_shop_runtime import (
+    RequestScopedGuideShopUIServiceProvider,
+    StaticGuideShopUIServiceProvider,
+)
+from services.guide_shop_ui import GuideShopUIService
 from services.tour_service import TourEntryDraft, create_tour_entry, SOURCE_MINI_APP
+from types import SimpleNamespace
 from web_api.app import (
     CORS_ALLOWED_HEADERS,
     CORS_ALLOWED_METHODS,
@@ -34,6 +50,7 @@ from web_api.app import (
     start_miniapp_api,
 )
 from web_api.auth import dev_session_token
+from web_api.routes.guideshop_companies import configure_miniapp_guideshop_provider
 
 ROOT = Path(__file__).resolve().parents[1]
 API_USER = 887001
@@ -2188,3 +2205,578 @@ def test_cors_origin_derived_from_public_url_with_path():
         }
     )
     assert settings.allowed_origin == PRODUCTION_FRONTEND_ORIGIN
+
+
+# --- GSMA5 official GuideShop companies ---
+
+GUIDE_OS_A = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1"
+GUIDE_OS_B = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"
+OFFICIAL_COMPANY_FIELDS = {
+    "id",
+    "displayName",
+    "status",
+    "phone",
+    "address",
+    "description",
+    "type",
+}
+
+
+@pytest.fixture(autouse=True)
+def _reset_miniapp_guideshop_provider():
+    configure_miniapp_guideshop_provider(None, reads_enabled=False)
+    yield
+    configure_miniapp_guideshop_provider(None, reads_enabled=False)
+
+
+def _official_company(
+    company_id="company-1",
+    name="Silk Road",
+    status="active",
+    phone=None,
+    address=None,
+    description=None,
+    company_type=None,
+):
+    return CompanyDTO.model_validate(
+        {
+            "company_id": company_id,
+            "display_name": name,
+            "status": status,
+            "phone": phone,
+            "address": address,
+            "description": description,
+            "type": company_type,
+        }
+    )
+
+
+def _configure_static_official(service, *, reads_enabled=True):
+    configure_miniapp_guideshop_provider(
+        StaticGuideShopUIServiceProvider(service),
+        reads_enabled=reads_enabled,
+    )
+
+
+def _list_official(user_id=API_USER, query=""):
+    return api_request(
+        "GET",
+        f"/app/v1/guideshop/companies{query}",
+        headers=_auth_headers(user_id),
+    )
+
+
+def _get_official(user_id, company_id):
+    return api_request(
+        "GET",
+        f"/app/v1/guideshop/companies/{company_id}",
+        headers=_auth_headers(user_id),
+    )
+
+
+class TrackingInMemoryGuideShopClient(InMemoryGuideShopClient):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.close_calls = 0
+
+    async def close(self):
+        self.close_calls += 1
+
+
+def test_official_guideshop_routes_registered_once():
+    app = create_miniapp_api_app(_settings())
+    routes = [
+        (route.method, route.resource.canonical)
+        for route in app.router.routes()
+    ]
+    assert routes.count(("GET", "/app/v1/guideshop/companies")) == 1
+    assert routes.count(("GET", "/app/v1/guideshop/companies/{companyId}")) == 1
+    assert ("POST", "/app/v1/guideshop/companies") not in routes
+    assert ("PUT", "/app/v1/guideshop/companies/{companyId}") not in routes
+    assert ("PATCH", "/app/v1/guideshop/companies/{companyId}") not in routes
+    assert ("DELETE", "/app/v1/guideshop/companies/{companyId}") not in routes
+
+
+def test_official_companies_list_success_field_mapping(seeded_user):
+    company = _official_company(
+        company_id="cmp_silk01",
+        name="Silk Road",
+        status="active",
+        phone="+998901112233",
+        address="Samarkand",
+        description="Crafts",
+        company_type="shop",
+    )
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=(company,)))
+    )
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 200
+    assert set(body["data"].keys()) == {"companies", "page"}
+    assert body["data"]["page"] == {"nextCursor": None}
+    assert len(body["data"]["companies"]) == 1
+    mapped = body["data"]["companies"][0]
+    assert set(mapped.keys()) == OFFICIAL_COMPANY_FIELDS
+    assert mapped == {
+        "id": "cmp_silk01",
+        "displayName": "Silk Road",
+        "status": "active",
+        "phone": "+998901112233",
+        "address": "Samarkand",
+        "description": "Crafts",
+        "type": "shop",
+    }
+    dumped = response._body_text
+    assert "guide_os_id" not in dumped
+    assert "company_id" not in dumped
+    assert "display_name" not in dumped
+
+
+def test_official_companies_optional_null_and_status_contract_value(seeded_user):
+    companies = (
+        _official_company(company_id="cmp_active", name="Active Co", status="active"),
+        _official_company(company_id="cmp_inactv", name="Quiet Co", status="inactive"),
+        _official_company(company_id="cmp_unknow", name="Mystery", status="unknown"),
+    )
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=companies))
+    )
+    body = response_json(_list_official(seeded_user))
+    by_id = {item["id"]: item for item in body["data"]["companies"]}
+    for item in by_id.values():
+        assert item["phone"] is None
+        assert item["address"] is None
+        assert item["description"] is None
+        assert item["type"] is None
+    assert by_id["cmp_active"]["status"] == "active"
+    assert by_id["cmp_inactv"]["status"] == "inactive"
+    assert by_id["cmp_unknow"]["status"] == "unknown"
+
+
+def test_official_companies_page_cursor_remains_opaque(seeded_user):
+    cursor = "opaque_cursor_token_01"
+
+    class FakeService:
+        async def list_official_companies(self):
+            return SimpleNamespace(
+                data=[_official_company(company_id="cmp_page01", name="Paged")],
+                page=SimpleNamespace(next_cursor=cursor, has_more=True),
+            )
+
+    _configure_static_official(FakeService())
+    body = response_json(_list_official(seeded_user))
+    assert body["data"]["page"] == {"nextCursor": cursor}
+    assert body["data"]["page"]["nextCursor"] == cursor
+    assert "has_more" not in body["data"]["page"]
+    assert "hasMore" not in body["data"]["page"]
+
+
+def test_official_company_detail_success_exact_id_match(seeded_user):
+    companies = (
+        _official_company(company_id="cmp_alpha", name="Alpha"),
+        _official_company(company_id="cmp_alpha2", name="Alpha Two"),
+    )
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=companies))
+    )
+    response = _get_official(seeded_user, "cmp_alpha")
+    body = response_json(response)
+    assert response.status == 200
+    assert set(body["data"].keys()) == OFFICIAL_COMPANY_FIELDS
+    assert body["data"]["id"] == "cmp_alpha"
+    assert body["data"]["displayName"] == "Alpha"
+    assert body["data"]["status"] == "active"
+
+
+def test_official_company_detail_missing_is_not_found(seeded_user):
+    _configure_static_official(
+        GuideShopUIService(
+            InMemoryGuideShopClient(companies=(_official_company(),))
+        )
+    )
+    response = _get_official(seeded_user, "missing-company")
+    body = response_json(response)
+    assert response.status == 404
+    assert body["error"]["code"] == "not_found"
+    assert body["error"]["message"] == "Компания не найдена."
+    assert "missing-company" not in response._body_text
+
+
+def test_official_company_detail_unsafe_id_is_safe_not_found(seeded_user):
+    from urllib.parse import quote
+
+    from services.guide_shop_contracts import _opaque_id
+
+    calls = []
+
+    class CountingService:
+        async def get_official_company(self, company_id):
+            calls.append(company_id)
+            return None
+
+        async def list_official_companies(self):
+            calls.append("list")
+            return SimpleNamespace(data=[], page=SimpleNamespace(next_cursor=None))
+
+    _configure_static_official(CountingService())
+    unsafe_ids = ["short", "12345678", "cmp_ok!", "bad id", "ab"]
+    for company_id in unsafe_ids:
+        with pytest.raises(ValueError):
+            _opaque_id(company_id)
+        response = api_request(
+            "GET",
+            f"/app/v1/guideshop/companies/{quote(company_id, safe='')}",
+            headers=_auth_headers(seeded_user),
+        )
+        body = response_json(response)
+        assert response.status == 404
+        assert body["error"]["code"] == "not_found"
+        assert company_id not in response._body_text
+        assert response.status != 500
+    assert calls == []
+
+
+def test_official_companies_mutations_unavailable(seeded_user):
+    calls = []
+
+    class CountingService:
+        async def list_official_companies(self):
+            calls.append("list")
+            return SimpleNamespace(data=[], page=SimpleNamespace(next_cursor=None))
+
+        async def get_official_company(self, company_id):
+            calls.append(("get", company_id))
+            return None
+
+    _configure_static_official(CountingService())
+    company_id = "cmp_mutate"
+    mutations = [
+        ("POST", "/app/v1/guideshop/companies", {"json": {"displayName": "X"}}),
+        ("PUT", f"/app/v1/guideshop/companies/{company_id}", {"json": {}}),
+        ("PATCH", f"/app/v1/guideshop/companies/{company_id}", {"json": {}}),
+        ("DELETE", f"/app/v1/guideshop/companies/{company_id}", {}),
+    ]
+    for method, path, kwargs in mutations:
+        response = api_request(method, path, headers=_auth_headers(seeded_user), **kwargs)
+        assert response.status in {404, 405}
+        assert response.status != 500
+    assert calls == []
+
+
+def test_official_companies_auth_required():
+    response = api_request("GET", "/app/v1/guideshop/companies")
+    body = response_json(response)
+    assert response.status == 401
+    assert body["error"]["code"] == "auth_required"
+
+
+def test_official_companies_provider_absent_is_integration_disabled(seeded_user):
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 503
+    assert body["error"]["code"] == "integration_disabled"
+    assert body["error"]["message"] == "Раздел GuideShop временно отключён."
+
+
+def test_official_companies_disabled_client_is_integration_disabled(seeded_user):
+    _configure_static_official(GuideShopUIService(DisabledGuideShopClient()))
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 503
+    assert body["error"]["code"] == "integration_disabled"
+
+
+def test_official_companies_reads_disabled_flag(seeded_user):
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=(_official_company(),))),
+        reads_enabled=False,
+    )
+    response = _list_official(seeded_user)
+    assert response.status == 503
+    assert response_json(response)["error"]["code"] == "integration_disabled"
+
+
+def test_official_companies_missing_identity_is_access_denied(seeded_user):
+    provider = RequestScopedGuideShopUIServiceProvider(
+        lambda _user_id: None,
+        lambda _guide_os_id: TrackingInMemoryGuideShopClient(),
+    )
+    configure_miniapp_guideshop_provider(provider, reads_enabled=True)
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 403
+    assert body["error"]["code"] == "access_denied"
+    assert body["error"]["message"] == "Нет доступа к данным GuideShop."
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        GuideShopAuthenticationError("secret-token"),
+        GuideShopAccessDeniedError("secret-deny"),
+    ],
+)
+def test_official_companies_auth_and_access_denied(seeded_user, error):
+    class FakeService:
+        async def list_official_companies(self):
+            raise error
+
+    _configure_static_official(FakeService())
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 403
+    assert body["error"]["code"] == "access_denied"
+    assert "secret" not in response._body_text
+
+
+def test_official_companies_upstream_not_found(seeded_user):
+    class FakeService:
+        async def list_official_companies(self):
+            raise GuideShopObjectNotFoundError("missing upstream object xyz")
+
+    _configure_static_official(FakeService())
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 404
+    assert body["error"]["code"] == "not_found"
+    assert "xyz" not in response._body_text
+
+
+def test_official_companies_temporary_outage(seeded_user):
+    class FakeService:
+        async def list_official_companies(self):
+            raise GuideShopTemporarilyUnavailableError("timeout upstream")
+
+    _configure_static_official(FakeService())
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 503
+    assert body["error"]["code"] == "temporarily_unavailable"
+    assert body["error"]["message"] == (
+        "GuideShop временно недоступен. Попробуйте позже."
+    )
+    assert "timeout" not in response._body_text
+
+
+def test_official_companies_generic_client_and_lifecycle_not_http_500(seeded_user):
+    class FakeService:
+        async def list_official_companies(self):
+            raise GuideShopClientError("generic failure detail")
+
+    _configure_static_official(FakeService())
+    response = _list_official(seeded_user)
+    assert response.status == 503
+    assert response_json(response)["error"]["code"] == "temporarily_unavailable"
+    assert response.status != 500
+    assert "generic failure" not in response._body_text
+
+    provider = RequestScopedGuideShopUIServiceProvider(
+        lambda _user_id: GUIDE_OS_A,
+        lambda _guide_os_id: (_ for _ in ()).throw(RuntimeError("create failed")),
+    )
+    configure_miniapp_guideshop_provider(provider, reads_enabled=True)
+    lifecycle = _list_official(seeded_user)
+    assert lifecycle.status == 503
+    assert response_json(lifecycle)["error"]["code"] == "temporarily_unavailable"
+    assert lifecycle.status != 500
+    assert "create failed" not in lifecycle._body_text
+
+
+def test_official_companies_request_scoped_cleanup_after_success_and_failure(
+    seeded_user,
+):
+    created = []
+
+    def factory(guide_os_id):
+        assert guide_os_id == GUIDE_OS_A
+        client = TrackingInMemoryGuideShopClient(
+            companies=(_official_company(company_id="cmp_track1"),)
+        )
+        created.append(client)
+        return client
+
+    configure_miniapp_guideshop_provider(
+        RequestScopedGuideShopUIServiceProvider(
+            lambda user_id: GUIDE_OS_A if user_id == seeded_user else None,
+            factory,
+        ),
+        reads_enabled=True,
+    )
+    ok = _list_official(seeded_user)
+    assert ok.status == 200
+    assert created[0].close_calls == 1
+
+    class BoomClient(TrackingInMemoryGuideShopClient):
+        async def list_companies(self):
+            raise GuideShopTemporarilyUnavailableError("boom")
+
+    boom_clients = []
+
+    def boom_factory(_guide_os_id):
+        client = BoomClient()
+        boom_clients.append(client)
+        return client
+
+    configure_miniapp_guideshop_provider(
+        RequestScopedGuideShopUIServiceProvider(
+            lambda user_id: GUIDE_OS_A if user_id == seeded_user else None,
+            boom_factory,
+        ),
+        reads_enabled=True,
+    )
+    failed = _list_official(seeded_user)
+    assert failed.status == 503
+    assert boom_clients[0].close_calls == 1
+
+
+def test_official_companies_user_isolation_and_no_user_override(seeded_user):
+    register_user(PROFILE_USER_B)
+    clients_by_identity = {}
+
+    def factory(guide_os_id):
+        if guide_os_id == GUIDE_OS_A:
+            client = TrackingInMemoryGuideShopClient(
+                companies=(_official_company(company_id="cmp_user_a", name="For A"),)
+            )
+        else:
+            client = TrackingInMemoryGuideShopClient(
+                companies=(_official_company(company_id="cmp_user_b", name="For B"),)
+            )
+        clients_by_identity[guide_os_id] = client
+        return client
+
+    configure_miniapp_guideshop_provider(
+        RequestScopedGuideShopUIServiceProvider(
+            lambda user_id: {
+                seeded_user: GUIDE_OS_A,
+                PROFILE_USER_B: GUIDE_OS_B,
+            }[user_id],
+            factory,
+        ),
+        reads_enabled=True,
+    )
+    body_a = response_json(_list_official(seeded_user))
+    body_b = response_json(_list_official(PROFILE_USER_B))
+    assert [c["id"] for c in body_a["data"]["companies"]] == ["cmp_user_a"]
+    assert [c["id"] for c in body_b["data"]["companies"]] == ["cmp_user_b"]
+    assert GUIDE_OS_A not in _list_official(seeded_user)._body_text
+    assert GUIDE_OS_B not in _list_official(PROFILE_USER_B)._body_text
+
+    spoofed = _list_official(
+        seeded_user,
+        query=f"?userId={PROFILE_USER_B}&telegramUserId={PROFILE_USER_B}&guideOsId={GUIDE_OS_B}",
+    )
+    spoofed_body = response_json(spoofed)
+    assert spoofed.status == 200
+    assert [c["id"] for c in spoofed_body["data"]["companies"]] == ["cmp_user_a"]
+    assert GUIDE_OS_B not in spoofed._body_text
+    assert "Bearer" not in spoofed._body_text
+
+
+def test_official_companies_script_like_strings_remain_inert(seeded_user):
+    scriptish = "<script>alert(1)</script>"
+    company = _official_company(
+        company_id="cmp_script",
+        name=scriptish,
+        description=scriptish,
+    )
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=(company,)))
+    )
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["companies"][0]["displayName"] == scriptish
+    assert body["data"]["companies"][0]["description"] == scriptish
+    assert scriptish in response._body_text
+    assert json.loads(response._body_text)["data"]["companies"][0]["displayName"] == (
+        scriptish
+    )
+
+
+def test_official_failure_does_not_break_personal_places(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+
+    class FakeService:
+        async def list_official_companies(self):
+            raise GuideShopTemporarilyUnavailableError("outage")
+
+    _configure_static_official(FakeService())
+    official = _list_official(seeded_user)
+    assert official.status == 503
+    assert response_json(official)["error"]["code"] == "temporarily_unavailable"
+
+    places = _list_places(seeded_user)
+    body = response_json(places)
+    assert places.status == 200
+    assert any(item["id"] == place_id for item in body["data"]["places"])
+
+
+def test_repeated_provider_configure_replaces_state(seeded_user):
+    _configure_static_official(
+        GuideShopUIService(
+            InMemoryGuideShopClient(
+                companies=(_official_company(company_id="cmp_first1"),)
+            )
+        )
+    )
+    first = response_json(_list_official(seeded_user))
+    assert first["data"]["companies"][0]["id"] == "cmp_first1"
+
+    _configure_static_official(
+        GuideShopUIService(
+            InMemoryGuideShopClient(
+                companies=(_official_company(company_id="cmp_secon1"),)
+            )
+        )
+    )
+    second = response_json(_list_official(seeded_user))
+    assert second["data"]["companies"][0]["id"] == "cmp_secon1"
+
+    configure_miniapp_guideshop_provider(None, reads_enabled=False)
+    cleared = _list_official(seeded_user)
+    assert cleared.status == 503
+    assert response_json(cleared)["error"]["code"] == "integration_disabled"
+
+
+def test_disabled_runtime_clears_miniapp_official_provider(seeded_user):
+    import bot as bot_module
+
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=(_official_company(),)))
+    )
+    assert _list_official(seeded_user).status == 200
+    bot_module.configure_guide_shop_runtime({"GUIDESHOP_READS_ENABLED": "false"})
+    response = _list_official(seeded_user)
+    assert response.status == 503
+    assert response_json(response)["error"]["code"] == "integration_disabled"
+
+
+def test_fake_runtime_serves_empty_official_list(seeded_user):
+    import bot as bot_module
+
+    bot_module.configure_guide_shop_runtime(
+        {
+            "GUIDESHOP_READS_ENABLED": "true",
+            "GUIDESHOP_USE_FAKE": "true",
+            "APP_ENV": "development",
+        }
+    )
+    response = _list_official(seeded_user)
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["companies"] == []
+    assert body["data"]["page"] == {"nextCursor": None}
+
+
+def test_official_company_personal_place_id_is_not_reinterpreted(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _configure_static_official(
+        GuideShopUIService(InMemoryGuideShopClient(companies=(_official_company(),)))
+    )
+    response = _get_official(seeded_user, place_id)
+    body = response_json(response)
+    assert response.status == 404
+    assert body["error"]["code"] == "not_found"
+    assert place_id not in response._body_text

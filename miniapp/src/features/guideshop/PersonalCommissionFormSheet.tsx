@@ -5,40 +5,27 @@ import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { t } from '@/i18n/strings';
 import {
   businessDateToOccurredAt,
-  formatMinorUnits,
   isBusinessDateAfter,
-  normalizeCurrencyInput,
   occurredAtToBusinessDate,
-  parseMoneyToMinor,
-  parsePointsInput,
+  parseCommissionInput,
 } from './lib/commissionMoney';
 
 interface FieldErrors {
   date?: string;
-  purchase?: string;
-  income?: string;
-  points?: string;
-  currency?: string;
+  commission?: string;
   note?: string;
-  outcome?: string;
 }
 
 interface Draft {
   date: string;
-  purchase: string;
-  income: string;
-  points: string;
-  currency: string;
+  commission: string;
   note: string;
 }
 
 function emptyDraft(): Draft {
   return {
     date: MOCK_TODAY,
-    purchase: '',
-    income: '',
-    points: '',
-    currency: '',
+    commission: '',
     note: '',
   };
 }
@@ -46,12 +33,7 @@ function emptyDraft(): Draft {
 function draftFromCommission(item: PersonalCommission): Draft {
   return {
     date: occurredAtToBusinessDate(item.occurredAt),
-    purchase:
-      item.purchaseAmountMinor == null ? '' : formatMinorUnits(item.purchaseAmountMinor),
-    income:
-      item.receivedIncomeMinor == null ? '' : formatMinorUnits(item.receivedIncomeMinor),
-    points: item.receivedPoints == null ? '' : String(item.receivedPoints),
-    currency: item.currency ?? '',
+    commission: item.receivedPoints == null ? '' : String(item.receivedPoints),
     note: item.note ?? '',
   };
 }
@@ -64,30 +46,9 @@ function validateDraft(draft: Draft): FieldErrors {
     errors.date = t.guideShopCommissionValDateFuture;
   }
 
-  const purchase = parseMoneyToMinor(draft.purchase);
-  if (!purchase.ok) errors.purchase = t.guideShopCommissionValMoneyInvalid;
-  const income = parseMoneyToMinor(draft.income);
-  if (!income.ok) errors.income = t.guideShopCommissionValMoneyInvalid;
-  const points = parsePointsInput(draft.points);
-  if (!points.ok) errors.points = t.guideShopCommissionValPointsInvalid;
-  const currency = normalizeCurrencyInput(draft.currency);
-  if (!currency.ok) errors.currency = t.guideShopCommissionValCurrencyInvalid;
-
-  if (purchase.ok && income.ok && points.ok && currency.ok) {
-    const hasMoney = purchase.value != null || income.value != null;
-    if (hasMoney && currency.value == null) {
-      errors.currency = t.guideShopCommissionValCurrencyRequired;
-    }
-    if (!hasMoney && currency.value != null) {
-      errors.currency = t.guideShopCommissionValCurrencyUnexpected;
-    }
-    const hasOutcome =
-      (purchase.value != null && purchase.value > 0) ||
-      (income.value != null && income.value > 0) ||
-      (points.value != null && points.value > 0);
-    if (!hasOutcome) {
-      errors.outcome = t.guideShopCommissionValOutcomeRequired;
-    }
+  const commission = parseCommissionInput(draft.commission);
+  if (!commission.ok) {
+    errors.commission = t.guideShopCommissionValInvalid;
   }
 
   if (draft.note.trim().length > 500) {
@@ -98,20 +59,17 @@ function validateDraft(draft: Draft): FieldErrors {
 }
 
 function normalizeDraft(draft: Draft): PersonalCommissionInput {
-  const purchase = parseMoneyToMinor(draft.purchase);
-  const income = parseMoneyToMinor(draft.income);
-  const points = parsePointsInput(draft.points);
-  const currency = normalizeCurrencyInput(draft.currency);
-  if (!purchase.ok || !income.ok || !points.ok || !currency.ok) {
+  const commission = parseCommissionInput(draft.commission);
+  if (!commission.ok) {
     throw new Error('invalid draft');
   }
   const note = draft.note.trim();
   return {
     occurredAt: businessDateToOccurredAt(draft.date),
-    purchaseAmountMinor: purchase.value,
-    receivedIncomeMinor: income.value,
-    receivedPoints: points.value,
-    currency: currency.value,
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: null,
+    receivedPoints: commission.value,
+    currency: null,
     note: note ? note : null,
   };
 }
@@ -218,94 +176,23 @@ export function PersonalCommissionFormSheet({
       </div>
 
       <div className="form-group">
-        <label className="form-label" htmlFor="pc-purchase">
-          {t.guideShopCommissionFieldPurchase}
+        <label className="form-label" htmlFor="pc-commission">
+          {t.guideShopCommissionFieldCommission}
         </label>
         <input
-          id="pc-purchase"
-          className="form-input"
-          inputMode="decimal"
-          autoComplete="off"
-          value={draft.purchase}
-          aria-describedby="pc-money-hint"
-          onChange={(e) => {
-            setDraft((prev) => ({ ...prev, purchase: e.target.value }));
-            setErrors((prev) => ({ ...prev, purchase: undefined, outcome: undefined }));
-          }}
-        />
-        {errors.purchase && (
-          <p className="prof-validation-error" role="alert">
-            {errors.purchase}
-          </p>
-        )}
-      </div>
-
-      <div className="form-group">
-        <label className="form-label" htmlFor="pc-income">
-          {t.guideShopCommissionFieldIncome}
-        </label>
-        <input
-          id="pc-income"
-          className="form-input"
-          inputMode="decimal"
-          autoComplete="off"
-          value={draft.income}
-          aria-describedby="pc-money-hint"
-          onChange={(e) => {
-            setDraft((prev) => ({ ...prev, income: e.target.value }));
-            setErrors((prev) => ({ ...prev, income: undefined, outcome: undefined }));
-          }}
-        />
-        {errors.income && (
-          <p className="prof-validation-error" role="alert">
-            {errors.income}
-          </p>
-        )}
-      </div>
-
-      <p id="pc-money-hint" className="text-muted guideshop-commission-hint">
-        {t.guideShopCommissionMoneyHint}
-      </p>
-
-      <div className="form-group">
-        <label className="form-label" htmlFor="pc-points">
-          {t.guideShopCommissionFieldPoints}
-        </label>
-        <input
-          id="pc-points"
+          id="pc-commission"
           className="form-input"
           inputMode="numeric"
           autoComplete="off"
-          value={draft.points}
+          value={draft.commission}
           onChange={(e) => {
-            setDraft((prev) => ({ ...prev, points: e.target.value }));
-            setErrors((prev) => ({ ...prev, points: undefined, outcome: undefined }));
+            setDraft((prev) => ({ ...prev, commission: e.target.value }));
+            setErrors((prev) => ({ ...prev, commission: undefined }));
           }}
         />
-        {errors.points && (
+        {errors.commission && (
           <p className="prof-validation-error" role="alert">
-            {errors.points}
-          </p>
-        )}
-      </div>
-
-      <div className="form-group">
-        <label className="form-label" htmlFor="pc-currency">
-          {t.guideShopCommissionFieldCurrency}
-        </label>
-        <input
-          id="pc-currency"
-          className="form-input"
-          autoComplete="off"
-          value={draft.currency}
-          onChange={(e) => {
-            setDraft((prev) => ({ ...prev, currency: e.target.value }));
-            setErrors((prev) => ({ ...prev, currency: undefined }));
-          }}
-        />
-        {errors.currency && (
-          <p className="prof-validation-error" role="alert">
-            {errors.currency}
+            {errors.commission}
           </p>
         )}
       </div>
@@ -330,11 +217,6 @@ export function PersonalCommissionFormSheet({
         )}
       </div>
 
-      {errors.outcome && (
-        <p className="prof-validation-error" role="alert">
-          {errors.outcome}
-        </p>
-      )}
       {submitError && (
         <p className="prof-validation-error" role="alert">
           {submitError}

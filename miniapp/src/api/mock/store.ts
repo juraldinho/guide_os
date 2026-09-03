@@ -8,6 +8,14 @@ import type {
   GuideTypeCode,
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
+  ListOfficialVisitsOptions,
+  ListOfficialSalesOptions,
+  ListOfficialHistoryOptions,
+  OfficialCompany,
+  OfficialHistoryItem,
+  OfficialPointsSummary,
+  OfficialSale,
+  OfficialVisit,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -27,6 +35,175 @@ const MOCK_GUIDE_TYPE_LABELS: Record<GuideTypeCode, string> = {
 
 const PLACE_A = 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const PLACE_B = 'place_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+const OFFICIAL_A = 'gsco_silkroad_01';
+const OFFICIAL_B = 'gsco_nullfields_02';
+const OFFICIAL_C = 'gsco_ceramic_shop_03';
+
+const INITIAL_OFFICIAL_COMPANIES: OfficialCompany[] = [
+  {
+    id: OFFICIAL_A,
+    displayName: 'Silk Road Emporium',
+    status: 'active',
+    phone: '+998901112233',
+    address: 'Registan Square, Samarkand',
+    description: 'Official GuideShop partner for crafts and textiles',
+    type: 'shop',
+  },
+  {
+    id: OFFICIAL_B,
+    displayName: 'Bukhara Courtyard Cafe',
+    status: 'inactive',
+    phone: null,
+    address: null,
+    description: null,
+    type: null,
+  },
+  {
+    id: OFFICIAL_C,
+    displayName: 'Khiva Ceramic Workshop',
+    status: 'active',
+    phone: '+998933334455',
+    address: 'Ichan-Kala, Khiva',
+    description: 'Handmade ceramics for tour groups',
+    type: 'workshop',
+  },
+];
+
+const VISIT_A = 'gsvis_silk_01';
+const VISIT_B = 'gsvis_silk_02';
+const VISIT_C = 'gsvis_khiva_03';
+
+const INITIAL_OFFICIAL_VISITS: OfficialVisit[] = [
+  {
+    id: VISIT_A,
+    companyId: OFFICIAL_A,
+    visitAt: '2026-08-10T09:00:00Z',
+    status: 'completed',
+    touristCount: 4,
+    customerPaymentStatus: 'paid',
+    customerPaidAt: '2026-08-10T11:30:00Z',
+    createdAt: '2026-08-10T09:05:00Z',
+    updatedAt: '2026-08-10T11:30:00Z',
+  },
+  {
+    id: VISIT_B,
+    companyId: OFFICIAL_A,
+    visitAt: '2026-08-18T14:00:00Z',
+    status: 'active',
+    touristCount: 2,
+    customerPaymentStatus: 'unpaid',
+    customerPaidAt: null,
+    createdAt: '2026-08-18T14:05:00Z',
+    updatedAt: '2026-08-18T14:05:00Z',
+  },
+  {
+    id: VISIT_C,
+    companyId: OFFICIAL_C,
+    visitAt: '2026-08-20T08:30:00Z',
+    status: 'cancelled',
+    touristCount: 0,
+    customerPaymentStatus: 'unpaid',
+    customerPaidAt: null,
+    createdAt: '2026-08-20T08:35:00Z',
+    updatedAt: '2026-08-20T09:00:00Z',
+  },
+];
+
+const INITIAL_OFFICIAL_POINTS_SUMMARY: OfficialPointsSummary = {
+  unit: 'PTS',
+  pendingTotal: '12.50',
+  creditedTotal: '4.00',
+  companies: [
+    {
+      companyId: OFFICIAL_A,
+      displayName: 'Silk Road Emporium',
+      pendingTotal: '10.00',
+      creditedTotal: '3.00',
+    },
+    {
+      companyId: OFFICIAL_C,
+      displayName: 'Khiva Ceramic Workshop',
+      pendingTotal: '2.50',
+      creditedTotal: '1.00',
+    },
+  ],
+};
+
+const SALE_A = 'gssale_silk_01';
+const SALE_B = 'gssale_silk_02';
+const SALE_C = 'gssale_khiva_03';
+
+const INITIAL_OFFICIAL_SALES: OfficialSale[] = [
+  {
+    id: SALE_A,
+    visitId: VISIT_A,
+    companyId: OFFICIAL_A,
+    amount: '125.40',
+    currency: 'USD',
+    status: 'active',
+    paymentMethod: 'card',
+    comment: 'Group textiles',
+    categoryId: 'gscat_textiles',
+    categoryName: 'Textiles',
+    createdAt: '2026-08-10T12:00:00Z',
+    updatedAt: '2026-08-10T12:00:00Z',
+  },
+  {
+    id: SALE_B,
+    visitId: VISIT_B,
+    companyId: OFFICIAL_A,
+    amount: '48.00',
+    currency: 'USD',
+    status: 'active',
+    paymentMethod: 'cash',
+    comment: null,
+    categoryId: 'gscat_souvenirs',
+    categoryName: 'Souvenirs',
+    createdAt: '2026-08-18T15:00:00Z',
+    updatedAt: '2026-08-18T15:00:00Z',
+  },
+  {
+    id: SALE_C,
+    visitId: VISIT_C,
+    companyId: OFFICIAL_C,
+    amount: '72.25',
+    currency: 'USD',
+    status: 'active',
+    paymentMethod: 'transfer',
+    comment: null,
+    categoryId: null,
+    categoryName: 'Category unavailable',
+    createdAt: '2026-08-20T09:15:00Z',
+    updatedAt: '2026-08-20T09:15:00Z',
+  },
+];
+
+const PAYOUT_A = 'gspay_silk_01';
+const PAYOUT_B = 'gspay_khiva_02';
+
+const INITIAL_OFFICIAL_HISTORY: OfficialHistoryItem[] = [
+  {
+    id: PAYOUT_A,
+    pointsAccrualId: 'gsacc_silk_01',
+    companyId: OFFICIAL_A,
+    visitId: VISIT_A,
+    amount: '3.00',
+    unit: 'PTS',
+    paidAt: '2026-08-12T10:00:00Z',
+    createdAt: '2026-08-12T10:00:00Z',
+  },
+  {
+    id: PAYOUT_B,
+    pointsAccrualId: 'gsacc_khiva_02',
+    companyId: OFFICIAL_C,
+    visitId: VISIT_C,
+    amount: '1.00',
+    unit: 'PTS',
+    paidAt: '2026-08-21T08:00:00Z',
+    createdAt: '2026-08-21T08:00:00Z',
+  },
+];
 
 const INITIAL_PERSONAL_PLACES: PersonalPlace[] = [
   {
@@ -58,11 +235,11 @@ const INITIAL_PERSONAL_COMMISSIONS: PersonalCommission[] = [
     id: 'entry_11111111111111111111111111111111',
     placeId: PLACE_A,
     occurredAt: '2026-08-10T05:00:00Z',
-    purchaseAmountMinor: 10000,
-    receivedIncomeMinor: 12500,
-    receivedPoints: null,
-    currency: 'USD',
-    note: 'USD комиссия',
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: null,
+    receivedPoints: 15,
+    currency: null,
+    note: 'Первая комиссия',
     status: 'active',
     createdAt: '2026-08-10T06:00:00Z',
     updatedAt: '2026-08-10T06:00:00Z',
@@ -71,11 +248,11 @@ const INITIAL_PERSONAL_COMMISSIONS: PersonalCommission[] = [
     id: 'entry_22222222222222222222222222222222',
     placeId: PLACE_A,
     occurredAt: '2026-08-12T05:00:00Z',
-    purchaseAmountMinor: 50000000,
-    receivedIncomeMinor: 50000000,
-    receivedPoints: null,
-    currency: 'UZS',
-    note: 'UZS комиссия',
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: null,
+    receivedPoints: 40,
+    currency: null,
+    note: 'Вторая комиссия',
     status: 'active',
     createdAt: '2026-08-12T06:00:00Z',
     updatedAt: '2026-08-12T06:00:00Z',
@@ -88,7 +265,7 @@ const INITIAL_PERSONAL_COMMISSIONS: PersonalCommission[] = [
     receivedIncomeMinor: null,
     receivedPoints: 25,
     currency: null,
-    note: 'Только баллы',
+    note: 'Комиссия Platan',
     status: 'active',
     createdAt: '2026-08-14T06:00:00Z',
     updatedAt: '2026-08-14T06:00:00Z',
@@ -98,9 +275,9 @@ const INITIAL_PERSONAL_COMMISSIONS: PersonalCommission[] = [
     placeId: PLACE_A,
     occurredAt: '2026-08-05T05:00:00Z',
     purchaseAmountMinor: null,
-    receivedIncomeMinor: 100,
-    receivedPoints: null,
-    currency: 'USD',
+    receivedIncomeMinor: null,
+    receivedPoints: 10,
+    currency: null,
     note: 'Неактивная запись',
     status: 'inactive',
     createdAt: '2026-08-05T06:00:00Z',
@@ -121,6 +298,29 @@ function clonePlace(place: PersonalPlace): PersonalPlace {
   return { ...place };
 }
 
+function cloneOfficialCompany(company: OfficialCompany): OfficialCompany {
+  return { ...company };
+}
+
+function cloneOfficialVisit(visit: OfficialVisit): OfficialVisit {
+  return { ...visit };
+}
+
+function cloneOfficialPointsSummary(summary: OfficialPointsSummary): OfficialPointsSummary {
+  return {
+    ...summary,
+    companies: summary.companies.map((item) => ({ ...item })),
+  };
+}
+
+function cloneOfficialSale(sale: OfficialSale): OfficialSale {
+  return { ...sale };
+}
+
+function cloneOfficialHistoryItem(item: OfficialHistoryItem): OfficialHistoryItem {
+  return { ...item };
+}
+
 function cloneCommission(item: PersonalCommission): PersonalCommission {
   return { ...item };
 }
@@ -136,6 +336,15 @@ const entries: CalendarEntry[] = INITIAL_ENTRIES.map((e) => ({ ...e }));
 let profile: GuideProfile = cloneProfile(MOCK_PROFILE);
 let personalPlaces: PersonalPlace[] = INITIAL_PERSONAL_PLACES.map(clonePlace);
 let personalCommissions: PersonalCommission[] = INITIAL_PERSONAL_COMMISSIONS.map(cloneCommission);
+let officialCompanies: OfficialCompany[] = INITIAL_OFFICIAL_COMPANIES.map(cloneOfficialCompany);
+let officialVisits: OfficialVisit[] = INITIAL_OFFICIAL_VISITS.map(cloneOfficialVisit);
+let officialPointsSummary: OfficialPointsSummary = cloneOfficialPointsSummary(
+  INITIAL_OFFICIAL_POINTS_SUMMARY,
+);
+let officialSales: OfficialSale[] = INITIAL_OFFICIAL_SALES.map(cloneOfficialSale);
+let officialHistory: OfficialHistoryItem[] = INITIAL_OFFICIAL_HISTORY.map(
+  cloneOfficialHistoryItem,
+);
 
 function tourFromForm(form: TourFormValues): Omit<CalendarEntry, 'id'> {
   return {
@@ -365,6 +574,56 @@ export const mockClient: GuideOsClient = {
     item.status = 'inactive';
     item.updatedAt = utcNow();
   },
+
+  async listOfficialCompanies() {
+    return {
+      companies: officialCompanies.map(cloneOfficialCompany),
+      page: { nextCursor: null },
+    };
+  },
+
+  async getOfficialCompany(id: string) {
+    const company = officialCompanies.find((item) => item.id === id);
+    return company ? cloneOfficialCompany(company) : null;
+  },
+
+  async listOfficialVisits(options?: ListOfficialVisitsOptions) {
+    void options;
+    return {
+      visits: officialVisits.map(cloneOfficialVisit),
+      page: { nextCursor: null },
+    };
+  },
+
+  async getOfficialVisit(id: string) {
+    const visit = officialVisits.find((item) => item.id === id);
+    return visit ? cloneOfficialVisit(visit) : null;
+  },
+
+  async getOfficialPointsSummary() {
+    return cloneOfficialPointsSummary(officialPointsSummary);
+  },
+
+  async listOfficialSales(options?: ListOfficialSalesOptions) {
+    void options;
+    return {
+      sales: officialSales.map(cloneOfficialSale),
+      page: { nextCursor: null },
+    };
+  },
+
+  async getOfficialSale(id: string) {
+    const sale = officialSales.find((item) => item.id === id);
+    return sale ? cloneOfficialSale(sale) : null;
+  },
+
+  async listOfficialHistory(options?: ListOfficialHistoryOptions) {
+    void options;
+    return {
+      history: officialHistory.map(cloneOfficialHistoryItem),
+      page: { nextCursor: null },
+    };
+  },
 };
 
 /** Test-only access to in-memory entries */
@@ -382,6 +641,31 @@ export function __testPersonalCommissions(): PersonalCommission[] {
   return personalCommissions;
 }
 
+/** Test-only access to in-memory official companies */
+export function __testOfficialCompanies(): OfficialCompany[] {
+  return officialCompanies;
+}
+
+/** Test-only access to in-memory official visits */
+export function __testOfficialVisits(): OfficialVisit[] {
+  return officialVisits;
+}
+
+/** Test-only access to in-memory official points summary */
+export function __testOfficialPointsSummary(): OfficialPointsSummary {
+  return officialPointsSummary;
+}
+
+/** Test-only access to in-memory official sales */
+export function __testOfficialSales(): OfficialSale[] {
+  return officialSales;
+}
+
+/** Test-only access to in-memory official payout history */
+export function __testOfficialHistory(): OfficialHistoryItem[] {
+  return officialHistory;
+}
+
 export function __resetMockStore() {
   entries.length = 0;
   entries.push(...INITIAL_ENTRIES.map((e) => ({ ...e })));
@@ -391,4 +675,9 @@ export function __resetMockStore() {
   profile = cloneProfile(MOCK_PROFILE);
   personalPlaces = INITIAL_PERSONAL_PLACES.map(clonePlace);
   personalCommissions = INITIAL_PERSONAL_COMMISSIONS.map(cloneCommission);
+  officialCompanies = INITIAL_OFFICIAL_COMPANIES.map(cloneOfficialCompany);
+  officialVisits = INITIAL_OFFICIAL_VISITS.map(cloneOfficialVisit);
+  officialPointsSummary = cloneOfficialPointsSummary(INITIAL_OFFICIAL_POINTS_SUMMARY);
+  officialSales = INITIAL_OFFICIAL_SALES.map(cloneOfficialSale);
+  officialHistory = INITIAL_OFFICIAL_HISTORY.map(cloneOfficialHistoryItem);
 }

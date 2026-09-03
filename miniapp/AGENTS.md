@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-> Обновлено: 2026-09-01. Этапы **MA0–MA10** — завершённые исторические этапы. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). **Public production pilot — ACTIVE, owner-validated** (2026-09-01). **Нет активной coding/deployment задачи** — следующий шаг только по явному запросу владельца.
+> Обновлено: 2026-09-03. Этапы **MA0–MA10** — завершённые исторические этапы. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). **Public production pilot — ACTIVE, owner-validated** (2026-09-01). **GuideShop Mini App GSMA0–GSMA7E complete** (visits, points summary, sales, history); next = **GSMA8**.
 
 | Этап | Статус | Артефакт |
 |------|--------|----------|
@@ -33,13 +33,13 @@
 
 **Future tips workstream (approved concept, not started):** one total tips amount per `user_id + calendar_date`, independent of tours; shared foundation and Telegram bot first, then Web API and Mini App parity. Canonical stages TIP0–TIP10: `../docs/TIPS_ROADMAP.md`. Не начинать без нового явного запроса владельца.
 
-**Active GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0 contract and GSMA1 navigation foundation are complete. Third `guideshop` tab, scalable horizontal bottom nav and placeholder exist. Personal companies will use existing `personal_places`, commissions use `personal_place_entries`/`ExternalSalesService`, official GuideShop remains request-scoped read-only. Next stage: GSMA2 Personal Places Web API. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+**Active GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0–GSMA7E complete — official Visits, «Баллы GuideShop» (+ «История выплат»), and «Продажи GuideShop» from company detail; personal companies/commissions unchanged and separate. Optional GSMA7 submodule set complete. Contract: `../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Next: **GSMA8** (resilience/observability) after owner request. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
 
 **Агентам:** не отключать pilot, не redeploy, не расширять scope и не объявлять formal general release без **нового явного запроса владельца**. Rollback reversible: `MINI_APP_ENABLED=false`, при необходимости `MINI_APP_API_ENABLED=false`, redeploy bot — только когда owner попросит скрыть Mini App.
 
 **Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Production Web API** с **real initData auth**; production bot и Mini App используют общий Guide OS data layer через shared services/database.
 
-Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **GSMA2 Personal Places Web API**).
+Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **GSMA8 — after owner request**).
 
 ## Цель и приоритет
 

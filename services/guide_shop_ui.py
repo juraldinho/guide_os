@@ -2,10 +2,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from datetime import datetime
 from html import escape
+import os
 from typing import Literal
 from zoneinfo import ZoneInfo
-
-from config import TIMEZONE
 
 from services.guide_shop_client import (
     GuideShopAccessDeniedError,
@@ -16,6 +15,7 @@ from services.guide_shop_client import (
     GuideShopTemporarilyUnavailableError,
 )
 from services.guide_shop_contracts import (
+    APIListResponseDTO,
     CompanyDTO,
     PointsAccrualDTO,
     PointsPayoutDTO,
@@ -27,7 +27,7 @@ from services.guide_shop_contracts import (
 )
 from services.guide_shop_navigation import GuideShopRoute
 
-UI_TZ = ZoneInfo(TIMEZONE)
+UI_TZ = ZoneInfo(os.getenv("TIMEZONE", "Asia/Tashkent"))
 UNKNOWN_COMPANY = "Компания не найдена"
 NOT_SPECIFIED = "Не указано"
 
@@ -287,6 +287,46 @@ def _unfiltered_points_text(
 class GuideShopUIService:
     def __init__(self, client: GuideShopClient) -> None:
         self._client = client
+
+    async def list_official_companies(self) -> APIListResponseDTO[CompanyDTO]:
+        return await self._client.list_companies()
+
+    async def get_official_company(self, company_id: str) -> CompanyDTO | None:
+        response = await self.list_official_companies()
+        return next(
+            (item for item in response.data if item.company_id == company_id),
+            None,
+        )
+
+    async def list_official_visits(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[VisitDTO]:
+        return await self._client.list_visits(cursor)
+
+    async def get_official_visit(self, visit_id: str) -> VisitDTO | None:
+        try:
+            return (await self._client.get_visit(visit_id)).data
+        except GuideShopObjectNotFoundError:
+            return None
+
+    async def get_official_points_summary(self) -> PointsSummaryDTO:
+        return await self._client.get_points_summary()
+
+    async def list_official_sales(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[SaleDTO]:
+        return await self._client.list_sales(cursor)
+
+    async def get_official_sale(self, sale_id: str) -> SaleDTO | None:
+        try:
+            return (await self._client.get_sale(sale_id)).data
+        except GuideShopObjectNotFoundError:
+            return None
+
+    async def list_official_history(
+        self, cursor: str | None = None
+    ) -> APIListResponseDTO[PointsPayoutDTO]:
+        return await self._client.list_history(cursor)
 
     async def home(self) -> GuideShopScreen:
         return GuideShopScreen(

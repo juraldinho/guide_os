@@ -7,6 +7,17 @@ import type {
   GuideProfilePatch,
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
+  ListOfficialVisitsOptions,
+  ListOfficialSalesOptions,
+  ListOfficialHistoryOptions,
+  OfficialCompaniesResult,
+  OfficialCompany,
+  OfficialHistoryResult,
+  OfficialPointsSummary,
+  OfficialSale,
+  OfficialSalesResult,
+  OfficialVisit,
+  OfficialVisitsResult,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -51,4 +62,12 @@ export interface GuideOsClient {
     input: PersonalCommissionInput,
   ): Promise<PersonalCommission>;
   deactivatePersonalCommission(id: string): Promise<void>;
+  listOfficialCompanies(): Promise<OfficialCompaniesResult>;
+  getOfficialCompany(id: string): Promise<OfficialCompany | null>;
+  listOfficialVisits(options?: ListOfficialVisitsOptions): Promise<OfficialVisitsResult>;
+  getOfficialVisit(id: string): Promise<OfficialVisit | null>;
+  getOfficialPointsSummary(): Promise<OfficialPointsSummary>;
+  listOfficialSales(options?: ListOfficialSalesOptions): Promise<OfficialSalesResult>;
+  getOfficialSale(id: string): Promise<OfficialSale | null>;
+  listOfficialHistory(options?: ListOfficialHistoryOptions): Promise<OfficialHistoryResult>;
 }

@@ -2,6 +2,43 @@
 
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
+## 2026-09-03 — GSMA7E Official GuideShop Payout / History
+
+- Web API `GET /app/v1/guideshop/history` (list-only) via shared Mini App GuideShop provider;
+- entry from Points sheet «История выплат»; company-scoped PTS payout list; GuideShop badge;
+- no mix with personal commission history; no GuideShop writes;
+- GSMA7 optional submodule set complete (visits, points summary, sales, history);
+- bot, schema, Railway и production flags не изменялись.
+
+## 2026-09-03 — GSMA7D Official GuideShop Sales (list + detail)
+
+- Web API `GET /app/v1/guideshop/sales` + `/{saleId}` via shared Mini App GuideShop provider;
+- official company detail entry «Продажи GuideShop»; USD decimal strings; company-scoped filter; no mix with personal commissions;
+- payout/history not implemented;
+- bot, schema, Railway и production flags не изменялись.
+
+## 2026-09-03 — GSMA7C Official GuideShop Points summary
+
+- Web API `GET /app/v1/guideshop/points/summary` via shared Mini App GuideShop provider;
+- official company detail entry «Баллы GuideShop»; PTS totals + company-scoped row; no mix with personal commissions;
+- accruals list / sales / payout history not implemented;
+- bot, schema, Railway и production flags не изменялись.
+
+## 2026-09-03 — GSMA7B Official GuideShop Visits (list + detail)
+
+- Web API `GET /app/v1/guideshop/visits` + `/{visitId}` via shared Mini App GuideShop provider;
+- official company detail entry “Визиты”; company-scoped client-side filter; GuideShop badge; no mutations;
+- sales / points / history not implemented;
+- bot, schema, Railway и production flags не изменялись.
+
+## 2026-09-03 — GSMA7A Official GuideShop submodules contract (docs only)
+
+- inventory of existing GuideShop client visits/sales/points/history methods and DTOs;
+- proposed `/app/v1/guideshop/...` composition endpoint names (not implemented);
+- per-submodule product analysis; recommended first slice: visits;
+- owner must pick exactly one submodule before GSMA7B coding;
+- application code, schema, Railway и production не изменялись.
+
 ## 2026-09-02 — Future Google Calendar roadmap approved (not implemented)
 
 - утверждён one-way import `Google Calendar → Guide OS`;

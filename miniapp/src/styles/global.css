@@ -253,9 +253,6 @@ a { color: var(--color-action-primary); }
   width: 100%;
   overflow-x: hidden;
 }
-.guideshop-placeholder {
-  min-height: 120px;
-}
 .guideshop-section-title {
   margin-bottom: var(--space-sm);
   font-size: 17px;
@@ -276,8 +273,10 @@ a { color: var(--color-action-primary); }
 .guideshop-section-header .guideshop-section-title {
   margin-bottom: 0;
 }
+.guideshop-official-section,
 .guideshop-personal-section {
   min-width: 0;
+  margin-bottom: var(--space-lg);
 }
 .guideshop-place-list {
   list-style: none;
@@ -294,12 +293,21 @@ a { color: var(--color-action-primary); }
   text-align: left;
   min-height: 44px;
   cursor: pointer;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .guideshop-place-card:active {
   opacity: 0.92;
 }
 .guideshop-place-name {
   font-size: 16px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.guideshop-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 .guideshop-badge {
   display: inline-flex;
@@ -313,6 +321,89 @@ a { color: var(--color-action-primary); }
   font-size: 12px;
   font-weight: 600;
 }
+.guideshop-badge-official {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-bg));
+}
+.guideshop-official-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.guideshop-phone-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.guideshop-visit-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.guideshop-visit-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.guideshop-visit-row:active {
+  opacity: 0.85;
+}
+
+.guideshop-visit-date {
+  font-weight: 600;
+}
+
+.guideshop-visit-meta {
+  color: var(--color-muted, #666);
+  font-size: 0.9rem;
+}
+
+.guideshop-points-totals {
+  margin-top: 0.5rem;
+}
+
+.guideshop-points-company-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.guideshop-points-company-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 10px;
+}
+
+.guideshop-history-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 10px;
+}
+
 .guideshop-empty {
   padding: var(--space-md) 0;
 }
@@ -360,16 +451,7 @@ a { color: var(--color-action-primary); }
   gap: 4px;
   min-width: 0;
 }
-.guideshop-commission-totals {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-.guideshop-commission-total,
-.guideshop-commission-points {
+.guideshop-commission-total {
   margin: 0;
   font-weight: 600;
   word-break: break-word;
@@ -420,10 +502,6 @@ a { color: var(--color-action-primary); }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-.guideshop-commission-hint {
-  margin: calc(-1 * var(--space-xs)) 0 var(--space-sm);
-  font-size: 0.85rem;
 }
 
 .card {

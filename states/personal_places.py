@@ -15,9 +15,7 @@ class PersonalPlaceEditState(StatesGroup):
 
 
 class PersonalPlaceEntryCreateState(StatesGroup):
-    points = State()
-    money = State()
-    currency = State()
+    commission = State()
     occurred_date = State()
     note = State()
     confirm = State()
@@ -25,4 +23,3 @@ class PersonalPlaceEntryCreateState(StatesGroup):
 
 class PersonalPlaceEntryEditState(StatesGroup):
     value = State()
-    currency = State()

@@ -1,8 +1,8 @@
 # Guide OS Mini App — GuideShop module roadmap
 
 > Зафиксировано: 2026-09-02  
-> Статус: GSMA0–GSMA1 complete; следующий этап — GSMA2  
-> Порядок: navigation → personal companies/commissions → official GuideShop → unified UX → security/E2E
+> Статус: **GSMA0–GSMA7E complete** (optional submodules: visits, points summary, sales, history; 2026-09-03); следующий этап — **GSMA8** resilience/caching/observability ([`GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md))
+> Порядок: navigation → personal companies/commissions → official GuideShop → unified UX → optional official submodules → security/E2E
 
 ## 1. Цель
 
@@ -216,14 +216,14 @@ Mini App GuideShop tab
 
 ### GSMA5 — official GuideShop companies API composition
 
-- Web API вызывает существующий request-scoped GuideShop runtime;
-- не передаёт private service credentials во frontend;
-- list/detail DTOs ограничены нужными UI полями;
-- pagination/cursors остаются opaque;
-- disabled/access denied/not found/unavailable переводятся в стабильные Mini App errors;
-- core personal section остаётся доступным при сбое official source.
+- зарегистрировать authenticated read-only list/detail routes;
+- composition через request-scoped GuideShop provider;
+- DTO только утверждённые company fields;
+- stable Mini App errors; personal routes независимы.
 
-**Готово, когда:** официальный список и detail открываются read-only с корректным degraded state.
+**Готово, когда:** Mini App client может читать официальный каталог без credentials на frontend.
+
+**Статус: complete (2026-09-03).**
 
 ### GSMA6 — объединённый GuideShop экран
 
@@ -236,6 +236,8 @@ Mini App GuideShop tab
 
 **Готово, когда:** пользователь всегда понимает источник и доступные действия.
 
+**Статус: complete (2026-09-03).** GSMA6A client types/HTTP/mock; GSMA6B `OfficialCompaniesSection` + unified page.
+
 ### GSMA7 — optional official submodules
 
 После отдельного подтверждения подключить уже существующие read-only GuideShop capabilities:
@@ -246,6 +248,16 @@ Mini App GuideShop tab
 - payout/history.
 
 Не включать автоматически всё только потому, что endpoints существуют. Каждому экрану нужны product need, DTO scope, permissions и tests.
+
+**GSMA7A (docs): complete (2026-09-03).** Audit/contract: [`GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md). Recommended first slice: **visits**.
+
+**GSMA7B (Visits): complete (2026-09-03).** Owner chose Visits. Mini App Web API list/detail + official company detail entry. Sales / points / history still deferred.
+
+**GSMA7C (Points summary): complete (2026-09-03).** Owner chose Points summary after Visits. `GET /app/v1/guideshop/points/summary` + «Баллы GuideShop» UI (summary-only). Sales / payout history still deferred.
+
+**GSMA7D (Sales): complete (2026-09-03).** Owner chose Sales after Visits + Points summary. `GET /app/v1/guideshop/sales` list/detail + «Продажи GuideShop» UI. Payout history still deferred.
+
+**GSMA7E (Payout/history): complete (2026-09-03).** Owner chose history after Visits + Points + Sales. `GET /app/v1/guideshop/history` list-only + «История выплат» from Points sheet. **GSMA7 optional submodule set complete.**
 
 **Готово, когда:** утверждённые подмодули имеют безопасную навигацию и back behavior.
 
@@ -330,4 +342,4 @@ GSMA10 Two-account E2E/release
 
 ## 11. Активный следующий шаг
 
-GSMA0–GSMA1 завершены. Следующий этап — **GSMA2: Personal Places Web API**. На GSMA2 добавить authenticated user-scoped routes через существующий `PersonalPlacesService`, без official GuideShop calls, frontend forms и deploy.
+GSMA0–GSMA7E завершены (visits, points summary, sales, payout/history). **Следующий coding этап — GSMA8** (resilience/caching/observability). Не начинать без явного запроса владельца.

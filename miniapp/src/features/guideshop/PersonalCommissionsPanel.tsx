@@ -1,8 +1,8 @@
 import type { PersonalCommission } from '@/api/types';
 import { t } from '@/i18n/strings';
 import {
-  formatMoneyAmount,
   formatOccurredAtDisplay,
+  isUserFacingCommission,
   sortCommissionsNewestFirst,
   summarizeActiveCommissions,
 } from './lib/commissionMoney';
@@ -22,9 +22,9 @@ export function PersonalCommissionsPanel({
   onRetry,
   onOpen,
 }: PersonalCommissionsPanelProps) {
-  const active = commissions.filter((item) => item.status === 'active');
-  const summary = summarizeActiveCommissions(active);
-  const history = sortCommissionsNewestFirst(active);
+  const visible = commissions.filter(isUserFacingCommission);
+  const summary = summarizeActiveCommissions(visible);
+  const history = sortCommissionsNewestFirst(visible);
 
   return (
     <section className="guideshop-commissions" aria-labelledby="guideshop-commissions-title">
@@ -53,22 +53,9 @@ export function PersonalCommissionsPanel({
             {summary.isEmpty ? (
               <p className="text-muted">{t.guideShopCommissionsEmptySummary}</p>
             ) : (
-              <>
-                {summary.incomesByCurrency.length > 0 && (
-                  <ul className="guideshop-commission-totals">
-                    {summary.incomesByCurrency.map((row) => (
-                      <li key={row.currency} className="guideshop-commission-total">
-                        {formatMoneyAmount(row.minor, row.currency)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {summary.pointsTotal > 0 && (
-                  <p className="guideshop-commission-points">
-                    {t.guideShopCommissionsPoints(summary.pointsTotal)}
-                  </p>
-                )}
-              </>
+              <p className="guideshop-commission-total">
+                {t.guideShopCommissionAmount(summary.total)}
+              </p>
             )}
           </div>
 
@@ -90,23 +77,9 @@ export function PersonalCommissionsPanel({
                       >
                         <span className="guideshop-commission-date">{dateLabel}</span>
                         <span className="guideshop-commission-meta">
-                          {item.purchaseAmountMinor != null && item.currency && (
-                            <span>
-                              {t.guideShopCommissionPurchase}:{' '}
-                              {formatMoneyAmount(item.purchaseAmountMinor, item.currency)}
-                            </span>
-                          )}
-                          {item.receivedIncomeMinor != null && item.currency && (
-                            <span>
-                              {t.guideShopCommissionIncome}:{' '}
-                              {formatMoneyAmount(item.receivedIncomeMinor, item.currency)}
-                            </span>
-                          )}
-                          {item.receivedPoints != null && (
-                            <span>
-                              {t.guideShopCommissionPointsLabel} — {item.receivedPoints}
-                            </span>
-                          )}
+                          <span>
+                            {t.guideShopCommissionAmount(item.receivedPoints as number)}
+                          </span>
                           {item.note && (
                             <span className="guideshop-commission-note-preview">{item.note}</span>
                           )}

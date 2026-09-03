@@ -1,14 +1,28 @@
 # Guide OS Mini App — Next Task
 
-> Обновлено: 2026-09-02
+> Обновлено: 2026-09-03
 
 ## Единственная следующая задача
 
-**GSMA2 — Personal Places Web API.** GSMA0–GSMA1 завершены 2026-09-02. Добавить authenticated list/get/create/update/deactivate routes через существующий `PersonalPlacesService`, с idempotency, строгой validation и IDOR/BOLA tests. Не подключать official GuideShop, frontend forms и deploy.
+**GSMA8 — resilience, caching и observability.**
+
+GSMA7 optional submodules are complete (Visits, Points summary, Sales, Payout/history). Do not add further GuideShop submodule screens unless owner reopens scope.
 
 Канонический план GSMA0–GSMA10: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
 
-Утверждённый GSMA0 contract: [`../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md).
+Канонический contract GSMA7: [`../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md).
+
+GSMA8 focus (from roadmap):
+
+- request timeout and cancellation;
+- safe short-lived cache only if needed;
+- retry without duplicate personal mutations;
+- sanitized logs without JWT/tokens/opaque IDs/PII;
+- metrics for latency/error/degraded state;
+- GuideShop outage isolated to official section;
+- feature flags and rollback runbook.
+
+Do **not** start GSMA8 coding until the owner explicitly asks for that task.
 
 ## Утверждённый будущий roadmap — Google Calendar
 
@@ -26,40 +40,11 @@
 
 **Guide OS Mini App public production pilot — ACTIVE and owner-validated** (2026-09-01).
 
-Owner explicitly approved **оставить pilot enabled** в production Guide OS bot. Mini App доступен через Telegram `MenuButtonWebApp`.
+Do not treat pilot as incomplete unless the owner reopens it.
 
-**Не** отключать, **не** redeploy для rollback и **не** продвигать к formal general release автоматически. Не трактовать pilot как temporary-disabled, staging-only, local-only или unauthorized.
+## Do not
 
-### Reversible rollback (only when owner requests hide)
-
-1. `MINI_APP_ENABLED=false`
-2. `MINI_APP_API_ENABLED=false` — только если Mini App API тоже нужно остановить и нет shared-runtime requirement
-3. Redeploy production bot service
-4. Refresh `/start` или Telegram menu state as required
-
-**Не выполнять rollback сейчас** — owner решил оставить pilot enabled.
-
-## MA11 — not the active next step
-
-**MA11 — hosted closed staging deployment** — deferred; owner instead authorized reversible **public production pilot**. Use [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) and [PRODUCTION_GATE_MA9.md](../../docs/mini_app/PRODUCTION_GATE_MA9.md) only when owner explicitly approves a future hosted staging or formal release path.
-
-## Post-MA10 checkpoint closed
-
-**Owner-approved Mini App MVP UX checkpoint — complete** (2026-08-31).
-
-Commit `57405f4` (`Complete Guide OS Mini App prototype UX`) on `main`. Owner manual review PASS in dedicated local Telegram test bot.
-
-## MA10 closed
-
-**MA10 complete — local Telegram E2E PASS** (2026-08-30).
-
-Validated locally: dedicated test bot, real initData, API on `127.0.0.1:8083`, Vite on `127.0.0.1:5173`, temporary Cloudflare Quick Tunnel, local SQLite, owner-only allowlist.
-
-See `miniapp/.ai/SESSION.md` and `miniapp/README.md` § Local Telegram E2E.
-
-## Stop
-
-- No coding/deployment authorized without new owner request.
-- Public production pilot **remains enabled** by owner decision.
-- Formal general production release **not** separately declared.
-- Production gate docs retained for future review — not a claim that every gate item is complete.
+- No GuideShop writes; no official↔personal merge.
+- No bot/handler/schema/Railway/production flag changes without release scope.
+- Do not mix GuideShop USD sales or PTS with personal commission money/points.
+- Do not start GSMA8 until owner requests it.

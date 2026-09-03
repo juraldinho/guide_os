@@ -46,7 +46,10 @@ from services.guide_shop_client import (
     InMemoryGuideShopClient,
 )
 from services.guide_shop_auth import GuideShopJWTAccessTokenProvider
-from services.guide_shop_runtime import RequestScopedGuideShopUIServiceProvider
+from services.guide_shop_runtime import (
+    RequestScopedGuideShopUIServiceProvider,
+    StaticGuideShopUIServiceProvider,
+)
 from services.guide_shop_settings import (
     GuideShopFeatureFlags,
     GuideShopHTTPSettings,
@@ -59,6 +62,7 @@ from services.guide_shop_event_worker import (
     build_guide_shop_event_worker,
     validate_guide_shop_event_flags,
 )
+from web_api.routes.guideshop_companies import configure_miniapp_guideshop_provider
 
 from utils.logger import setup_logging
 
@@ -83,6 +87,7 @@ async def stop_guide_shop_event_worker(task) -> None:
 
 def configure_guide_shop_runtime(values=None) -> None:
     configure_guide_shop_provider(None, reads_enabled=False)
+    configure_miniapp_guideshop_provider(None, reads_enabled=False)
     flags = GuideShopFeatureFlags.from_env(values)
     configure_guide_shop_menu(flags.reads_enabled)
 
@@ -98,8 +103,13 @@ def configure_guide_shop_runtime(values=None) -> None:
             points=(),
             points_history=(),
         )
+        service = GuideShopUIService(client)
         configure_guide_shop_ui(
-            GuideShopUIService(client),
+            service,
+            reads_enabled=True,
+        )
+        configure_miniapp_guideshop_provider(
+            StaticGuideShopUIServiceProvider(service),
             reads_enabled=True,
         )
         return
@@ -116,6 +126,10 @@ def configure_guide_shop_runtime(values=None) -> None:
         ),
     )
     configure_guide_shop_provider(
+        provider,
+        reads_enabled=True,
+    )
+    configure_miniapp_guideshop_provider(
         provider,
         reads_enabled=True,
     )

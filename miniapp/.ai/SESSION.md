@@ -1,12 +1,14 @@
 # Guide OS Mini App — Session
 
-> Обновлено: 2026-09-01
+> Обновлено: 2026-09-03
 
-## Active workstream — GuideShop Mini App (2026-09-02)
+## Active workstream — GuideShop Mini App (2026-09-03)
 
 Owner activated the GuideShop Mini App roadmap. Planned UX: horizontally scrollable bottom module navigation `Calendar → Reports → GuideShop → future`; GuideShop page groups official read-only GuideShop companies and user-owned personal companies with commission records. Existing `personal_places`, `personal_place_entries`, `PersonalPlacesService`, `ExternalSalesService` and request-scoped GuideShop runtime are authoritative; no parallel frontend data model.
 
-Current stage is **GSMA0–GSMA1 complete; GSMA2 Personal Places Web API next**. GuideShop navigation shell exists; personal/official data API, Railway and production remain unchanged. Canonical plan: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`; approved contract: `../../docs/mini_app/GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md`.
+**GSMA0–GSMA7E complete.** Unified GuideShop page ships official companies (read-only) + personal companies/commissions; official company detail opens Visits, «Баллы GuideShop» (+ «История выплат»), and «Продажи GuideShop». Optional GSMA7 submodule set complete.
+
+Current stage: **GSMA7E history complete → next GSMA8** (resilience/caching/observability). Contract: `../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Do not start GSMA8 until owner requests it.
 
 ## Future roadmap decision — Google Calendar (2026-09-02)
 

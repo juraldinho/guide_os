@@ -10,7 +10,16 @@ import {
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
 import { MOCK_PROFILE } from '@/api/mock/data';
-import { mockClient, __resetMockStore } from '@/api/mock/store';
+import {
+  mockClient,
+  __resetMockStore,
+  __testOfficialCompanies,
+  __testOfficialVisits,
+  __testOfficialPointsSummary,
+  __testOfficialSales,
+  __testOfficialHistory,
+  __testPersonalPlaces,
+} from '@/api/mock/store';
 
 const profileResponse = {
   name: 'Test Guide',
@@ -619,10 +628,10 @@ describe('httpClient personal commissions', () => {
     id: 'entry_11111111111111111111111111111111',
     placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     occurredAt: '2026-08-10T05:00:00Z',
-    purchaseAmountMinor: 10000,
-    receivedIncomeMinor: 1000,
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: null,
     receivedPoints: 5,
-    currency: 'USD',
+    currency: null,
     note: 'note',
     status: 'active' as const,
     createdAt: '2026-08-10T06:00:00Z',
@@ -704,10 +713,10 @@ describe('httpClient personal commissions', () => {
 
     const input = {
       occurredAt: '2026-08-10T00:00:00+05:00',
-      purchaseAmountMinor: 10000,
-      receivedIncomeMinor: 1000,
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
       receivedPoints: 5,
-      currency: 'USD',
+      currency: null,
       note: 'note',
     };
     await createHttpClient().createPersonalCommission(commission.placeId, input);
@@ -765,5 +774,562 @@ describe('httpClient personal commissions', () => {
     );
     expect(init?.body).toBeUndefined();
     expect(headers.get('Idempotency-Key')).toBeTruthy();
+  });
+});
+
+describe('official GuideShop companies API', () => {
+  const company = {
+    id: 'gsco_silkroad_01',
+    displayName: 'Silk Road Emporium',
+    status: 'active',
+    phone: '+998901112233',
+    address: 'Registan Square, Samarkand',
+    description: 'Official partner',
+    type: 'shop',
+  };
+
+  const sparseCompany = {
+    id: 'gsco_nullfields_02',
+    displayName: 'Sparse Co',
+    status: 'pending_review',
+    phone: null,
+    address: null,
+    description: null,
+    type: null,
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists official companies from GET /app/v1/guideshop/companies with bearer token', async () => {
+    __testSetSessionToken('tok_official');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          companies: [company, sparseCompany],
+          page: { nextCursor: 'opaque_cursor_token_01' },
+        },
+      }),
+    );
+
+    const result = await createHttpClient().listOfficialCompanies();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/companies');
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer tok_official');
+    expect(result.companies).toEqual([company, sparseCompany]);
+    expect(result.companies[0]).toEqual({
+      id: 'gsco_silkroad_01',
+      displayName: 'Silk Road Emporium',
+      status: 'active',
+      phone: '+998901112233',
+      address: 'Registan Square, Samarkand',
+      description: 'Official partner',
+      type: 'shop',
+    });
+    expect(result.companies[1]?.phone).toBeNull();
+    expect(result.companies[1]?.address).toBeNull();
+    expect(result.companies[1]?.description).toBeNull();
+    expect(result.companies[1]?.type).toBeNull();
+    expect(result.companies[1]?.status).toBe('pending_review');
+    expect(result.page.nextCursor).toBe('opaque_cursor_token_01');
+  });
+
+  it('gets official company with encodeURIComponent and returns the company', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    const weirdId = 'gsco/alpha:beta';
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { ...company, id: weirdId } }));
+
+    const result = await createHttpClient().getOfficialCompany(weirdId);
+
+    expect(result).toEqual({ ...company, id: weirdId });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/guideshop/companies/${encodeURIComponent(weirdId)}`,
+    );
+  });
+
+  it('returns null only on exact not_found for getOfficialCompany', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'not_found', message: 'missing' } }, 404),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'access_denied', message: 'denied' } }, 403),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: { code: 'integration_disabled', message: 'disabled' } },
+          503,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: { code: 'temporarily_unavailable', message: 'outage' } },
+          503,
+        ),
+      );
+
+    await expect(createHttpClient().getOfficialCompany(company.id)).resolves.toBeNull();
+    await expect(createHttpClient().getOfficialCompany(company.id)).rejects.toMatchObject({
+      code: 'access_denied',
+      status: 403,
+    });
+    await expect(createHttpClient().getOfficialCompany(company.id)).rejects.toMatchObject({
+      code: 'integration_disabled',
+      status: 503,
+    });
+    await expect(createHttpClient().getOfficialCompany(company.id)).rejects.toMatchObject({
+      code: 'temporarily_unavailable',
+      status: 503,
+    });
+  });
+
+  it('does not convert list 503 to an empty result', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { error: { code: 'integration_disabled', message: 'disabled' } },
+        503,
+      ),
+    );
+
+    await expect(createHttpClient().listOfficialCompanies()).rejects.toMatchObject({
+      code: 'integration_disabled',
+      status: 503,
+    });
+  });
+
+  it('applies existing 401 session recovery to an official request', async () => {
+    window.Telegram = { WebApp: { initData: 'query_id=1&user=%7B%7D&hash=abc' } };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { session_token: 'fresh_tok', session_expires_at: null, user: {} } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'auth_required', message: 'expired' } }, 401),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { session_token: 'renewed_tok', session_expires_at: null, user: {} } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { companies: [company], page: { nextCursor: null } },
+        }),
+      );
+
+    const result = await createHttpClient().listOfficialCompanies();
+
+    expect(result.companies).toEqual([company]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/session');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/app/v1/guideshop/companies');
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/app/v1/session');
+    expect(fetchMock.mock.calls[3]?.[0]).toBe('/app/v1/guideshop/companies');
+    const retryHeaders = fetchMock.mock.calls[3]?.[1]?.headers as Headers;
+    expect(retryHeaders.get('Authorization')).toBe('Bearer renewed_tok');
+  });
+});
+
+describe('official GuideShop mock parity', () => {
+  beforeEach(() => {
+    __resetMockStore();
+  });
+
+  it('returns deterministic official records and clones', async () => {
+    const first = await mockClient.listOfficialCompanies();
+    expect(first.page).toEqual({ nextCursor: null });
+    expect(first.companies.length).toBeGreaterThanOrEqual(3);
+    expect(first.companies.some((item) => item.phone !== null && item.address !== null)).toBe(
+      true,
+    );
+    expect(
+      first.companies.some(
+        (item) =>
+          item.phone === null &&
+          item.address === null &&
+          item.description === null &&
+          item.type === null,
+      ),
+    ).toBe(true);
+    expect(new Set(first.companies.map((item) => item.displayName)).size).toBe(
+      first.companies.length,
+    );
+
+    const stored = __testOfficialCompanies();
+    first.companies[0].displayName = 'mutated';
+    const second = await mockClient.listOfficialCompanies();
+    expect(second.companies[0]?.displayName).toBe(stored[0]?.displayName);
+    expect(second.companies[0]?.displayName).not.toBe('mutated');
+  });
+
+  it('returns matching detail, null for missing, and keeps personal ids independent', async () => {
+    const listed = await mockClient.listOfficialCompanies();
+    const target = listed.companies[0];
+    expect(target).toBeTruthy();
+
+    const detail = await mockClient.getOfficialCompany(target.id);
+    expect(detail).toEqual(target);
+    detail!.displayName = 'mutated-detail';
+    const again = await mockClient.getOfficialCompany(target.id);
+    expect(again?.displayName).toBe(target.displayName);
+
+    await expect(mockClient.getOfficialCompany('missing-official-id')).resolves.toBeNull();
+
+    const places = await mockClient.listPersonalPlaces();
+    const officialIds = new Set(listed.companies.map((item) => item.id));
+    const personalIds = new Set(places.map((item) => item.id));
+    for (const id of officialIds) {
+      expect(id.startsWith('place_')).toBe(false);
+      expect(personalIds.has(id)).toBe(false);
+    }
+    expect(__testPersonalPlaces().some((place) => officialIds.has(place.id))).toBe(false);
+    expect(__testOfficialCompanies().some((company) => personalIds.has(company.id))).toBe(
+      false,
+    );
+  });
+
+  it('exposes no official-company mutation methods on GuideOsClient', () => {
+    const client = mockClient as unknown as Record<string, unknown>;
+    for (const method of [
+      'createOfficialCompany',
+      'updateOfficialCompany',
+      'deactivateOfficialCompany',
+      'deleteOfficialCompany',
+      'createOfficialCommission',
+      'listOfficialPoints',
+      'listOfficialPayouts',
+      'createOfficialVisit',
+      'updateOfficialVisit',
+      'deleteOfficialVisit',
+      'createOfficialPoints',
+      'createOfficialSale',
+      'updateOfficialSale',
+      'deleteOfficialSale',
+      'createOfficialHistory',
+      'getOfficialHistory',
+    ]) {
+      expect(client).not.toHaveProperty(method);
+    }
+    expect(typeof mockClient.listOfficialCompanies).toBe('function');
+    expect(typeof mockClient.getOfficialCompany).toBe('function');
+    expect(typeof mockClient.listOfficialVisits).toBe('function');
+    expect(typeof mockClient.getOfficialVisit).toBe('function');
+    expect(typeof mockClient.getOfficialPointsSummary).toBe('function');
+    expect(typeof mockClient.listOfficialSales).toBe('function');
+    expect(typeof mockClient.getOfficialSale).toBe('function');
+    expect(typeof mockClient.listOfficialHistory).toBe('function');
+  });
+});
+
+describe('official GuideShop visits API', () => {
+  const visit = {
+    id: 'gsvis_silk_01',
+    companyId: 'gsco_silkroad_01',
+    visitAt: '2026-08-10T09:00:00Z',
+    status: 'completed',
+    touristCount: 4,
+    customerPaymentStatus: 'paid',
+    customerPaidAt: '2026-08-10T11:30:00Z',
+    createdAt: '2026-08-10T09:05:00Z',
+    updatedAt: '2026-08-10T11:30:00Z',
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists official visits from GET /app/v1/guideshop/visits with bearer token', async () => {
+    __testSetSessionToken('tok_visits');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { visits: [visit], page: { nextCursor: null } },
+      }),
+    );
+
+    const result = await createHttpClient().listOfficialVisits();
+    expect(result.visits).toEqual([visit]);
+    expect(result.page).toEqual({ nextCursor: null });
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/visits');
+    expect(headers.get('Authorization')).toBe('Bearer tok_visits');
+  });
+
+  it('forwards opaque cursor query without decoding', async () => {
+    __testSetSessionToken('tok_visits');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { visits: [], page: { nextCursor: 'next_opaque' } },
+      }),
+    );
+
+    await createHttpClient().listOfficialVisits({ cursor: 'opaque_page_two' });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/app/v1/guideshop/visits?cursor=opaque_page_two',
+    );
+  });
+
+  it('gets visit detail and maps not_found to null', async () => {
+    __testSetSessionToken('tok_visits');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: visit }))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'not_found', message: 'Визит не найден.' } }, 404),
+      );
+
+    const client = createHttpClient();
+    await expect(client.getOfficialVisit(visit.id)).resolves.toEqual(visit);
+    await expect(client.getOfficialVisit('missing_visit_id')).resolves.toBeNull();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/guideshop/visits/${encodeURIComponent(visit.id)}`,
+    );
+  });
+
+  it('mock visits are deterministic and omit guide membership fields', async () => {
+    __resetMockStore();
+    const listed = await mockClient.listOfficialVisits();
+    expect(listed.visits.length).toBeGreaterThan(0);
+    expect(listed.page.nextCursor).toBeNull();
+    for (const item of listed.visits) {
+      expect(item).not.toHaveProperty('guideMembershipId');
+      expect(item).not.toHaveProperty('guide_membership_id');
+    }
+    const first = listed.visits[0]!;
+    const detail = await mockClient.getOfficialVisit(first.id);
+    expect(detail).toEqual(first);
+    await expect(mockClient.getOfficialVisit('missing_visit_xx')).resolves.toBeNull();
+    expect(__testOfficialVisits().some((item) => item.id === first.id)).toBe(true);
+  });
+});
+
+describe('official GuideShop points summary API', () => {
+  const summary = {
+    unit: 'PTS',
+    pendingTotal: '12.50',
+    creditedTotal: '4.00',
+    companies: [
+      {
+        companyId: 'gsco_silkroad_01',
+        displayName: 'Silk Road Emporium',
+        pendingTotal: '10.00',
+        creditedTotal: '3.00',
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads points summary from GET /app/v1/guideshop/points/summary', async () => {
+    __testSetSessionToken('tok_points');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: summary }));
+
+    const result = await createHttpClient().getOfficialPointsSummary();
+    expect(result).toEqual(summary);
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/points/summary');
+    expect(headers.get('Authorization')).toBe('Bearer tok_points');
+  });
+
+  it('mock points summary is deterministic and PTS-only', async () => {
+    __resetMockStore();
+    const result = await mockClient.getOfficialPointsSummary();
+    expect(result.unit).toBe('PTS');
+    expect(result.companies.length).toBeGreaterThan(0);
+    expect(result).not.toHaveProperty('schema_version');
+    expect(result.companies[0]).not.toHaveProperty('company_id');
+    expect(__testOfficialPointsSummary().pendingTotal).toBe(result.pendingTotal);
+  });
+});
+
+describe('official GuideShop sales API', () => {
+  const sale = {
+    id: 'gssale_silk_01',
+    visitId: 'gsvis_silk_01',
+    companyId: 'gsco_silkroad_01',
+    amount: '125.40',
+    currency: 'USD',
+    status: 'active',
+    paymentMethod: 'card',
+    comment: 'Group textiles',
+    categoryId: 'gscat_textiles',
+    categoryName: 'Textiles',
+    createdAt: '2026-08-10T12:00:00Z',
+    updatedAt: '2026-08-10T12:00:00Z',
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists official sales from GET /app/v1/guideshop/sales with bearer token', async () => {
+    __testSetSessionToken('tok_sales');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { sales: [sale], page: { nextCursor: null } },
+      }),
+    );
+
+    const result = await createHttpClient().listOfficialSales();
+    expect(result.sales).toEqual([sale]);
+    expect(result.page).toEqual({ nextCursor: null });
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/sales');
+    expect(headers.get('Authorization')).toBe('Bearer tok_sales');
+  });
+
+  it('forwards opaque sales cursor without decoding', async () => {
+    __testSetSessionToken('tok_sales');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { sales: [], page: { nextCursor: 'next_opaque' } },
+      }),
+    );
+
+    await createHttpClient().listOfficialSales({ cursor: 'opaque_page_two' });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/app/v1/guideshop/sales?cursor=opaque_page_two',
+    );
+  });
+
+  it('gets sale detail and maps not_found to null', async () => {
+    __testSetSessionToken('tok_sales');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: sale }))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'not_found', message: 'Продажа не найдена.' } }, 404),
+      );
+
+    const client = createHttpClient();
+    await expect(client.getOfficialSale(sale.id)).resolves.toEqual(sale);
+    await expect(client.getOfficialSale('missing_sale_id')).resolves.toBeNull();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/guideshop/sales/${encodeURIComponent(sale.id)}`,
+    );
+  });
+
+  it('mock sales are deterministic USD decimal strings', async () => {
+    __resetMockStore();
+    const listed = await mockClient.listOfficialSales();
+    expect(listed.sales.length).toBeGreaterThan(0);
+    expect(listed.page.nextCursor).toBeNull();
+    for (const item of listed.sales) {
+      expect(item.currency).toBe('USD');
+      expect(typeof item.amount).toBe('string');
+      expect(item.amount).toMatch(/^\d+\.\d{2}$/);
+    }
+    const first = listed.sales[0]!;
+    const detail = await mockClient.getOfficialSale(first.id);
+    expect(detail).toEqual(first);
+    await expect(mockClient.getOfficialSale('missing_sale_xx')).resolves.toBeNull();
+    expect(__testOfficialSales().some((item) => item.id === first.id)).toBe(true);
+  });
+});
+
+describe('official GuideShop history API', () => {
+  const payout = {
+    id: 'gspay_silk_01',
+    pointsAccrualId: 'gsacc_silk_01',
+    companyId: 'gsco_silkroad_01',
+    visitId: 'gsvis_silk_01',
+    amount: '3.00',
+    unit: 'PTS',
+    paidAt: '2026-08-12T10:00:00Z',
+    createdAt: '2026-08-12T10:00:00Z',
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists official history from GET /app/v1/guideshop/history with bearer token', async () => {
+    __testSetSessionToken('tok_history');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { history: [payout], page: { nextCursor: null } },
+      }),
+    );
+
+    const result = await createHttpClient().listOfficialHistory();
+    expect(result.history).toEqual([payout]);
+    expect(result.page).toEqual({ nextCursor: null });
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/history');
+    expect(headers.get('Authorization')).toBe('Bearer tok_history');
+  });
+
+  it('forwards opaque history cursor without decoding', async () => {
+    __testSetSessionToken('tok_history');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: { history: [], page: { nextCursor: 'next_opaque' } },
+      }),
+    );
+
+    await createHttpClient().listOfficialHistory({ cursor: 'opaque_page_two' });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/app/v1/guideshop/history?cursor=opaque_page_two',
+    );
+  });
+
+  it('mock history is deterministic PTS payouts', async () => {
+    __resetMockStore();
+    const listed = await mockClient.listOfficialHistory();
+    expect(listed.history.length).toBeGreaterThan(0);
+    expect(listed.page.nextCursor).toBeNull();
+    for (const item of listed.history) {
+      expect(item.unit).toBe('PTS');
+      expect(typeof item.amount).toBe('string');
+      expect(item).not.toHaveProperty('payout_id');
+    }
+    expect(__testOfficialHistory().some((item) => item.id === listed.history[0]!.id)).toBe(
+      true,
+    );
   });
 });

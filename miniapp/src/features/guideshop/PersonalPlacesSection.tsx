@@ -11,10 +11,7 @@ import { t } from '@/i18n/strings';
 import { PersonalCommissionFormSheet } from './PersonalCommissionFormSheet';
 import { PersonalCommissionsPanel } from './PersonalCommissionsPanel';
 import { PersonalPlaceFormSheet } from './PersonalPlaceFormSheet';
-import {
-  formatMoneyAmount,
-  formatOccurredAtDisplay,
-} from './lib/commissionMoney';
+import { formatOccurredAtDisplay } from './lib/commissionMoney';
 
 function matchesSearch(place: PersonalPlace, query: string): boolean {
   const needle = query.trim().toLowerCase();
@@ -479,31 +476,9 @@ export function PersonalPlacesSection({
                 {formatOccurredAtDisplay(selectedCommission.occurredAt)}
               </span>
             </div>
-            {selectedCommission.purchaseAmountMinor != null && selectedCommission.currency && (
-              <div className="detail-row">
-                <span className="detail-label">{t.guideShopCommissionFieldPurchase}</span>
-                <span className="detail-value">
-                  {formatMoneyAmount(
-                    selectedCommission.purchaseAmountMinor,
-                    selectedCommission.currency,
-                  )}
-                </span>
-              </div>
-            )}
-            {selectedCommission.receivedIncomeMinor != null && selectedCommission.currency && (
-              <div className="detail-row">
-                <span className="detail-label">{t.guideShopCommissionFieldIncome}</span>
-                <span className="detail-value">
-                  {formatMoneyAmount(
-                    selectedCommission.receivedIncomeMinor,
-                    selectedCommission.currency,
-                  )}
-                </span>
-              </div>
-            )}
             {selectedCommission.receivedPoints != null && (
               <div className="detail-row">
-                <span className="detail-label">{t.guideShopCommissionFieldPoints}</span>
+                <span className="detail-label">{t.guideShopCommissionFieldCommission}</span>
                 <span className="detail-value">{selectedCommission.receivedPoints}</span>
               </div>
             )}
