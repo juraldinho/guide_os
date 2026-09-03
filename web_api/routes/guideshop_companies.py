@@ -19,6 +19,10 @@ from services.guide_shop_runtime import (
     GuideShopUIServiceProvider,
 )
 from web_api.errors import error_response, success_response
+from web_api.routes.guideshop_observe import (
+    MiniAppGuideShopSpan,
+    outcome_from_guideshop_exc,
+)
 from web_api.routes.session import _auth_or_error
 
 _provider: GuideShopUIServiceProvider | None = None
@@ -142,20 +146,27 @@ def register_guideshop_companies_routes(app: web.Application) -> None:
         rid, user_id, failure = _auth_or_error(request)
         if failure is not None:
             return failure
-        if _provider is None or not _reads_enabled:
-            return _integration_disabled_response(rid)
+        span = MiniAppGuideShopSpan("companies.list")
         try:
-            async with _provider.service_for(user_id) as service:
-                response = await service.list_official_companies()
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        return success_response(
-            {
-                "companies": [_company_to_api(item) for item in response.data],
-                "page": _page_to_api(response),
-            },
-            rid,
-        )
+            if _provider is None or not _reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            try:
+                async with _provider.service_for(user_id) as service:
+                    response = await service.list_official_companies()
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            span.set_outcome("ok")
+            return success_response(
+                {
+                    "companies": [_company_to_api(item) for item in response.data],
+                    "page": _page_to_api(response),
+                },
+                rid,
+            )
+        finally:
+            span.finish()
 
     async def get_company_handler(request: web.Request) -> web.Response:
         rid, user_id, failure = _auth_or_error(request)
@@ -164,16 +175,24 @@ def register_guideshop_companies_routes(app: web.Application) -> None:
         company_id = _safe_company_id(request.match_info["companyId"])
         if company_id is None:
             return _not_found_response(rid)
-        if _provider is None or not _reads_enabled:
-            return _integration_disabled_response(rid)
+        span = MiniAppGuideShopSpan("companies.detail")
         try:
-            async with _provider.service_for(user_id) as service:
-                company = await service.get_official_company(company_id)
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        if company is None:
-            return _not_found_response(rid)
-        return success_response(_company_to_api(company), rid)
+            if _provider is None or not _reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            try:
+                async with _provider.service_for(user_id) as service:
+                    company = await service.get_official_company(company_id)
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            if company is None:
+                span.set_outcome("not_found")
+                return _not_found_response(rid)
+            span.set_outcome("ok")
+            return success_response(_company_to_api(company), rid)
+        finally:
+            span.finish()
 
     app.router.add_get("/app/v1/guideshop/companies", list_companies_handler)
     app.router.add_get(

@@ -690,7 +690,9 @@ describe('GuideShop official companies UI', () => {
       }),
     );
 
-    await waitFor(() => expect(detailSpy).toHaveBeenCalledWith(officialFull.id));
+    await waitFor(() =>
+      expect(detailSpy).toHaveBeenCalledWith(officialFull.id, expect.anything()),
+    );
     const sheet = screen.getByText(t.guideShopOfficialFieldDescription).closest('.sheet');
     expect(sheet).toBeTruthy();
     expect(within(sheet!).getByText(t.guideShopOfficialBadge)).toBeInTheDocument();

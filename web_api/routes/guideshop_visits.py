@@ -20,6 +20,10 @@ from services.guide_shop_runtime import (
 )
 from web_api.errors import error_response, success_response
 from web_api.routes.guideshop_companies import get_miniapp_guideshop_provider
+from web_api.routes.guideshop_observe import (
+    MiniAppGuideShopSpan,
+    outcome_from_guideshop_exc,
+)
 from web_api.routes.session import _auth_or_error
 
 _MSG_INTEGRATION_DISABLED = "Раздел GuideShop временно отключён."
@@ -134,23 +138,30 @@ def register_guideshop_visits_routes(app: web.Application) -> None:
         rid, user_id, failure = _auth_or_error(request)
         if failure is not None:
             return failure
-        provider, reads_enabled = get_miniapp_guideshop_provider()
-        if provider is None or not reads_enabled:
-            return _integration_disabled_response(rid)
-        raw_cursor = request.rel_url.query.get("cursor")
-        cursor = raw_cursor if isinstance(raw_cursor, str) and raw_cursor else None
+        span = MiniAppGuideShopSpan("visits.list")
         try:
-            async with provider.service_for(user_id) as service:
-                response = await service.list_official_visits(cursor)
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        return success_response(
-            {
-                "visits": [_visit_to_api(item) for item in response.data],
-                "page": _page_to_api(response),
-            },
-            rid,
-        )
+            provider, reads_enabled = get_miniapp_guideshop_provider()
+            if provider is None or not reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            raw_cursor = request.rel_url.query.get("cursor")
+            cursor = raw_cursor if isinstance(raw_cursor, str) and raw_cursor else None
+            try:
+                async with provider.service_for(user_id) as service:
+                    response = await service.list_official_visits(cursor)
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            span.set_outcome("ok")
+            return success_response(
+                {
+                    "visits": [_visit_to_api(item) for item in response.data],
+                    "page": _page_to_api(response),
+                },
+                rid,
+            )
+        finally:
+            span.finish()
 
     async def get_visit_handler(request: web.Request) -> web.Response:
         rid, user_id, failure = _auth_or_error(request)
@@ -159,20 +170,28 @@ def register_guideshop_visits_routes(app: web.Application) -> None:
         visit_id = _safe_opaque_id(request.match_info["visitId"])
         if visit_id is None:
             return _not_found_response(rid)
-        provider, reads_enabled = get_miniapp_guideshop_provider()
-        if provider is None or not reads_enabled:
-            return _integration_disabled_response(rid)
+        span = MiniAppGuideShopSpan("visits.detail")
         try:
-            async with provider.service_for(user_id) as service:
-                visit = await service.get_official_visit(visit_id)
-                if visit is None:
-                    return _not_found_response(rid)
-                points = await service.list_official_visit_points(visit_id)
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        payload = _visit_to_api(visit)
-        payload["points"] = [_visit_point_to_api(item) for item in points]
-        return success_response(payload, rid)
+            provider, reads_enabled = get_miniapp_guideshop_provider()
+            if provider is None or not reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            try:
+                async with provider.service_for(user_id) as service:
+                    visit = await service.get_official_visit(visit_id)
+                    if visit is None:
+                        span.set_outcome("not_found")
+                        return _not_found_response(rid)
+                    points = await service.list_official_visit_points(visit_id)
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            payload = _visit_to_api(visit)
+            payload["points"] = [_visit_point_to_api(item) for item in points]
+            span.set_outcome("ok")
+            return success_response(payload, rid)
+        finally:
+            span.finish()
 
     app.router.add_get("/app/v1/guideshop/visits", list_visits_handler)
     app.router.add_get(

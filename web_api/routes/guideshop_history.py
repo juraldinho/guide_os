@@ -19,6 +19,10 @@ from services.guide_shop_runtime import (
 )
 from web_api.errors import error_response, success_response
 from web_api.routes.guideshop_companies import get_miniapp_guideshop_provider
+from web_api.routes.guideshop_observe import (
+    MiniAppGuideShopSpan,
+    outcome_from_guideshop_exc,
+)
 from web_api.routes.session import _auth_or_error
 
 _MSG_INTEGRATION_DISABLED = "Раздел GuideShop временно отключён."
@@ -106,22 +110,29 @@ def register_guideshop_history_routes(app: web.Application) -> None:
         rid, user_id, failure = _auth_or_error(request)
         if failure is not None:
             return failure
-        provider, reads_enabled = get_miniapp_guideshop_provider()
-        if provider is None or not reads_enabled:
-            return _integration_disabled_response(rid)
-        raw_cursor = request.rel_url.query.get("cursor")
-        cursor = raw_cursor if isinstance(raw_cursor, str) and raw_cursor else None
+        span = MiniAppGuideShopSpan("history.list")
         try:
-            async with provider.service_for(user_id) as service:
-                response = await service.list_official_history(cursor)
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        return success_response(
-            {
-                "history": [_payout_to_api(item) for item in response.data],
-                "page": _page_to_api(response),
-            },
-            rid,
-        )
+            provider, reads_enabled = get_miniapp_guideshop_provider()
+            if provider is None or not reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            raw_cursor = request.rel_url.query.get("cursor")
+            cursor = raw_cursor if isinstance(raw_cursor, str) and raw_cursor else None
+            try:
+                async with provider.service_for(user_id) as service:
+                    response = await service.list_official_history(cursor)
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            span.set_outcome("ok")
+            return success_response(
+                {
+                    "history": [_payout_to_api(item) for item in response.data],
+                    "page": _page_to_api(response),
+                },
+                rid,
+            )
+        finally:
+            span.finish()
 
     app.router.add_get("/app/v1/guideshop/history", list_history_handler)

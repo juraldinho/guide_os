@@ -1,7 +1,7 @@
 # Guide OS Mini App — GuideShop module roadmap
 
 > Зафиксировано: 2026-09-02  
-> Статус: **GSMA0–GSMA7E complete** (optional submodules: visits, points summary, sales, history; 2026-09-03); следующий этап — **GSMA8** resilience/caching/observability ([`GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md))
+> Статус: **GSMA0–GSMA8 complete** (optional submodules + resilience/observability 2026-09-03; Mini App sales withdrawn); следующий этап — **GSMA9** security/full regression
 > Порядок: navigation → personal companies/commissions → official GuideShop → unified UX → optional official submodules → security/E2E
 
 ## 1. Цель
@@ -263,13 +263,7 @@ Mini App GuideShop tab
 
 ### GSMA8 — resilience, caching и observability
 
-- request timeout и cancellation;
-- безопасный short-lived cache только при необходимости;
-- retry без duplicate personal mutations;
-- sanitized logs без JWT, tokens, opaque IDs и PII;
-- metrics по latency/error/degraded state;
-- GuideShop outage не влияет на Calendar/Reports/personal companies;
-- feature flags и rollback runbook.
+**Complete (2026-09-03).** Upstream timeouts documented/reused; Mini App GuideShop GET timeout 12s + AbortSignal; one safe GET retry; no mutation auto-retry; no response cache; sanitized `miniapp_guideshop` logs; isolation preserved; runbook [`GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md). Sales remain withdrawn from Mini App.
 
 **Готово, когда:** сбой внешнего сервиса локализован в official section.
 
@@ -342,4 +336,4 @@ GSMA10 Two-account E2E/release
 
 ## 11. Активный следующий шаг
 
-GSMA0–GSMA7E завершены (visits, points summary, sales, payout/history). **Следующий coding этап — GSMA8** (resilience/caching/observability). Не начинать без явного запроса владельца.
+GSMA0–GSMA8 завершены. **Следующий coding этап — GSMA9** (security/full regression). Не начинать без явного запроса владельца. Rollback: [`GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).

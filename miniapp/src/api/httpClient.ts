@@ -4,7 +4,7 @@ import {
   ENTRIES_RANGE_FROM,
   ENTRIES_RANGE_TO,
 } from '@/config';
-import type { GuideOsClient, WriteOptions } from './client';
+import type { GuideOsClient, GuideShopReadOptions, WriteOptions } from './client';
 import type {
   AvailabilityPreview,
   AvailabilityPreviewParams,
@@ -200,11 +200,83 @@ function dayOffBody(form: DayOffFormValues, options?: WriteOptions): Record<stri
   };
 }
 
-async function apiRequest<T>(
+/** Default timeout for official GuideShop Mini App GETs (documented in GSMA8 runbook). */
+export const GUIDESHOP_GET_TIMEOUT_MS = 12_000;
+
+const GUIDESHOP_TIMEOUT_MESSAGE = 'GuideShop временно недоступен. Попробуйте позже.';
+
+function isGuideShopPath(path: string): boolean {
+  const bare = path.split('?')[0] ?? path;
+  return bare.startsWith('/app/v1/guideshop/');
+}
+
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  if (error instanceof Error && error.name === 'AbortError') return true;
+  return false;
+}
+
+function combineAbortSignals(
+  external: AbortSignal | undefined,
+  timeout: AbortSignal,
+): AbortSignal {
+  if (!external) return timeout;
+  if (typeof AbortSignal !== 'undefined' && 'any' in AbortSignal) {
+    return AbortSignal.any([external, timeout]);
+  }
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (external.aborted || timeout.aborted) {
+    controller.abort();
+    return controller.signal;
+  }
+  external.addEventListener('abort', onAbort, { once: true });
+  timeout.addEventListener('abort', onAbort, { once: true });
+  return controller.signal;
+}
+
+type ApiRequestInit = RequestInit & {
+  skipAuth?: boolean;
+  /** Override default GuideShop GET timeout; set 0 to disable. */
+  timeoutMs?: number;
+};
+
+async function parseApiResponse<T>(res: Response): Promise<T> {
+  const json = (await res.json()) as ApiEnvelope<T>;
+  if (!res.ok) {
+    const err = json.error;
+    const code = err?.code ?? 'internal_error';
+    const message = err?.message ?? 'Ошибка запроса.';
+    const details = err?.details;
+    if (res.status === 409 && details?.conflict_kind && details.existing_entry) {
+      throw new ApiConflictError(code, message, details);
+    }
+    throw new ApiError(code, message, res.status);
+  }
+  if (json.data === undefined) {
+    throw new ApiError('internal_error', 'Пустой ответ сервера.', res.status);
+  }
+  return json.data;
+}
+
+function shouldRetryGuideShopGet(error: unknown, timedOut: boolean): boolean {
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403 || error.status === 404) {
+      return false;
+    }
+    return error.status === 503 && error.code === 'temporarily_unavailable';
+  }
+  if (timedOut) return true;
+  if (isAbortError(error)) return false;
+  // Network / fetch failures
+  return error instanceof TypeError;
+}
+
+async function apiRequestOnce<T>(
   path: string,
-  init: RequestInit & { skipAuth?: boolean } = {},
+  fetchInit: RequestInit,
+  skipAuth: boolean,
 ): Promise<T> {
-  const { skipAuth, ...fetchInit } = init;
   if (!skipAuth) await ensureSession();
 
   const headers = new Headers(fetchInit.headers);
@@ -229,21 +301,74 @@ async function apiRequest<T>(
     res = await doFetch();
   }
 
-  const json = (await res.json()) as ApiEnvelope<T>;
-  if (!res.ok) {
-    const err = json.error;
-    const code = err?.code ?? 'internal_error';
-    const message = err?.message ?? 'Ошибка запроса.';
-    const details = err?.details;
-    if (res.status === 409 && details?.conflict_kind && details.existing_entry) {
-      throw new ApiConflictError(code, message, details);
+  return parseApiResponse<T>(res);
+}
+
+async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { skipAuth = false, timeoutMs, signal: externalSignal, ...rest } = init;
+  const normalizedExternalSignal = externalSignal ?? undefined;
+  const method = (rest.method ?? 'GET').toUpperCase();
+  const guideShopGet = method === 'GET' && isGuideShopPath(path);
+  const effectiveTimeoutMs =
+    timeoutMs !== undefined
+      ? timeoutMs
+      : guideShopGet
+        ? GUIDESHOP_GET_TIMEOUT_MS
+        : 0;
+
+  const runWithTimeout = async (): Promise<{ result: T; timedOut: boolean }> => {
+    if (effectiveTimeoutMs <= 0) {
+      return {
+        result: await apiRequestOnce<T>(
+          path,
+          { ...rest, signal: normalizedExternalSignal },
+          skipAuth,
+        ),
+        timedOut: false,
+      };
     }
-    throw new ApiError(code, message, res.status);
+
+    const timeoutController = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      timeoutController.abort();
+    }, effectiveTimeoutMs);
+
+    try {
+      const signal = combineAbortSignals(normalizedExternalSignal, timeoutController.signal);
+      const result = await apiRequestOnce<T>(path, { ...rest, signal }, skipAuth);
+      return { result, timedOut: false };
+    } catch (error) {
+      if (timedOut && isAbortError(error)) {
+        throw new ApiError('temporarily_unavailable', GUIDESHOP_TIMEOUT_MESSAGE, 503);
+      }
+      if (normalizedExternalSignal?.aborted && isAbortError(error)) {
+        throw error;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    const first = await runWithTimeout();
+    return first.result;
+  } catch (error) {
+    const timedOut =
+      error instanceof ApiError &&
+      error.code === 'temporarily_unavailable' &&
+      error.message === GUIDESHOP_TIMEOUT_MESSAGE;
+    if (!guideShopGet || !shouldRetryGuideShopGet(error, timedOut)) {
+      throw error;
+    }
+    if (normalizedExternalSignal?.aborted) {
+      throw error;
+    }
+    const second = await runWithTimeout();
+    return second.result;
   }
-  if (json.data === undefined) {
-    throw new ApiError('internal_error', 'Пустой ответ сервера.', res.status);
-  }
-  return json.data;
 }
 
 export function createHttpClient(): GuideOsClient {
@@ -437,14 +562,17 @@ export function createHttpClient(): GuideOsClient {
       );
     },
 
-    async listOfficialCompanies() {
-      return apiRequest<OfficialCompaniesResult>('/app/v1/guideshop/companies');
+    async listOfficialCompanies(options?: GuideShopReadOptions) {
+      return apiRequest<OfficialCompaniesResult>('/app/v1/guideshop/companies', {
+        signal: options?.signal,
+      });
     },
 
-    async getOfficialCompany(id: string) {
+    async getOfficialCompany(id: string, options?: GuideShopReadOptions) {
       try {
         return await apiRequest<OfficialCompany>(
           `/app/v1/guideshop/companies/${encodeURIComponent(id)}`,
+          { signal: options?.signal },
         );
       } catch (e) {
         if (e instanceof ApiError && e.code === 'not_found') return null;
@@ -458,13 +586,15 @@ export function createHttpClient(): GuideOsClient {
       const query = params.toString();
       return apiRequest<OfficialVisitsResult>(
         `/app/v1/guideshop/visits${query ? `?${query}` : ''}`,
+        { signal: options?.signal },
       );
     },
 
-    async getOfficialVisit(id: string) {
+    async getOfficialVisit(id: string, options?: GuideShopReadOptions) {
       try {
         return await apiRequest<OfficialVisit>(
           `/app/v1/guideshop/visits/${encodeURIComponent(id)}`,
+          { signal: options?.signal },
         );
       } catch (e) {
         if (e instanceof ApiError && e.code === 'not_found') return null;
@@ -472,8 +602,10 @@ export function createHttpClient(): GuideOsClient {
       }
     },
 
-    async getOfficialPointsSummary() {
-      return apiRequest<OfficialPointsSummary>('/app/v1/guideshop/points/summary');
+    async getOfficialPointsSummary(options?: GuideShopReadOptions) {
+      return apiRequest<OfficialPointsSummary>('/app/v1/guideshop/points/summary', {
+        signal: options?.signal,
+      });
     },
 
     async listOfficialHistory(options?: ListOfficialHistoryOptions) {
@@ -482,6 +614,7 @@ export function createHttpClient(): GuideOsClient {
       const query = params.toString();
       return apiRequest<OfficialHistoryResult>(
         `/app/v1/guideshop/history${query ? `?${query}` : ''}`,
+        { signal: options?.signal },
       );
     },
   };

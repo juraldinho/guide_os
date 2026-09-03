@@ -45,13 +45,15 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
   const [visitsOpen, setVisitsOpen] = useState(false);
   const [pointsOpen, setPointsOpen] = useState(false);
 
-  const loadCompanies = useCallback(async () => {
+  const loadCompanies = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setListError(null);
     try {
-      const result = await guideOsClient.listOfficialCompanies();
+      const result = await guideOsClient.listOfficialCompanies({ signal });
+      if (signal?.aborted) return;
       setCompanies(result.companies);
     } catch (error) {
+      if (signal?.aborted) return;
       setCompanies([]);
       if (error instanceof ApiError && error.code === 'integration_disabled') {
         setListError('integration_disabled');
@@ -61,12 +63,14 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
         setListError('generic');
       }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadCompanies();
+    const controller = new AbortController();
+    void loadCompanies(controller.signal);
+    return () => controller.abort();
   }, [loadCompanies]);
 
   useEffect(() => {
@@ -83,16 +87,16 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setDetail(null);
     setDetailLoading(true);
     setDetailError(false);
     setDetailNotFound(false);
 
     void guideOsClient
-      .getOfficialCompany(selectedId)
+      .getOfficialCompany(selectedId, { signal: controller.signal })
       .then((company) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         if (company === null) {
           setDetailNotFound(true);
           setDetail(null);
@@ -100,17 +104,19 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
           setDetail(company);
         }
       })
-      .catch(() => {
-        if (cancelled) return;
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         setDetailError(true);
         setDetail(null);
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false);
+        if (!controller.signal.aborted) setDetailLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [selectedId, detailNonce]);
 

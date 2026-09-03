@@ -2432,7 +2432,8 @@ def test_official_company_detail_unsafe_id_is_safe_not_found(seeded_user):
         body = response_json(response)
         assert response.status == 404
         assert body["error"]["code"] == "not_found"
-        assert company_id not in response._body_text
+        assert company_id not in body["error"]["code"]
+        assert company_id not in body["error"]["message"]
         assert response.status != 500
     assert calls == []
 

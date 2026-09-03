@@ -1,4 +1,4 @@
-import type { GuideOsClient, WriteOptions } from '../client';
+import type { GuideOsClient, GuideShopReadOptions, WriteOptions } from '../client';
 import type {
   AvailabilityPreviewParams,
   CalendarEntry,
@@ -529,14 +529,16 @@ export const mockClient: GuideOsClient = {
     item.updatedAt = utcNow();
   },
 
-  async listOfficialCompanies() {
+  async listOfficialCompanies(_options?: GuideShopReadOptions) {
+    void _options;
     return {
       companies: officialCompanies.map(cloneOfficialCompany),
       page: { nextCursor: null },
     };
   },
 
-  async getOfficialCompany(id: string) {
+  async getOfficialCompany(id: string, _options?: GuideShopReadOptions) {
+    void _options;
     const company = officialCompanies.find((item) => item.id === id);
     return company ? cloneOfficialCompany(company) : null;
   },
@@ -549,7 +551,8 @@ export const mockClient: GuideOsClient = {
     };
   },
 
-  async getOfficialVisit(id: string) {
+  async getOfficialVisit(id: string, _options?: GuideShopReadOptions) {
+    void _options;
     const visit = officialVisits.find((item) => item.id === id);
     if (!visit) return null;
     const points = INITIAL_OFFICIAL_VISIT_POINTS[id] ?? [];
@@ -559,7 +562,8 @@ export const mockClient: GuideOsClient = {
     };
   },
 
-  async getOfficialPointsSummary() {
+  async getOfficialPointsSummary(_options?: GuideShopReadOptions) {
+    void _options;
     return cloneOfficialPointsSummary(officialPointsSummary);
   },
 

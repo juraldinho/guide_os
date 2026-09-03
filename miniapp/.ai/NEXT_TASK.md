@@ -4,25 +4,17 @@
 
 ## Единственная следующая задача
 
-**GSMA8 — resilience, caching и observability.**
+**GSMA9 — security matrix and full regression.**
 
-GSMA7 optional submodules are complete (Visits with visit-detail points, Points summary, Payout/history). **GuideShop sales withdrawn from Mini App** by owner. Do not add further GuideShop submodule screens unless owner reopens scope.
+GSMA8 complete (timeouts/cancellation, safe GET retry, sanitized logs, isolation, rollback runbook). GuideShop sales remain withdrawn from Mini App. Do not start GSMA9 coding until the owner explicitly asks.
 
 Канонический план GSMA0–GSMA10: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
 
+Rollback/resilience runbook: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
+
 Канонический contract GSMA7: [`../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md).
 
-GSMA8 focus (from roadmap):
-
-- request timeout and cancellation;
-- safe short-lived cache only if needed;
-- retry without duplicate personal mutations;
-- sanitized logs without JWT/tokens/opaque IDs/PII;
-- metrics for latency/error/degraded state;
-- GuideShop outage isolated to official section;
-- feature flags and rollback runbook.
-
-Do **not** start GSMA8 coding until the owner explicitly asks for that task.
+GSMA9 focus (from roadmap): security review / threat matrix for Mini App GuideShop surfaces; full targeted + broader regression — only when owner requests.
 
 ## Утверждённый будущий roadmap — Google Calendar
 
@@ -38,13 +30,4 @@ Do **not** start GSMA8 coding until the owner explicitly asks for that task.
 
 ## Public production pilot — ACTIVE
 
-**Guide OS Mini App public production pilot — ACTIVE and owner-validated** (2026-09-01).
-
-Do not treat pilot as incomplete unless the owner reopens it.
-
-## Do not
-
-- No GuideShop writes; no official↔personal merge.
-- No bot/handler/schema/Railway/production flag changes without release scope.
-- Do not mix GuideShop USD sales or PTS with personal commission money/points.
-- Do not start GSMA8 until owner requests it.
+Public production pilot remains owner-validated and active. Do not disable pilot, redeploy, or flip production flags without a new explicit owner request. Rollback remains reversible via `MINI_APP_ENABLED=false` (+ `MINI_APP_API_ENABLED=false` if needed).

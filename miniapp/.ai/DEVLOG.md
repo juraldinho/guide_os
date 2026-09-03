@@ -2,6 +2,12 @@
 
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
+## 2026-09-03 — GSMA8 GuideShop resilience / observability
+
+- Upstream GuideShop timeouts reused (`GUIDESHOP_API_TIMEOUT_SECONDS=10`); Mini App GuideShop GETs: 12s AbortController timeout + one safe retry (not on 401/403/404; no mutation retries);
+- Sanitized `miniapp_guideshop` latency/outcome logs; no response cache; sales remain withdrawn;
+- Rollback runbook: `docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`; next = GSMA9 after owner request.
+
 ## 2026-09-03 — Owner UX: hide GuideShop sales + visit detail points
 
 - Removed Mini App «Продажи GuideShop» UI/API/client exposure (routes unregistered); bot sales unchanged;

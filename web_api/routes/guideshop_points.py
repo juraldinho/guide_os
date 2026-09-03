@@ -17,6 +17,10 @@ from services.guide_shop_runtime import (
 )
 from web_api.errors import error_response, success_response
 from web_api.routes.guideshop_companies import get_miniapp_guideshop_provider
+from web_api.routes.guideshop_observe import (
+    MiniAppGuideShopSpan,
+    outcome_from_guideshop_exc,
+)
 from web_api.routes.session import _auth_or_error
 
 _MSG_INTEGRATION_DISABLED = "Раздел GuideShop временно отключён."
@@ -91,15 +95,22 @@ def register_guideshop_points_routes(app: web.Application) -> None:
         rid, user_id, failure = _auth_or_error(request)
         if failure is not None:
             return failure
-        provider, reads_enabled = get_miniapp_guideshop_provider()
-        if provider is None or not reads_enabled:
-            return _integration_disabled_response(rid)
+        span = MiniAppGuideShopSpan("points.summary")
         try:
-            async with provider.service_for(user_id) as service:
-                summary = await service.get_official_points_summary()
-        except _GUIDESHOP_ROUTE_ERRORS as exc:
-            return _guideshop_error_response(exc, rid)
-        return success_response(_points_summary_to_api(summary), rid)
+            provider, reads_enabled = get_miniapp_guideshop_provider()
+            if provider is None or not reads_enabled:
+                span.set_outcome("integration_disabled")
+                return _integration_disabled_response(rid)
+            try:
+                async with provider.service_for(user_id) as service:
+                    summary = await service.get_official_points_summary()
+            except _GUIDESHOP_ROUTE_ERRORS as exc:
+                span.set_outcome(outcome_from_guideshop_exc(exc))
+                return _guideshop_error_response(exc, rid)
+            span.set_outcome("ok")
+            return success_response(_points_summary_to_api(summary), rid)
+        finally:
+            span.finish()
 
     app.router.add_get(
         "/app/v1/guideshop/points/summary",

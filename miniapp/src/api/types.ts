@@ -305,6 +305,7 @@ export interface OfficialVisitsResult {
 
 export interface ListOfficialVisitsOptions {
   cursor?: string;
+  signal?: AbortSignal;
 }
 
 export interface OfficialPointsCompanySummary {
@@ -343,4 +344,5 @@ export interface OfficialHistoryResult {
 
 export interface ListOfficialHistoryOptions {
   cursor?: string;
+  signal?: AbortSignal;
 }

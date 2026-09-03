@@ -28,6 +28,11 @@ export interface WriteOptions {
   ackDateWarning?: boolean;
 }
 
+/** Optional AbortSignal for official GuideShop reads (timeouts/cancellation). */
+export interface GuideShopReadOptions {
+  signal?: AbortSignal;
+}
+
 export interface GuideOsClient {
   listEntries(): Promise<CalendarEntry[]>;
   getEntry(id: string): Promise<CalendarEntry | null>;
@@ -59,10 +64,10 @@ export interface GuideOsClient {
     input: PersonalCommissionInput,
   ): Promise<PersonalCommission>;
   deactivatePersonalCommission(id: string): Promise<void>;
-  listOfficialCompanies(): Promise<OfficialCompaniesResult>;
-  getOfficialCompany(id: string): Promise<OfficialCompany | null>;
+  listOfficialCompanies(options?: GuideShopReadOptions): Promise<OfficialCompaniesResult>;
+  getOfficialCompany(id: string, options?: GuideShopReadOptions): Promise<OfficialCompany | null>;
   listOfficialVisits(options?: ListOfficialVisitsOptions): Promise<OfficialVisitsResult>;
-  getOfficialVisit(id: string): Promise<OfficialVisit | null>;
-  getOfficialPointsSummary(): Promise<OfficialPointsSummary>;
+  getOfficialVisit(id: string, options?: GuideShopReadOptions): Promise<OfficialVisit | null>;
+  getOfficialPointsSummary(options?: GuideShopReadOptions): Promise<OfficialPointsSummary>;
   listOfficialHistory(options?: ListOfficialHistoryOptions): Promise<OfficialHistoryResult>;
 }

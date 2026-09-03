@@ -5,7 +5,9 @@ import {
   __testClearSession,
   __testSetSessionToken,
   ApiConflictError,
+  ApiError,
   createHttpClient,
+  GUIDESHOP_GET_TIMEOUT_MS,
 } from '@/api/httpClient';
 import { ToastProvider } from '@/components/ui/Toast';
 import { CalendarProvider, useCalendar } from '@/features/calendar/CalendarContext';
@@ -877,6 +879,12 @@ describe('official GuideShop companies API', () => {
           { error: { code: 'temporarily_unavailable', message: 'outage' } },
           503,
         ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: { code: 'temporarily_unavailable', message: 'outage' } },
+          503,
+        ),
       );
 
     await expect(createHttpClient().getOfficialCompany(company.id)).resolves.toBeNull();
@@ -1254,5 +1262,85 @@ describe('official GuideShop history API', () => {
     expect(__testOfficialHistory().some((item) => item.id === listed.history[0]!.id)).toBe(
       true,
     );
+  });
+});
+
+describe('GSMA8 GuideShop GET resilience', () => {
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('retries official GuideShop GET once on temporarily_unavailable', async () => {
+    __testSetSessionToken('tok_gs');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: { code: 'temporarily_unavailable', message: 'down' } },
+          503,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { companies: [], page: { nextCursor: null } },
+        }),
+      );
+
+    const result = await createHttpClient().listOfficialCompanies();
+    expect(result.companies).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(GUIDESHOP_GET_TIMEOUT_MS).toBe(12_000);
+  });
+
+  it('does not retry official GuideShop GET on 404', async () => {
+    __testSetSessionToken('tok_gs');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: { code: 'not_found', message: 'Компания не найдена.' } }, 404),
+    );
+
+    await expect(createHttpClient().getOfficialCompany('missing_xx')).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-retry personal place mutations', async () => {
+    __testSetSessionToken('tok_mut');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { error: { code: 'temporarily_unavailable', message: 'down' } },
+        503,
+      ),
+    );
+
+    await expect(
+      createHttpClient().createPersonalPlace({
+        name: 'Test',
+        category: null,
+        generalLocation: null,
+        landmark: null,
+        note: null,
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes AbortSignal on official GuideShop GET', async () => {
+    __testSetSessionToken('tok_gs');
+    const fetchMock = vi.mocked(fetch);
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: { companies: [], page: { nextCursor: null } } }),
+    );
+
+    await createHttpClient().listOfficialCompanies({ signal: controller.signal });
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.signal).toBeTruthy();
   });
 });

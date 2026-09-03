@@ -6,9 +6,9 @@
 
 Owner activated the GuideShop Mini App roadmap. Planned UX: horizontally scrollable bottom module navigation `Calendar → Reports → GuideShop → future`; GuideShop page groups official read-only GuideShop companies and user-owned personal companies with commission records. Existing `personal_places`, `personal_place_entries`, `PersonalPlacesService`, `ExternalSalesService` and request-scoped GuideShop runtime are authoritative; no parallel frontend data model.
 
-**GSMA0–GSMA7E complete.** Unified GuideShop page ships official companies (read-only) + personal companies/commissions; official company detail opens Visits, «Баллы GuideShop» (+ «История выплат»), and «Продажи GuideShop». Optional GSMA7 submodule set complete.
+**GSMA0–GSMA8 complete.** Unified GuideShop page ships official companies (read-only) + personal companies/commissions; official company detail opens Visits, «Баллы GuideShop» (+ «История выплат»). GuideShop sales withdrawn from Mini App. GSMA8 added timeouts, safe GET retry, sanitized logs, rollback runbook.
 
-Current stage: **GSMA7E history complete → next GSMA8** (resilience/caching/observability). Contract: `../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Do not start GSMA8 until owner requests it.
+Current stage: **GSMA8 complete → next GSMA9** (security/full regression). Do not start GSMA9 until owner requests it. Runbook: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`.
 
 ## Future roadmap decision — Google Calendar (2026-09-02)
 
