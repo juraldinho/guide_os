@@ -77,6 +77,15 @@ def _visit_to_api(visit) -> dict:
     }
 
 
+def _visit_point_to_api(item) -> dict:
+    status = getattr(item.status, "value", item.status)
+    return {
+        "amount": item.amount,
+        "unit": item.unit,
+        "status": status,
+    }
+
+
 def _page_to_api(response) -> dict:
     page = getattr(response, "page", None)
     next_cursor = getattr(page, "next_cursor", None) if page is not None else None
@@ -156,11 +165,14 @@ def register_guideshop_visits_routes(app: web.Application) -> None:
         try:
             async with provider.service_for(user_id) as service:
                 visit = await service.get_official_visit(visit_id)
+                if visit is None:
+                    return _not_found_response(rid)
+                points = await service.list_official_visit_points(visit_id)
         except _GUIDESHOP_ROUTE_ERRORS as exc:
             return _guideshop_error_response(exc, rid)
-        if visit is None:
-            return _not_found_response(rid)
-        return success_response(_visit_to_api(visit), rid)
+        payload = _visit_to_api(visit)
+        payload["points"] = [_visit_point_to_api(item) for item in points]
+        return success_response(payload, rid)
 
     app.router.add_get("/app/v1/guideshop/visits", list_visits_handler)
     app.router.add_get(

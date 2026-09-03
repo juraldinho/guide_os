@@ -16,7 +16,6 @@ import {
   __testOfficialCompanies,
   __testOfficialVisits,
   __testOfficialPointsSummary,
-  __testOfficialSales,
   __testOfficialHistory,
   __testPersonalPlaces,
 } from '@/api/mock/store';
@@ -1028,9 +1027,9 @@ describe('official GuideShop mock parity', () => {
     expect(typeof mockClient.listOfficialVisits).toBe('function');
     expect(typeof mockClient.getOfficialVisit).toBe('function');
     expect(typeof mockClient.getOfficialPointsSummary).toBe('function');
-    expect(typeof mockClient.listOfficialSales).toBe('function');
-    expect(typeof mockClient.getOfficialSale).toBe('function');
     expect(typeof mockClient.listOfficialHistory).toBe('function');
+    expect(mockClient).not.toHaveProperty('listOfficialSales');
+    expect(mockClient).not.toHaveProperty('getOfficialSale');
   });
 });
 
@@ -1045,6 +1044,7 @@ describe('official GuideShop visits API', () => {
     customerPaidAt: '2026-08-10T11:30:00Z',
     createdAt: '2026-08-10T09:05:00Z',
     updatedAt: '2026-08-10T11:30:00Z',
+    points: [{ amount: '10.00', unit: 'PTS', status: 'pending' }],
   };
 
   beforeEach(() => {
@@ -1114,10 +1114,12 @@ describe('official GuideShop visits API', () => {
     for (const item of listed.visits) {
       expect(item).not.toHaveProperty('guideMembershipId');
       expect(item).not.toHaveProperty('guide_membership_id');
+      expect(item.points).toBeUndefined();
     }
     const first = listed.visits[0]!;
     const detail = await mockClient.getOfficialVisit(first.id);
-    expect(detail).toEqual(first);
+    expect(detail?.id).toBe(first.id);
+    expect(Array.isArray(detail?.points)).toBe(true);
     await expect(mockClient.getOfficialVisit('missing_visit_xx')).resolves.toBeNull();
     expect(__testOfficialVisits().some((item) => item.id === first.id)).toBe(true);
   });
@@ -1171,96 +1173,17 @@ describe('official GuideShop points summary API', () => {
   });
 });
 
-describe('official GuideShop sales API', () => {
-  const sale = {
-    id: 'gssale_silk_01',
-    visitId: 'gsvis_silk_01',
-    companyId: 'gsco_silkroad_01',
-    amount: '125.40',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'card',
-    comment: 'Group textiles',
-    categoryId: 'gscat_textiles',
-    categoryName: 'Textiles',
-    createdAt: '2026-08-10T12:00:00Z',
-    updatedAt: '2026-08-10T12:00:00Z',
-  };
-
-  beforeEach(() => {
-    __testClearSession();
-    window.Telegram = { WebApp: { initData: '' } };
-    vi.stubGlobal('fetch', vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('lists official sales from GET /app/v1/guideshop/sales with bearer token', async () => {
-    __testSetSessionToken('tok_sales');
-    const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: { sales: [sale], page: { nextCursor: null } },
-      }),
+describe('official GuideShop sales API withdrawn', () => {
+  it('does not expose sales methods on GuideOsClient', () => {
+    const client = createHttpClient() as unknown as Record<string, unknown>;
+    expect(client).not.toHaveProperty('listOfficialSales');
+    expect(client).not.toHaveProperty('getOfficialSale');
+    expect(mockClient as unknown as Record<string, unknown>).not.toHaveProperty(
+      'listOfficialSales',
     );
-
-    const result = await createHttpClient().listOfficialSales();
-    expect(result.sales).toEqual([sale]);
-    expect(result.page).toEqual({ nextCursor: null });
-    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/guideshop/sales');
-    expect(headers.get('Authorization')).toBe('Bearer tok_sales');
-  });
-
-  it('forwards opaque sales cursor without decoding', async () => {
-    __testSetSessionToken('tok_sales');
-    const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: { sales: [], page: { nextCursor: 'next_opaque' } },
-      }),
+    expect(mockClient as unknown as Record<string, unknown>).not.toHaveProperty(
+      'getOfficialSale',
     );
-
-    await createHttpClient().listOfficialSales({ cursor: 'opaque_page_two' });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      '/app/v1/guideshop/sales?cursor=opaque_page_two',
-    );
-  });
-
-  it('gets sale detail and maps not_found to null', async () => {
-    __testSetSessionToken('tok_sales');
-    const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ data: sale }))
-      .mockResolvedValueOnce(
-        jsonResponse({ error: { code: 'not_found', message: 'Продажа не найдена.' } }, 404),
-      );
-
-    const client = createHttpClient();
-    await expect(client.getOfficialSale(sale.id)).resolves.toEqual(sale);
-    await expect(client.getOfficialSale('missing_sale_id')).resolves.toBeNull();
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `/app/v1/guideshop/sales/${encodeURIComponent(sale.id)}`,
-    );
-  });
-
-  it('mock sales are deterministic USD decimal strings', async () => {
-    __resetMockStore();
-    const listed = await mockClient.listOfficialSales();
-    expect(listed.sales.length).toBeGreaterThan(0);
-    expect(listed.page.nextCursor).toBeNull();
-    for (const item of listed.sales) {
-      expect(item.currency).toBe('USD');
-      expect(typeof item.amount).toBe('string');
-      expect(item.amount).toMatch(/^\d+\.\d{2}$/);
-    }
-    const first = listed.sales[0]!;
-    const detail = await mockClient.getOfficialSale(first.id);
-    expect(detail).toEqual(first);
-    await expect(mockClient.getOfficialSale('missing_sale_xx')).resolves.toBeNull();
-    expect(__testOfficialSales().some((item) => item.id === first.id)).toBe(true);
   });
 });
 

@@ -9,13 +9,12 @@ import type {
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
-  ListOfficialSalesOptions,
   ListOfficialHistoryOptions,
   OfficialCompany,
   OfficialHistoryItem,
   OfficialPointsSummary,
-  OfficialSale,
   OfficialVisit,
+  OfficialVisitPoint,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -130,54 +129,11 @@ const INITIAL_OFFICIAL_POINTS_SUMMARY: OfficialPointsSummary = {
   ],
 };
 
-const SALE_A = 'gssale_silk_01';
-const SALE_B = 'gssale_silk_02';
-const SALE_C = 'gssale_khiva_03';
-
-const INITIAL_OFFICIAL_SALES: OfficialSale[] = [
-  {
-    id: SALE_A,
-    visitId: VISIT_A,
-    companyId: OFFICIAL_A,
-    amount: '125.40',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'card',
-    comment: 'Group textiles',
-    categoryId: 'gscat_textiles',
-    categoryName: 'Textiles',
-    createdAt: '2026-08-10T12:00:00Z',
-    updatedAt: '2026-08-10T12:00:00Z',
-  },
-  {
-    id: SALE_B,
-    visitId: VISIT_B,
-    companyId: OFFICIAL_A,
-    amount: '48.00',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'cash',
-    comment: null,
-    categoryId: 'gscat_souvenirs',
-    categoryName: 'Souvenirs',
-    createdAt: '2026-08-18T15:00:00Z',
-    updatedAt: '2026-08-18T15:00:00Z',
-  },
-  {
-    id: SALE_C,
-    visitId: VISIT_C,
-    companyId: OFFICIAL_C,
-    amount: '72.25',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'transfer',
-    comment: null,
-    categoryId: null,
-    categoryName: 'Category unavailable',
-    createdAt: '2026-08-20T09:15:00Z',
-    updatedAt: '2026-08-20T09:15:00Z',
-  },
-];
+const INITIAL_OFFICIAL_VISIT_POINTS: Record<string, OfficialVisitPoint[]> = {
+  [VISIT_A]: [{ amount: '10.00', unit: 'PTS', status: 'pending' }],
+  [VISIT_B]: [],
+  [VISIT_C]: [{ amount: '2.50', unit: 'PTS', status: 'credited' }],
+};
 
 const PAYOUT_A = 'gspay_silk_01';
 const PAYOUT_B = 'gspay_khiva_02';
@@ -303,7 +259,10 @@ function cloneOfficialCompany(company: OfficialCompany): OfficialCompany {
 }
 
 function cloneOfficialVisit(visit: OfficialVisit): OfficialVisit {
-  return { ...visit };
+  return {
+    ...visit,
+    points: visit.points?.map((point) => ({ ...point })),
+  };
 }
 
 function cloneOfficialPointsSummary(summary: OfficialPointsSummary): OfficialPointsSummary {
@@ -311,10 +270,6 @@ function cloneOfficialPointsSummary(summary: OfficialPointsSummary): OfficialPoi
     ...summary,
     companies: summary.companies.map((item) => ({ ...item })),
   };
-}
-
-function cloneOfficialSale(sale: OfficialSale): OfficialSale {
-  return { ...sale };
 }
 
 function cloneOfficialHistoryItem(item: OfficialHistoryItem): OfficialHistoryItem {
@@ -341,7 +296,6 @@ let officialVisits: OfficialVisit[] = INITIAL_OFFICIAL_VISITS.map(cloneOfficialV
 let officialPointsSummary: OfficialPointsSummary = cloneOfficialPointsSummary(
   INITIAL_OFFICIAL_POINTS_SUMMARY,
 );
-let officialSales: OfficialSale[] = INITIAL_OFFICIAL_SALES.map(cloneOfficialSale);
 let officialHistory: OfficialHistoryItem[] = INITIAL_OFFICIAL_HISTORY.map(
   cloneOfficialHistoryItem,
 );
@@ -597,24 +551,16 @@ export const mockClient: GuideOsClient = {
 
   async getOfficialVisit(id: string) {
     const visit = officialVisits.find((item) => item.id === id);
-    return visit ? cloneOfficialVisit(visit) : null;
+    if (!visit) return null;
+    const points = INITIAL_OFFICIAL_VISIT_POINTS[id] ?? [];
+    return {
+      ...cloneOfficialVisit(visit),
+      points: points.map((point) => ({ ...point })),
+    };
   },
 
   async getOfficialPointsSummary() {
     return cloneOfficialPointsSummary(officialPointsSummary);
-  },
-
-  async listOfficialSales(options?: ListOfficialSalesOptions) {
-    void options;
-    return {
-      sales: officialSales.map(cloneOfficialSale),
-      page: { nextCursor: null },
-    };
-  },
-
-  async getOfficialSale(id: string) {
-    const sale = officialSales.find((item) => item.id === id);
-    return sale ? cloneOfficialSale(sale) : null;
   },
 
   async listOfficialHistory(options?: ListOfficialHistoryOptions) {
@@ -656,11 +602,6 @@ export function __testOfficialPointsSummary(): OfficialPointsSummary {
   return officialPointsSummary;
 }
 
-/** Test-only access to in-memory official sales */
-export function __testOfficialSales(): OfficialSale[] {
-  return officialSales;
-}
-
 /** Test-only access to in-memory official payout history */
 export function __testOfficialHistory(): OfficialHistoryItem[] {
   return officialHistory;
@@ -678,6 +619,5 @@ export function __resetMockStore() {
   officialCompanies = INITIAL_OFFICIAL_COMPANIES.map(cloneOfficialCompany);
   officialVisits = INITIAL_OFFICIAL_VISITS.map(cloneOfficialVisit);
   officialPointsSummary = cloneOfficialPointsSummary(INITIAL_OFFICIAL_POINTS_SUMMARY);
-  officialSales = INITIAL_OFFICIAL_SALES.map(cloneOfficialSale);
   officialHistory = INITIAL_OFFICIAL_HISTORY.map(cloneOfficialHistoryItem);
 }

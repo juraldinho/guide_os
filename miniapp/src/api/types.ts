@@ -284,6 +284,14 @@ export interface OfficialVisit {
   customerPaidAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Present on visit detail only (Option A). */
+  points?: OfficialVisitPoint[];
+}
+
+export interface OfficialVisitPoint {
+  amount: string;
+  unit: 'PTS' | string;
+  status: 'pending' | 'credited' | string;
 }
 
 export interface OfficialVisitsPage {
@@ -311,41 +319,6 @@ export interface OfficialPointsSummary {
   pendingTotal: string;
   creditedTotal: string;
   companies: OfficialPointsCompanySummary[];
-}
-
-export type OfficialSalePaymentMethod =
-  | 'cash'
-  | 'card'
-  | 'transfer'
-  | 'unknown'
-  | string;
-
-export interface OfficialSale {
-  id: string;
-  visitId: string;
-  companyId: string;
-  amount: string;
-  currency: 'USD' | string;
-  status: string;
-  paymentMethod: OfficialSalePaymentMethod;
-  comment: string | null;
-  categoryId: string | null;
-  categoryName: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface OfficialSalesPage {
-  nextCursor: string | null;
-}
-
-export interface OfficialSalesResult {
-  sales: OfficialSale[];
-  page: OfficialSalesPage;
-}
-
-export interface ListOfficialSalesOptions {
-  cursor?: string;
 }
 
 export interface OfficialHistoryItem {

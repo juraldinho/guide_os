@@ -309,6 +309,12 @@ class GuideShopUIService:
         except GuideShopObjectNotFoundError:
             return None
 
+    async def list_official_visit_points(
+        self, visit_id: str
+    ) -> tuple[PointsAccrualDTO, ...]:
+        response = await self._client.list_points(visit_id=visit_id)
+        return tuple(response.data)
+
     async def get_official_points_summary(self) -> PointsSummaryDTO:
         return await self._client.get_points_summary()
 

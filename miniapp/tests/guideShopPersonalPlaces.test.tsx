@@ -962,7 +962,10 @@ describe('GuideShop official visits UI', () => {
     });
     const detailSpy = vi
       .spyOn(guideOsClient, 'getOfficialVisit')
-      .mockResolvedValue(visitForCompany);
+      .mockResolvedValue({
+        ...visitForCompany,
+        points: [{ amount: '5.50', unit: 'PTS', status: 'pending' }],
+      });
 
     renderPage();
     await waitForLoaded();
@@ -972,6 +975,9 @@ describe('GuideShop official visits UI', () => {
       }),
     );
     await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
+    expect(
+      screen.queryByRole('button', { name: 'Продажи GuideShop' }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsAction }));
 
     await waitFor(() => expect(screen.getByText(t.guideShopVisitsTitle)).toBeInTheDocument());
@@ -991,8 +997,38 @@ describe('GuideShop official visits UI', () => {
     const visitDetailSheet = screen.getByText(t.guideShopVisitFieldPaidAt).closest('.sheet');
     expect(visitDetailSheet).toBeTruthy();
     expect(within(visitDetailSheet!).getByText(officialFull.displayName)).toBeInTheDocument();
+    expect(within(visitDetailSheet!).getByText(t.guideShopVisitPointsLabel)).toBeInTheDocument();
+    expect(
+      within(visitDetailSheet!).getByText(`5.50 PTS — ${t.guideShopPointsPending}`),
+    ).toBeInTheDocument();
     expect(within(visitDetailSheet!).queryByText(visitForCompany.id)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: t.edit })).not.toBeInTheDocument();
+  });
+
+  it('shows empty visit points state on detail', async () => {
+    vi.spyOn(guideOsClient, 'listOfficialVisits').mockResolvedValue({
+      visits: [visitForCompany],
+      page: { nextCursor: null },
+    });
+    vi.spyOn(guideOsClient, 'getOfficialVisit').mockResolvedValue({
+      ...visitForCompany,
+      points: [],
+    });
+
+    renderPage();
+    await waitForLoaded();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: t.guideShopOpenOfficialCompany(officialFull.displayName),
+      }),
+    );
+    await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsAction }));
+    await waitFor(() => expect(screen.getByText(t.guideShopVisitTourists(4))).toBeInTheDocument());
+    fireEvent.click(screen.getByText(t.guideShopVisitTourists(4)).closest('button')!);
+    await waitFor(() =>
+      expect(screen.getByText(t.guideShopVisitPointsEmpty)).toBeInTheDocument(),
+    );
   });
 
   it('keeps personal companies visible when visits list fails', async () => {
@@ -1144,37 +1180,7 @@ describe('GuideShop official points summary UI', () => {
   });
 });
 
-describe('GuideShop official sales UI', () => {
-  const saleForCompany = {
-    id: 'gssale_silk_01',
-    visitId: 'gsvis_silk_01',
-    companyId: officialFull.id,
-    amount: '125.40',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'card',
-    comment: 'Group textiles',
-    categoryId: 'gscat_textiles',
-    categoryName: 'Textiles',
-    createdAt: '2026-08-10T12:00:00Z',
-    updatedAt: '2026-08-10T12:00:00Z',
-  };
-
-  const saleOtherCompany = {
-    id: 'gssale_khiva_03',
-    visitId: 'gsvis_khiva_03',
-    companyId: officialWorkshop.id,
-    amount: '72.25',
-    currency: 'USD',
-    status: 'active',
-    paymentMethod: 'transfer',
-    comment: null,
-    categoryId: null,
-    categoryName: 'Category unavailable',
-    createdAt: '2026-08-20T09:15:00Z',
-    updatedAt: '2026-08-20T09:15:00Z',
-  };
-
+describe('GuideShop official sales UI withdrawn', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     __resetMockStore();
@@ -1191,15 +1197,7 @@ describe('GuideShop official sales UI', () => {
     cleanup();
   });
 
-  it('opens company-scoped GuideShop sales list and detail without opaque IDs', async () => {
-    vi.spyOn(guideOsClient, 'listOfficialSales').mockResolvedValue({
-      sales: [saleForCompany, saleOtherCompany],
-      page: { nextCursor: null },
-    });
-    const detailSpy = vi
-      .spyOn(guideOsClient, 'getOfficialSale')
-      .mockResolvedValue(saleForCompany);
-
+  it('does not expose GuideShop sales entry from company detail', async () => {
     renderPage();
     await waitForLoaded();
     fireEvent.click(
@@ -1208,69 +1206,10 @@ describe('GuideShop official sales UI', () => {
       }),
     );
     await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: t.guideShopSalesAction }));
-
-    await waitFor(() => expect(screen.getByText(t.guideShopSalesTitle)).toBeInTheDocument());
-    const listSheet = screen.getByText(t.guideShopSalesTitle).closest('.sheet');
-    expect(listSheet).toBeTruthy();
-    expect(within(listSheet!).getByText('125.40 USD')).toBeInTheDocument();
-    expect(within(listSheet!).getByText('Textiles')).toBeInTheDocument();
-    expect(within(listSheet!).getByText(t.guideShopSalePaymentCard)).toBeInTheDocument();
-    expect(within(listSheet!).queryByText('72.25 USD')).not.toBeInTheDocument();
-    expect(within(listSheet!).queryByText(saleForCompany.id)).not.toBeInTheDocument();
-    expect(within(listSheet!).queryByText(saleForCompany.visitId)).not.toBeInTheDocument();
-    expect(within(listSheet!).queryByText(officialFull.id)).not.toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: t.guideShopOpenSale('125.40 USD'),
-      }),
-    );
-    await waitFor(() => expect(detailSpy).toHaveBeenCalledWith(saleForCompany.id));
-    await waitFor(() =>
-      expect(screen.getByText(t.guideShopSaleFieldComment)).toBeInTheDocument(),
-    );
-    const detailSheet = screen.getByText(t.guideShopSaleFieldComment).closest('.sheet');
-    expect(detailSheet).toBeTruthy();
-    expect(within(detailSheet!).getByText('Group textiles')).toBeInTheDocument();
-    expect(within(detailSheet!).queryByText(saleForCompany.id)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: t.guideShopAddCommission })).not.toBeInTheDocument();
-  });
-
-  it('keeps personal companies visible when sales list fails', async () => {
-    vi.spyOn(guideOsClient, 'listOfficialSales').mockRejectedValue(
-      new ApiError('temporarily_unavailable', 'down', 503),
-    );
-
-    renderPage();
-    await waitForLoaded();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: t.guideShopOpenOfficialCompany(officialFull.displayName),
-      }),
-    );
-    await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: t.guideShopSalesAction }));
-    await waitFor(() => expect(screen.getByText(t.guideShopSalesLoadError)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: t.guideShopVisitsAction })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t.guideShopPointsAction })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Продажи GuideShop' })).not.toBeInTheDocument();
     expect(screen.getByText(activePlace.name)).toBeInTheDocument();
-  });
-
-  it('shows empty state when company has no matching sales', async () => {
-    vi.spyOn(guideOsClient, 'listOfficialSales').mockResolvedValue({
-      sales: [saleOtherCompany],
-      page: { nextCursor: null },
-    });
-
-    renderPage();
-    await waitForLoaded();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: t.guideShopOpenOfficialCompany(officialFull.displayName),
-      }),
-    );
-    await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: t.guideShopSalesAction }));
-    await waitFor(() => expect(screen.getByText(t.guideShopSalesEmpty)).toBeInTheDocument());
   });
 });
 

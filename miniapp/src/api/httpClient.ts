@@ -15,14 +15,11 @@ import type {
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
-  ListOfficialSalesOptions,
   ListOfficialHistoryOptions,
   OfficialCompaniesResult,
   OfficialCompany,
   OfficialHistoryResult,
   OfficialPointsSummary,
-  OfficialSale,
-  OfficialSalesResult,
   OfficialVisit,
   OfficialVisitsResult,
   PersonalCommission,
@@ -477,26 +474,6 @@ export function createHttpClient(): GuideOsClient {
 
     async getOfficialPointsSummary() {
       return apiRequest<OfficialPointsSummary>('/app/v1/guideshop/points/summary');
-    },
-
-    async listOfficialSales(options?: ListOfficialSalesOptions) {
-      const params = new URLSearchParams();
-      if (options?.cursor) params.set('cursor', options.cursor);
-      const query = params.toString();
-      return apiRequest<OfficialSalesResult>(
-        `/app/v1/guideshop/sales${query ? `?${query}` : ''}`,
-      );
-    },
-
-    async getOfficialSale(id: string) {
-      try {
-        return await apiRequest<OfficialSale>(
-          `/app/v1/guideshop/sales/${encodeURIComponent(id)}`,
-        );
-      } catch (e) {
-        if (e instanceof ApiError && e.code === 'not_found') return null;
-        throw e;
-      }
     },
 
     async listOfficialHistory(options?: ListOfficialHistoryOptions) {

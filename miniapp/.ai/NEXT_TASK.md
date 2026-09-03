@@ -6,7 +6,7 @@
 
 **GSMA8 — resilience, caching и observability.**
 
-GSMA7 optional submodules are complete (Visits, Points summary, Sales, Payout/history). Do not add further GuideShop submodule screens unless owner reopens scope.
+GSMA7 optional submodules are complete (Visits with visit-detail points, Points summary, Payout/history). **GuideShop sales withdrawn from Mini App** by owner. Do not add further GuideShop submodule screens unless owner reopens scope.
 
 Канонический план GSMA0–GSMA10: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
 

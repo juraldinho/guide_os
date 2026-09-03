@@ -8,14 +8,11 @@ import type {
   ListPersonalCommissionsOptions,
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
-  ListOfficialSalesOptions,
   ListOfficialHistoryOptions,
   OfficialCompaniesResult,
   OfficialCompany,
   OfficialHistoryResult,
   OfficialPointsSummary,
-  OfficialSale,
-  OfficialSalesResult,
   OfficialVisit,
   OfficialVisitsResult,
   PersonalCommission,
@@ -67,7 +64,5 @@ export interface GuideOsClient {
   listOfficialVisits(options?: ListOfficialVisitsOptions): Promise<OfficialVisitsResult>;
   getOfficialVisit(id: string): Promise<OfficialVisit | null>;
   getOfficialPointsSummary(): Promise<OfficialPointsSummary>;
-  listOfficialSales(options?: ListOfficialSalesOptions): Promise<OfficialSalesResult>;
-  getOfficialSale(id: string): Promise<OfficialSale | null>;
   listOfficialHistory(options?: ListOfficialHistoryOptions): Promise<OfficialHistoryResult>;
 }

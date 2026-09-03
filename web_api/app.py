@@ -10,7 +10,6 @@ from web_api.routes.entries import register_entries_routes
 from web_api.routes.guideshop_companies import register_guideshop_companies_routes
 from web_api.routes.guideshop_history import register_guideshop_history_routes
 from web_api.routes.guideshop_points import register_guideshop_points_routes
-from web_api.routes.guideshop_sales import register_guideshop_sales_routes
 from web_api.routes.guideshop_visits import register_guideshop_visits_routes
 from web_api.routes.personal_commissions import register_personal_commissions_routes
 from web_api.routes.personal_places import register_personal_places_routes
@@ -108,7 +107,6 @@ def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettin
     register_guideshop_companies_routes(app)
     register_guideshop_visits_routes(app)
     register_guideshop_points_routes(app)
-    register_guideshop_sales_routes(app)
     register_guideshop_history_routes(app)
     register_reports_routes(app)
     register_availability_routes(app)

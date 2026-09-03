@@ -32,6 +32,12 @@ function formatPaymentStatus(status: string): string {
   return t.guideShopVisitPaymentUnknown(status);
 }
 
+function formatVisitPointStatus(status: string): string {
+  if (status === 'pending') return t.guideShopPointsPending;
+  if (status === 'credited') return t.guideShopPointsCredited;
+  return status;
+}
+
 type ListError = 'integration_disabled' | 'access_denied' | 'generic';
 
 interface OfficialVisitsSheetsProps {
@@ -347,6 +353,23 @@ export function OfficialVisitsSheets({
                       </span>
                     </div>
                   )}
+                <div className="detail-row">
+                  <span className="detail-label">{t.guideShopVisitPointsLabel}</span>
+                  <span className="detail-value guideshop-wrap">
+                    {!visitDetail.points || visitDetail.points.length === 0 ? (
+                      t.guideShopVisitPointsEmpty
+                    ) : (
+                      <ul className="guideshop-wrap">
+                        {visitDetail.points.map((point, index) => (
+                          <li key={`${point.amount}-${point.status}-${index}`}>
+                            {point.amount} {point.unit} —{' '}
+                            {formatVisitPointStatus(point.status)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </span>
+                </div>
               </>
             )}
           </div>

@@ -5,7 +5,6 @@ import type { OfficialCompany } from '@/api/types';
 import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { OfficialVisitsSheets } from '@/features/guideshop/OfficialVisitsSheets';
 import { OfficialPointsSheet } from '@/features/guideshop/OfficialPointsSheet';
-import { OfficialSalesSheets } from '@/features/guideshop/OfficialSalesSheets';
 import { t } from '@/i18n/strings';
 
 function formatOfficialStatus(status: string): string {
@@ -45,7 +44,6 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
   const [detailNonce, setDetailNonce] = useState(0);
   const [visitsOpen, setVisitsOpen] = useState(false);
   const [pointsOpen, setPointsOpen] = useState(false);
-  const [salesOpen, setSalesOpen] = useState(false);
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -74,7 +72,6 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
   useEffect(() => {
     setVisitsOpen(false);
     setPointsOpen(false);
-    setSalesOpen(false);
   }, [selectedId]);
 
   useEffect(() => {
@@ -130,7 +127,6 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
   const closeDetail = () => {
     setVisitsOpen(false);
     setPointsOpen(false);
-    setSalesOpen(false);
     setSelectedId(null);
   };
 
@@ -205,7 +201,7 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
         </ul>
       )}
 
-      {selectedId && !visitsOpen && !pointsOpen && !salesOpen && (
+      {selectedId && !visitsOpen && !pointsOpen && (
         <OverlaySheet
           title={sheetTitle}
           onClose={closeDetail}
@@ -226,13 +222,6 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
                     onClick={() => setPointsOpen(true)}
                   >
                     {t.guideShopPointsAction}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-block"
-                    onClick={() => setSalesOpen(true)}
-                  >
-                    {t.guideShopSalesAction}
                   </button>
                 </>
               )}
@@ -330,15 +319,6 @@ export function OfficialCompaniesSection({ searchQuery }: OfficialCompaniesSecti
           companyDisplayName={detail.displayName}
           open={pointsOpen}
           onClose={() => setPointsOpen(false)}
-        />
-      )}
-
-      {selectedId && detail && (
-        <OfficialSalesSheets
-          companyId={detail.id}
-          companyDisplayName={detail.displayName}
-          open={salesOpen}
-          onClose={() => setSalesOpen(false)}
         />
       )}
     </section>

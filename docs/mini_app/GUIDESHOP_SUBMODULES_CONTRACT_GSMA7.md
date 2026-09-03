@@ -1,7 +1,7 @@
 # GuideShop official submodules — contract GSMA7
 
-> Дата: 2026-09-03  
-> Статус: **GSMA7 optional submodules complete** (Visits + Points summary + Sales + Payout/history); next = **GSMA8**  
+> Дата: 2026-09-03
+> Статус: **GSMA7 optional submodules complete**; **Sales withdrawn from Mini App UX** (owner 2026-09-03); next = **GSMA8**
 > Назначение: product/API audit for optional official visits / sales / points / payout-history in Mini App
 
 При конфликте приоритет: текущий код и тесты → этот файл → `GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md` → roadmap → прочие docs.
@@ -111,9 +111,9 @@ All under `/app/v1/guideshop/...`, Mini App bearer required, GET-only, same prov
 | Method | Proposed path | Maps from | Purpose |
 |---|---|---|---|
 | `GET` | `/app/v1/guideshop/visits` | `list_visits` | Official visits list |
-| `GET` | `/app/v1/guideshop/visits/{visitId}` | `get_visit` | Visit detail |
-| `GET` | `/app/v1/guideshop/sales` | `list_sales` | Official sales list |
-| `GET` | `/app/v1/guideshop/sales/{saleId}` | `get_sale` | Sale detail |
+| `GET` | `/app/v1/guideshop/visits/{visitId}` | `get_visit` + `list_points(visit_id)` | Visit detail **includes `points[]`** (amount/unit/status) |
+| `GET` | `/app/v1/guideshop/sales` | — | **Withdrawn** from Mini App (owner: Guide OS users must not see GuideShop sales) |
+| `GET` | `/app/v1/guideshop/sales/{saleId}` | — | **Withdrawn** (bot may still use upstream `list_sales` / `get_sale`) |
 | `GET` | `/app/v1/guideshop/points/summary` | `get_points_summary` | Points summary |
 | `GET` | `/app/v1/guideshop/points` | `list_points` | Points accruals list |
 | `GET` | `/app/v1/guideshop/points/{pointsAccrualId}` | `get_points_transaction` | Accrual detail |
@@ -138,7 +138,7 @@ All under `/app/v1/guideshop/...`, Mini App bearer required, GET-only, same prov
 | User value | See when the guide brought tourists to official partners; foundational for understanding sales/points later. |
 | Entry point | Prefer **from official company detail** (“Визиты”) + optional compact list on GuideShop official area later. Not a new bottom-nav tab. |
 | List UI fields | Date/time (`visit_at`), tourist count, visit status (RU labels), customer payment status; company display name resolved from official companies map when available — **never show opaque IDs**. |
-| Detail UI fields | Same + paid-at when paid; no edit actions. |
+| Detail UI fields | Same + paid-at when paid; **GuideShop points for this visit** (`points[]`: amount + PTS + pending/credited RU labels, or empty «не начислены»); no sales; no edit actions. |
 | Degraded states | Same as companies: `integration_disabled`, `access_denied`, `temporarily_unavailable`, section-local; personal companies remain available. |
 | Risks | `guide_membership_id` must not surface; tourist_count is operational not PII names; do not invent tourist names. |
 | Why first | Sales and points reference `visit_id`; lowest confusion with personal commissions; clear read-only story. |
@@ -159,13 +159,10 @@ All under `/app/v1/guideshop/...`, Mini App bearer required, GET-only, same prov
 
 | Topic | Contract |
 |---|---|
-| User value | Official USD sales attributed to the guide’s visits — money visibility. |
-| Entry point | From visit detail and/or official company detail; not a new nav tab. |
-| List UI | Amount + USD, category name, payment method, created date; company name when resolvable. |
-| Detail UI | Same + comment when present; no mutations. |
-| Degraded states | Same as companies. |
-| Risks | **High money confusion** with personal commission income; must badge “GuideShop” and never mix currencies/totals with personal commissions. Amounts are upstream decimal strings, not personal minor units. |
-| Order | Third — after visits (sales require `visit_id`). |
+| User value | ~~Official USD sales~~ — **withdrawn from Mini App** by owner decision (2026-09-03): Guide OS users must **not** see GuideShop sales. |
+| Entry point | None in Mini App. Do not register `/app/v1/guideshop/sales`. Bot Telegram GuideShop sales screens may remain. |
+| Risks | Do not confuse with personal commissions (unchanged). Do not break upstream `list_sales` used by bot. |
+| Order | Was GSMA7D; Mini App exposure removed after owner UX feedback. |
 
 ### 4.4 Payout / history
 
@@ -226,17 +223,18 @@ Each slice = Web API composition + frontend client/types/mock + official-section
 
 Check **exactly one**:
 
-- [x] **Visits** (recommended) — list + detail via proposed `/app/v1/guideshop/visits`  
+- [x] **Visits** (recommended) — list + detail via proposed `/app/v1/guideshop/visits`
   Owner approved 2026-09-03 → implemented as **GSMA7B**.
-- [x] **Points summary** — `/app/v1/guideshop/points/summary` (± accruals list later)  
+- [x] **Points summary** — `/app/v1/guideshop/points/summary` (± accruals list later)
   Owner approved 2026-09-03 (after Visits) → implemented as **GSMA7C** (summary-only; no accruals/history).
-- [x] **Sales** — list + detail via `/app/v1/guideshop/sales`  
+- [x] **Sales** — list + detail via `/app/v1/guideshop/sales`
   Owner approved 2026-09-03 (after Visits + Points summary) → implemented as **GSMA7D**.
-- [x] **Payout / history** — `/app/v1/guideshop/history`  
+  **Owner UX feedback 2026-09-03:** Mini App sales **withdrawn** — routes unregistered; Guide OS users must not see GuideShop sales. Bot may keep sales screens.
+- [x] **Payout / history** — `/app/v1/guideshop/history`
   Owner approved 2026-09-03 (after Visits + Points + Sales) → implemented as **GSMA7E** (list-only).
 - [ ] **None yet** — keep submodules deferred; next coding stays elsewhere
 
-**GSMA7 optional submodule set complete** for owner-approved slices (visits, points summary, sales, history).
+**GSMA7 optional submodule set complete** for owner-approved slices (visits + visit-detail points, points summary, history). **Sales submodule withdrawn from Mini App UX.**
 
 Owner notes (optional):
 

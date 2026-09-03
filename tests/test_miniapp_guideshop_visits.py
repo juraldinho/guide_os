@@ -20,7 +20,7 @@ from services.guide_shop_client import (
     GuideShopTemporarilyUnavailableError,
     InMemoryGuideShopClient,
 )
-from services.guide_shop_contracts import VisitDTO
+from services.guide_shop_contracts import PointsAccrualDTO, VisitDTO
 from services.guide_shop_runtime import (
     RequestScopedGuideShopUIServiceProvider,
     StaticGuideShopUIServiceProvider,
@@ -46,6 +46,9 @@ OFFICIAL_VISIT_FIELDS = {
     "createdAt",
     "updatedAt",
 }
+OFFICIAL_VISIT_DETAIL_FIELDS = OFFICIAL_VISIT_FIELDS | {"points"}
+OFFICIAL_VISIT_POINT_FIELDS = {"amount", "unit", "status"}
+
 
 
 def run(awaitable):
@@ -130,6 +133,30 @@ def _official_visit(
     if paid:
         payload["customer_paid_at"] = "2026-08-15T12:00:00Z"
     return VisitDTO.model_validate(payload)
+
+
+def _points(
+    points_id="points-01",
+    *,
+    company_id="company-1",
+    visit_id="visit-01",
+    amount="2.00",
+    status="pending",
+):
+    payload = {
+        "points_accrual_id": points_id,
+        "company_id": company_id,
+        "visit_id": visit_id,
+        "amount": amount,
+        "unit": "PTS",
+        "status": status,
+        "calculated_at": UTC,
+        "updated_at": UTC,
+    }
+    if status == "credited":
+        payload["credited_at"] = UTC
+        payload["payout_id"] = f"pay-{points_id}"
+    return PointsAccrualDTO.model_validate(payload)
 
 
 def _configure_static(service, *, reads_enabled=True):
@@ -262,14 +289,54 @@ def test_official_visit_detail_success(seeded_user):
         _official_visit(visit_id="visit-aaa", company_id="cmp_alpha"),
         _official_visit(visit_id="visit-bbb", company_id="cmp_beta"),
     )
-    _configure_static(GuideShopUIService(InMemoryGuideShopClient(visits=visits)))
+    points = (
+        _points(
+            "points-aaa",
+            company_id="cmp_alpha",
+            visit_id="visit-aaa",
+            amount="5.50",
+            status="pending",
+        ),
+        _points(
+            "points-bbb",
+            company_id="cmp_beta",
+            visit_id="visit-bbb",
+            amount="1.00",
+            status="credited",
+        ),
+    )
+    _configure_static(
+        GuideShopUIService(InMemoryGuideShopClient(visits=visits, points=points))
+    )
     response = _get_visit(seeded_user, "visit-aaa")
     body = response_json(response)
     assert response.status == 200
-    assert set(body["data"].keys()) == OFFICIAL_VISIT_FIELDS
+    assert set(body["data"].keys()) == OFFICIAL_VISIT_DETAIL_FIELDS
     assert body["data"]["id"] == "visit-aaa"
     assert body["data"]["companyId"] == "cmp_alpha"
+    assert body["data"]["points"] == [
+        {"amount": "5.50", "unit": "PTS", "status": "pending"}
+    ]
+    assert set(body["data"]["points"][0].keys()) == OFFICIAL_VISIT_POINT_FIELDS
+    assert "points_accrual_id" not in response._body_text
+    assert "points-aaa" not in response._body_text
     assert "gmem-0001" not in response._body_text
+
+
+def test_official_visit_detail_points_empty(seeded_user):
+    visit = _official_visit(visit_id="visit-none", company_id="cmp_alpha")
+    other = _points(
+        "points-other",
+        company_id="cmp_alpha",
+        visit_id="visit-else",
+        amount="9.00",
+        status="credited",
+    )
+    _configure_static(
+        GuideShopUIService(InMemoryGuideShopClient(visits=(visit,), points=(other,)))
+    )
+    body = response_json(_get_visit(seeded_user, "visit-none"))
+    assert body["data"]["points"] == []
 
 
 def test_official_visit_detail_missing_is_not_found(seeded_user):

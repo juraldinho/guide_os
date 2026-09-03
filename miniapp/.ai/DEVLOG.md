@@ -2,6 +2,12 @@
 
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
+## 2026-09-03 — Owner UX: hide GuideShop sales + visit detail points
+
+- Removed Mini App «Продажи GuideShop» UI/API/client exposure (routes unregistered); bot sales unchanged;
+- Visit detail includes GuideShop `points[]` (amount/unit/status) via `list_points(visit_id)` parity with bot;
+- Personal commissions untouched; GSMA8 not started.
+
 ## 2026-09-03 — GSMA7E Official GuideShop Payout / History
 
 - Web API `GET /app/v1/guideshop/history` (list-only) via shared Mini App GuideShop provider;

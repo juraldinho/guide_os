@@ -205,7 +205,6 @@ def test_official_points_summary_route_registered_once():
     assert ("PUT", "/app/v1/guideshop/points/summary") not in routes
     assert ("PATCH", "/app/v1/guideshop/points/summary") not in routes
     assert ("DELETE", "/app/v1/guideshop/points/summary") not in routes
-    assert ("GET", "/app/v1/guideshop/history") not in routes
     assert ("GET", "/app/v1/guideshop/sales") not in routes
 
 
