@@ -2,6 +2,9 @@ import type { GuideOsClient, GuideShopReadOptions, WriteOptions } from '../clien
 import type {
   AvailabilityPreviewParams,
   CalendarEntry,
+  CommissionReportsCompanySummary,
+  CommissionReportsSummary,
+  CommissionReportsSummaryParams,
   DayOffFormValues,
   GuideProfile,
   GuideProfilePatch,
@@ -24,6 +27,7 @@ import type {
 } from '../types';
 import { buildAvailabilityPreview } from '@/features/reports/lib/availability';
 import { calcSummary } from '@/features/reports/lib/summary';
+import { occurredAtToBusinessDate } from '@/features/guideshop/lib/commissionMoney';
 import { INITIAL_ENTRIES, MOCK_PROFILE } from './data';
 
 const MOCK_GUIDE_TYPE_LABELS: Record<GuideTypeCode, string> = {
@@ -34,6 +38,8 @@ const MOCK_GUIDE_TYPE_LABELS: Record<GuideTypeCode, string> = {
 
 const PLACE_A = 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const PLACE_B = 'place_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+const UNRESOLVED_COMPANY_NAME = 'Компания не найдена';
 
 const OFFICIAL_A = 'gsco_silkroad_01';
 const OFFICIAL_B = 'gsco_nullfields_02';
@@ -330,6 +336,73 @@ function nextCommissionId(): string {
   return `entry_${hex}`;
 }
 
+function mockLocalBusinessDate(occurredAt: string): string | null {
+  try {
+    return occurredAtToBusinessDate(occurredAt);
+  } catch {
+    return null;
+  }
+}
+
+function calcCommissionReportsSummary(
+  params: CommissionReportsSummaryParams,
+): CommissionReportsSummary {
+  if (typeof params.from !== 'string' || typeof params.to !== 'string') {
+    throw new Error('Invalid commission reports range');
+  }
+  if (params.from > params.to) {
+    throw new Error('Invalid commission reports range');
+  }
+
+  const placeNames = new Map(personalPlaces.map((place) => [place.id, place.name]));
+  const grouped = new Map<string, CommissionReportsCompanySummary>();
+  let totalCommission = 0;
+  let recordCount = 0;
+
+  for (const sale of personalCommissions) {
+    if (sale.status !== 'active') continue;
+    const points = sale.receivedPoints;
+    if (typeof points !== 'number' || !Number.isInteger(points) || points <= 0) continue;
+    const localDay = mockLocalBusinessDate(sale.occurredAt);
+    if (localDay == null || localDay < params.from || localDay > params.to) continue;
+
+    let row = grouped.get(sale.placeId);
+    if (!row) {
+      row = {
+        placeId: sale.placeId,
+        companyName: placeNames.get(sale.placeId) ?? UNRESOLVED_COMPANY_NAME,
+        totalCommission: 0,
+        recordCount: 0,
+      };
+      grouped.set(sale.placeId, row);
+    }
+    row.totalCommission += points;
+    row.recordCount += 1;
+    totalCommission += points;
+    recordCount += 1;
+  }
+
+  const byCompany = [...grouped.values()]
+    .map((row) => ({ ...row }))
+    .sort((a, b) => {
+      if (a.totalCommission !== b.totalCommission) {
+        return b.totalCommission - a.totalCommission;
+      }
+      const nameCmp = a.companyName.toLocaleLowerCase().localeCompare(
+        b.companyName.toLocaleLowerCase(),
+      );
+      if (nameCmp !== 0) return nameCmp;
+      return a.placeId.localeCompare(b.placeId);
+    });
+
+  return {
+    totalCommission,
+    recordCount,
+    byCompany,
+    period: { from: params.from, to: params.to },
+  };
+}
+
 export const mockClient: GuideOsClient = {
   async listEntries() {
     return entries.map((e) => ({ ...e }));
@@ -413,6 +486,10 @@ export const mockClient: GuideOsClient = {
       ...summary,
       period: { from: params.from, to: params.to },
     };
+  },
+
+  async getCommissionReportsSummary(params: CommissionReportsSummaryParams) {
+    return calcCommissionReportsSummary(params);
   },
 
   async previewAvailability(params: AvailabilityPreviewParams) {

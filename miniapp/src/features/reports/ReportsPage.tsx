@@ -6,7 +6,8 @@ import { USE_MOCK_API } from '@/config';
 import { MONTH_NAMES_CAP } from '@/i18n/ru';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '@/features/calendar/CalendarContext';
-import { getReportRange, getMockTodayYear } from './lib/periods';
+import { CommissionReportsSection } from './CommissionReportsSection';
+import { getCommissionReportRange, getReportRange, getMockTodayYear } from './lib/periods';
 import { calcSummary } from './lib/summary';
 import type { ReportsSummary } from './lib/types';
 
@@ -38,6 +39,10 @@ export function ReportsPage() {
 
   const maxYear = getMockTodayYear();
   const range = getReportRange(reportsPeriod, reportsMonth, reportsYear, entries);
+  const commissionRange = useMemo(
+    () => getCommissionReportRange(reportsPeriod, reportsMonth, reportsYear),
+    [reportsPeriod, reportsMonth, reportsYear],
+  );
   const mockSummary = useMemo(
     () =>
       calcSummary(entries, range, {
@@ -164,7 +169,7 @@ export function ReportsPage() {
         />
       </div>
 
-      <div className="summary-grid">
+      <div className="summary-grid" data-testid="tour-reports-summary">
         <div className="summary-item">
           <div className="label">{t.metricTours}</div>
           <div className="value">{summary.tourCount}</div>
@@ -186,6 +191,8 @@ export function ReportsPage() {
           <div className="value">{summary.unpaidTours}</div>
         </div>
       </div>
+
+      <CommissionReportsSection range={commissionRange} />
 
       <button type="button" className="btn btn-secondary btn-block" onClick={openFreeDates}>
         {t.shareFreeDates}

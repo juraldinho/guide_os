@@ -331,29 +331,97 @@ describe('GuideShop personal commissions UI (simplified)', () => {
     expect(screen.getByLabelText(t.guideShopFieldNote)).toHaveValue('draft note');
   });
 
-  it('deactivate confirms, reloads active history, and preserves failure context', async () => {
+  it('delete confirms, reloads active history/summary, and preserves failure context', async () => {
     vi.spyOn(guideOsClient, 'listPersonalPlaces').mockResolvedValue([placeA]);
     const listSpy = vi
       .spyOn(guideOsClient, 'listPersonalCommissions')
-      .mockResolvedValueOnce([commissionA])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([commissionA, commissionB])
+      .mockResolvedValueOnce([commissionB])
+      .mockResolvedValueOnce([commissionB]);
     const deactivateSpy = vi
       .spyOn(guideOsClient, 'deactivatePersonalCommission')
-      .mockResolvedValue(undefined);
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockResolvedValueOnce(undefined);
+
+    renderPage();
+    await waitForPlacesLoaded();
+    await openCompany();
+    await waitForCommissionsLoaded();
+    expect(screen.getByText(t.guideShopCommissionAmount(55))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть комиссию за 10.08.2026' }));
+    expect(screen.getByRole('button', { name: t.edit })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t.delete })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: t.guideShopDeactivate })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Деактивировать/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: t.delete }));
+    expect(screen.getByText(t.guideShopCommissionDeactivateTitle)).toBeInTheDocument();
+    expect(screen.getByText(t.guideShopCommissionDeactivateHint)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: t.cancel }));
+    expect(deactivateSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: t.delete })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: t.delete }));
+    const confirmDelete = screen.getAllByRole('button', { name: t.delete })[0]!;
+    fireEvent.click(confirmDelete);
+    await waitFor(() =>
+      expect(screen.getByText(t.guideShopCommissionDeactivateError)).toBeInTheDocument(),
+    );
+    expect(deactivateSpy).toHaveBeenCalledTimes(1);
+    expect(deactivateSpy).toHaveBeenCalledWith(commissionA.id);
+    expect(screen.getByText(t.guideShopCommissionDeactivateTitle)).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: t.delete })[0]!);
+    await waitFor(() => expect(deactivateSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(listSpy.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: t.guideShopAddCommission })).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText(t.guideShopCommissionAmount(40)).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Первая комиссия')).not.toBeInTheDocument();
+    expect(screen.getByText('Вторая комиссия')).toBeInTheDocument();
+    expect(screen.queryByText(t.guideShopCommissionAmount(55))).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t.guideShopDeactivate })).toBeInTheDocument();
+  });
+
+  it('shows Удаление… while delete is pending and never hard-deletes', async () => {
+    vi.spyOn(guideOsClient, 'listPersonalPlaces').mockResolvedValue([placeA]);
+    vi.spyOn(guideOsClient, 'listPersonalCommissions').mockResolvedValue([commissionA]);
+    let resolveDelete: (() => void) | undefined;
+    const deactivateSpy = vi.spyOn(guideOsClient, 'deactivatePersonalCommission').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = () => resolve();
+        }),
+    );
+    const client = guideOsClient as unknown as Record<string, unknown>;
+    expect(client).not.toHaveProperty('deletePersonalCommission');
+
     renderPage();
     await waitForPlacesLoaded();
     await openCompany();
     await waitForCommissionsLoaded();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть комиссию за 10.08.2026' }));
+    fireEvent.click(screen.getByRole('button', { name: t.delete }));
+    fireEvent.click(screen.getAllByRole('button', { name: t.delete })[0]!);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: t.guideShopCommissionDeleting })).toBeDisabled(),
+    );
+    resolveDelete?.();
+    await waitFor(() => expect(deactivateSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps personal-company deactivate wording unchanged', async () => {
+    vi.spyOn(guideOsClient, 'listPersonalPlaces').mockResolvedValue([placeA]);
+    vi.spyOn(guideOsClient, 'listPersonalCommissions').mockResolvedValue([]);
+    renderPage();
+    await waitForPlacesLoaded();
+    await openCompany();
+    await waitForCommissionsLoaded();
+    expect(screen.getByRole('button', { name: t.guideShopDeactivate })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.guideShopDeactivate }));
-    expect(screen.getByText(t.guideShopCommissionDeactivateTitle)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: t.cancel }));
-    expect(deactivateSpy).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: t.guideShopDeactivate }));
-    fireEvent.click(screen.getAllByRole('button', { name: t.guideShopDeactivate })[0]!);
-    await waitFor(() => expect(deactivateSpy).toHaveBeenCalledWith(commissionA.id));
-    await waitFor(() => expect(listSpy).toHaveBeenCalledTimes(2));
-    expect(screen.getByText(t.guideShopCommissionsEmptyHistory)).toBeInTheDocument();
+    expect(screen.getByText(t.guideShopDeactivateTitle)).toBeInTheDocument();
   });
 
   it('Asia/Tashkent date conversion remains correct', () => {

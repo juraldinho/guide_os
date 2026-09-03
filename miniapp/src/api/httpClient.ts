@@ -9,6 +9,8 @@ import type {
   AvailabilityPreview,
   AvailabilityPreviewParams,
   CalendarEntry,
+  CommissionReportsSummary,
+  CommissionReportsSummaryParams,
   DayOffFormValues,
   GuideProfile,
   GuideProfilePatch,
@@ -450,6 +452,16 @@ export function createHttpClient(): GuideOsClient {
       if (params.company) query.set('company', params.company);
       if (params.location) query.set('location', params.location);
       return apiRequest<ReportsSummary>(`/app/v1/reports/summary?${query.toString()}`);
+    },
+
+    async getCommissionReportsSummary(params: CommissionReportsSummaryParams) {
+      const query = new URLSearchParams({
+        from: params.from,
+        to: params.to,
+      });
+      return apiRequest<CommissionReportsSummary>(
+        `/app/v1/reports/commissions?${query.toString()}`,
+      );
     },
 
     async previewAvailability(params: AvailabilityPreviewParams) {

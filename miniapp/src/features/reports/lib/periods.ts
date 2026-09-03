@@ -1,4 +1,4 @@
-import { MOCK_TODAY } from '@/config';
+import { ENTRIES_RANGE_FROM, ENTRIES_RANGE_TO, MOCK_TODAY } from '@/config';
 import type { CalendarEntry } from '@/api/types';
 import type { DateRange, ReportsPeriod } from './types';
 import { parseDate } from '@/features/calendar/lib/dates';
@@ -39,6 +39,24 @@ export function getReportRange(
     return { from, to };
   }
   return getAllMockDataRange(entries);
+}
+
+/** Inclusive commission reports range; all-period uses Mini App data horizon, not tour bounds. */
+export function getCommissionReportRange(
+  period: ReportsPeriod,
+  reportsMonth: number,
+  reportsYear: number,
+): DateRange {
+  if (period === 'month') {
+    return monthStartEnd(reportsYear, reportsMonth);
+  }
+  if (period === 'year') {
+    return {
+      from: `${reportsYear}-01-01`,
+      to: `${reportsYear}-12-31`,
+    };
+  }
+  return { from: ENTRIES_RANGE_FROM, to: ENTRIES_RANGE_TO };
 }
 
 export function getCalendarAvailMonth(

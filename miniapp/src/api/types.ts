@@ -188,6 +188,25 @@ export interface ReportsSummaryParams {
   location?: string;
 }
 
+export interface CommissionReportsSummaryParams {
+  from: string;
+  to: string;
+}
+
+export interface CommissionReportsCompanySummary {
+  placeId: string;
+  companyName: string;
+  totalCommission: number;
+  recordCount: number;
+}
+
+export interface CommissionReportsSummary {
+  totalCommission: number;
+  recordCount: number;
+  byCompany: CommissionReportsCompanySummary[];
+  period: ReportsSummaryPeriod;
+}
+
 export interface AvailabilityPreviewParams {
   from: string;
   to: string;

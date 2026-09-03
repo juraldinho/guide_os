@@ -2,6 +2,8 @@ import type {
   AvailabilityPreview,
   AvailabilityPreviewParams,
   CalendarEntry,
+  CommissionReportsSummary,
+  CommissionReportsSummaryParams,
   DayOffFormValues,
   GuideProfile,
   GuideProfilePatch,
@@ -44,6 +46,9 @@ export interface GuideOsClient {
   getProfile(): Promise<GuideProfile>;
   updateProfile(patch: GuideProfilePatch): Promise<GuideProfile>;
   getReportsSummary(params: ReportsSummaryParams): Promise<ReportsSummary>;
+  getCommissionReportsSummary(
+    params: CommissionReportsSummaryParams,
+  ): Promise<CommissionReportsSummary>;
   previewAvailability(params: AvailabilityPreviewParams): Promise<AvailabilityPreview>;
   listPersonalPlaces(options?: ListPersonalPlacesOptions): Promise<PersonalPlace[]>;
   getPersonalPlace(id: string): Promise<PersonalPlace | null>;

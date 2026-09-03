@@ -185,6 +185,26 @@ def reports_summary_to_api(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def commission_reports_summary_to_api(summary: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "totalCommission": summary["total_commission"],
+        "recordCount": summary["record_count"],
+        "byCompany": [
+            {
+                "placeId": row["place_id"],
+                "companyName": row["company_name"],
+                "totalCommission": row["total_commission"],
+                "recordCount": row["record_count"],
+            }
+            for row in summary["by_company"]
+        ],
+        "period": {
+            "from": summary["period"]["from"],
+            "to": summary["period"]["to"],
+        },
+    }
+
+
 def availability_preview_to_api(preview: dict[str, Any]) -> dict[str, Any]:
     return {
         "heading": preview["heading"],

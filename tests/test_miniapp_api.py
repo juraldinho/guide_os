@@ -985,6 +985,227 @@ def test_reports_summary(seeded_user):
     assert body["data"]["period"]["from"] == "2026-09-01"
 
 
+def _commission_reports(user_id, query, **header_overrides):
+    return api_request(
+        "GET",
+        f"/app/v1/reports/commissions{query}",
+        headers=_auth_headers(user_id, **header_overrides),
+    )
+
+
+def test_commission_reports_route_registered_once():
+    app = create_miniapp_api_app(_settings())
+    routes = [
+        (route.method, route.resource.canonical)
+        for route in app.router.routes()
+    ]
+    assert routes.count(("GET", "/app/v1/reports/commissions")) == 1
+    assert routes.count(("GET", "/app/v1/reports/summary")) == 1
+
+
+def test_commission_reports_auth_required():
+    response = api_request("GET", "/app/v1/reports/commissions?from=2026-09-01&to=2026-09-30")
+    body = response_json(response)
+    assert response.status == 401
+    assert body["error"]["code"] == "auth_required"
+
+
+def test_commission_reports_empty_and_camel_case(seeded_user):
+    response = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"] == {
+        "totalCommission": 0,
+        "recordCount": 0,
+        "byCompany": [],
+        "period": {"from": "2026-08-01", "to": "2026-08-31"},
+    }
+
+
+def test_commission_reports_multi_company_breakdown(seeded_user):
+    register_user(PROFILE_USER_B)
+    place_a = _create_place_for_user(seeded_user)
+    place_b_resp = _post_place(
+        seeded_user,
+        _place_payload(name="Company B"),
+    )
+    place_b = response_json(place_b_resp)["data"]["id"]
+    _create_commission_for_user(
+        seeded_user,
+        place_a,
+        occurredAt="2026-08-05T12:00:00+05:00",
+        receivedPoints=25,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+        note=None,
+    )
+    _create_commission_for_user(
+        seeded_user,
+        place_a,
+        occurredAt="2026-08-06T12:00:00+05:00",
+        receivedPoints=30,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    _create_commission_for_user(
+        seeded_user,
+        place_b,
+        occurredAt="2026-08-07T12:00:00+05:00",
+        receivedPoints=30,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    foreign_place = _create_place_for_user(PROFILE_USER_B)
+    _create_commission_for_user(
+        PROFILE_USER_B,
+        foreign_place,
+        occurredAt="2026-08-05T12:00:00+05:00",
+        receivedPoints=999,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+
+    response = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    body = response_json(response)
+    assert response.status == 200
+    data = body["data"]
+    assert data["totalCommission"] == 85
+    assert data["recordCount"] == 3
+    assert data["period"] == {"from": "2026-08-01", "to": "2026-08-31"}
+    assert len(data["byCompany"]) == 2
+    assert data["byCompany"][0]["totalCommission"] == 55
+    assert data["byCompany"][0]["recordCount"] == 2
+    assert data["byCompany"][0]["placeId"] == place_a
+    assert "userId" not in data
+    assert "purchaseAmountMinor" not in str(body)
+    assert "receivedIncomeMinor" not in str(body)
+    assert "999" not in str(data)
+
+
+def test_commission_reports_validation_errors(seeded_user):
+    cases = [
+        "?to=2026-08-31",
+        "?from=2026-08-01",
+        "?from=2026-08-01&from=2026-08-02&to=2026-08-31",
+        "?from=2026-08-01&to=2026-08-31&to=2026-08-29",
+        "?from=2026-13-01&to=2026-08-31",
+        "?from=2026-08-31&to=2026-08-01",
+        "?from=2026-08-01&to=2026-08-31&userId=1",
+        "?from=2026-08-01&to=2026-08-31&status=all",
+        "?from=2026-08-01&to=2026-08-31&payment=paid",
+        "?from=2026-08-01&to=2026-08-31&company=X",
+        "?from=2026-08-01&to=2026-08-31&location=Y",
+    ]
+    for query in cases:
+        response = _commission_reports(seeded_user, query)
+        _assert_validation_error(response)
+        assert response.status != 500
+
+
+def test_commission_reports_inactive_legacy_and_deactivated_company(seeded_user):
+    place_id, commission_id = _create_commission_for_user(
+        seeded_user,
+        occurredAt="2026-08-10T12:00:00+05:00",
+        receivedPoints=11,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    _deactivate_commission(seeded_user, commission_id)
+    _post_commission(
+        seeded_user,
+        place_id,
+        {
+            "occurredAt": "2026-08-11T12:00:00+05:00",
+            "purchaseAmountMinor": 10000,
+            "receivedIncomeMinor": 1000,
+            "receivedPoints": None,
+            "currency": "USD",
+            "note": None,
+        },
+    )
+    historical = _create_place_for_user(seeded_user)
+    _put_place(seeded_user, historical, _place_payload(name="Hist Co"))
+    _create_commission_for_user(
+        seeded_user,
+        historical,
+        occurredAt="2026-08-12T12:00:00+05:00",
+        receivedPoints=17,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    _deactivate_place(seeded_user, historical)
+
+    response = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["totalCommission"] == 17
+    assert body["data"]["recordCount"] == 1
+    assert body["data"]["byCompany"][0]["companyName"] == "Hist Co"
+
+
+def test_commission_reports_script_name_remains_inert_json(seeded_user):
+    place_resp = _post_place(
+        seeded_user,
+        _place_payload(name="<script>alert(1)</script>"),
+    )
+    place_id = response_json(place_resp)["data"]["id"]
+    _create_commission_for_user(
+        seeded_user,
+        place_id,
+        occurredAt="2026-08-15T12:00:00+05:00",
+        receivedPoints=3,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    response = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["byCompany"][0]["companyName"] == "<script>alert(1)</script>"
+    assert "<script>" in response._body_text
+
+
+def test_commission_reports_preserves_existing_tour_summary(seeded_user):
+    headers = _auth_headers(seeded_user)
+    create_tour_entry(
+        API_USER,
+        TourEntryDraft(
+            title="Tour stays",
+            company="Co",
+            location="Самарканд",
+            start_date="2026-08-20",
+            end_date="2026-08-20",
+            status="confirmed",
+            payment="paid",
+            income=100,
+            source=SOURCE_MINI_APP,
+        ),
+    )
+    tour_response = api_request(
+        "GET",
+        "/app/v1/reports/summary?from=2026-08-01&to=2026-08-31&status=all&payment=all",
+        headers=headers,
+    )
+    assert tour_response.status == 200
+    assert response_json(tour_response)["data"]["tourCount"] >= 1
+
+
+def test_commission_reports_cors_and_auth_apply():
+    response = cors_request(
+        "GET",
+        "/app/v1/reports/commissions?from=2026-08-01&to=2026-08-31",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    assert response.status == 401
+    assert response.headers.get("Access-Control-Allow-Origin") == PRODUCTION_FRONTEND_ORIGIN
+
+
 def test_availability_preview(seeded_user):
     headers = _auth_headers(seeded_user)
     response = api_request(

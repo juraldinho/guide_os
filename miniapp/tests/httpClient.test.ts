@@ -20,6 +20,7 @@ import {
   __testOfficialPointsSummary,
   __testOfficialHistory,
   __testPersonalPlaces,
+  __testPersonalCommissions,
 } from '@/api/mock/store';
 
 const profileResponse = {
@@ -282,6 +283,203 @@ describe('httpClient', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain('/app/v1/reports/summary');
     expect(fetchMock.mock.calls[0]?.[0]).toContain('status=confirmed');
     expect(fetchMock.mock.calls[0]?.[0]).toContain('payment=paid');
+  });
+
+  it('fetches commission reports with from/to only', async () => {
+    __testSetSessionToken('tok_comm_reports');
+    const fetchMock = vi.mocked(fetch);
+    const payload = {
+      totalCommission: 85,
+      recordCount: 3,
+      byCompany: [
+        {
+          placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          companyName: 'Company A',
+          totalCommission: 55,
+          recordCount: 2,
+        },
+        {
+          placeId: 'place_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          companyName: 'Company B',
+          totalCommission: 30,
+          recordCount: 1,
+        },
+      ],
+      period: { from: '2026-08-01', to: '2026-08-31' },
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: payload }));
+
+    const summary = await createHttpClient().getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+
+    expect(summary).toEqual(payload);
+    expect(summary.byCompany).toHaveLength(2);
+    expect(summary.period).toEqual({ from: '2026-08-01', to: '2026-08-31' });
+    const url = String(fetchMock.mock.calls[0]?.[0]);
+    expect(url).toBe('/app/v1/reports/commissions?from=2026-08-01&to=2026-08-31');
+    expect(url).not.toContain('status=');
+    expect(url).not.toContain('payment=');
+    expect(url).not.toContain('company=');
+    expect(url).not.toContain('location=');
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.method ?? 'GET').toBe('GET');
+    expect(init.body).toBeUndefined();
+    const headers = init.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer tok_comm_reports');
+    expect(headers.get('Idempotency-Key')).toBeNull();
+    expect(summary).not.toHaveProperty('receivedPoints');
+    expect(summary).not.toHaveProperty('purchaseAmountMinor');
+    expect(summary).not.toHaveProperty('receivedIncomeMinor');
+    expect(summary).not.toHaveProperty('currency');
+    expect(JSON.stringify(summary)).not.toMatch(/"points"/i);
+  });
+
+  it('preserves empty commission reports response', async () => {
+    __testSetSessionToken('tok');
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          totalCommission: 0,
+          recordCount: 0,
+          byCompany: [],
+          period: { from: '2026-07-01', to: '2026-07-31' },
+        },
+      }),
+    );
+
+    const summary = await createHttpClient().getCommissionReportsSummary({
+      from: '2026-07-01',
+      to: '2026-07-31',
+    });
+    expect(summary).toEqual({
+      totalCommission: 0,
+      recordCount: 0,
+      byCompany: [],
+      period: { from: '2026-07-01', to: '2026-07-31' },
+    });
+  });
+
+  it('keeps commission reports validation_error as ApiError', async () => {
+    __testSetSessionToken('tok');
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          { error: { code: 'validation_error', message: 'Укажите корректные from и to.' } },
+          400,
+        ),
+      ),
+    );
+
+    await expect(
+      createHttpClient().getCommissionReportsSummary({
+        from: '2026-08-31',
+        to: '2026-08-01',
+      }),
+    ).rejects.toMatchObject({
+      code: 'validation_error',
+      status: 400,
+    });
+    await expect(
+      createHttpClient().getCommissionReportsSummary({
+        from: '2026-08-31',
+        to: '2026-08-01',
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('does not convert commission reports 503 to empty summary or GuideShop-retry', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          { error: { code: 'temporarily_unavailable', message: 'outage' } },
+          503,
+        ),
+      ),
+    );
+
+    await expect(
+      createHttpClient().getCommissionReportsSummary({
+        from: '2026-08-01',
+        to: '2026-08-31',
+      }),
+    ).rejects.toMatchObject({
+      code: 'temporarily_unavailable',
+      status: 503,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('bootstraps session for commission reports when missing token', async () => {
+    window.Telegram = { WebApp: { initData: 'query_id=1&user=%7B%7D&hash=abc' } };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { session_token: 'tok_cr', session_expires_at: null, user: {} } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            totalCommission: 0,
+            recordCount: 0,
+            byCompany: [],
+            period: { from: '2026-08-01', to: '2026-08-31' },
+          },
+        }),
+      );
+
+    await createHttpClient().getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/session');
+    expect(fetchMock.mock.calls[1]?.[0]).toContain('/app/v1/reports/commissions');
+  });
+
+  it('recovers once from 401 on commission reports', async () => {
+    window.Telegram = { WebApp: { initData: 'query_id=1&user=%7B%7D&hash=abc' } };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { session_token: 'fresh_tok', session_expires_at: null, user: {} } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'auth_required', message: 'expired' } }, 401),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { session_token: 'renewed_tok', session_expires_at: null, user: {} } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            totalCommission: 1,
+            recordCount: 1,
+            byCompany: [
+              {
+                placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                companyName: 'A',
+                totalCommission: 1,
+                recordCount: 1,
+              },
+            ],
+            period: { from: '2026-08-01', to: '2026-08-31' },
+          },
+        }),
+      );
+
+    const summary = await createHttpClient().getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+
+    expect(summary.totalCommission).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const retryHeaders = fetchMock.mock.calls[3]?.[1]?.headers as Headers;
+    expect(retryHeaders.get('Authorization')).toBe('Bearer renewed_tok');
   });
 
   it('previews availability text from API', async () => {
@@ -1342,5 +1540,335 @@ describe('GSMA8 GuideShop GET resilience', () => {
     await createHttpClient().listOfficialCompanies({ signal: controller.signal });
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(init.signal).toBeTruthy();
+  });
+});
+
+describe('mock commission reports summary', () => {
+  beforeEach(() => {
+    __resetMockStore();
+  });
+
+  it('returns empty summary for an empty range', async () => {
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2025-01-01',
+      to: '2025-01-31',
+    });
+    expect(summary).toEqual({
+      totalCommission: 0,
+      recordCount: 0,
+      byCompany: [],
+      period: { from: '2025-01-01', to: '2025-01-31' },
+    });
+  });
+
+  it('sums active commissions and groups by place', async () => {
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(80);
+    expect(summary.recordCount).toBe(3);
+    expect(summary.byCompany).toHaveLength(2);
+    expect(summary.byCompany[0]).toMatchObject({
+      companyName: 'Бухара Арт',
+      totalCommission: 55,
+      recordCount: 2,
+    });
+    expect(summary.byCompany[1]).toMatchObject({
+      companyName: 'Restaurant Platan',
+      totalCommission: 25,
+      recordCount: 1,
+    });
+    expect(summary.period).toEqual({ from: '2026-08-01', to: '2026-08-31' });
+  });
+
+  it('keeps identical names with different place IDs separate and ordered', async () => {
+    const places = __testPersonalPlaces();
+    places.push({
+      id: 'place_cccccccccccccccccccccccccccccccc',
+      name: 'Бухара Арт',
+      category: null,
+      generalLocation: null,
+      landmark: null,
+      note: null,
+      status: 'active',
+      createdAt: '2026-08-01T10:00:00Z',
+      updatedAt: '2026-08-01T10:00:00Z',
+    });
+    __testPersonalCommissions().push({
+      id: 'entry_cccccccccccccccccccccccccccccccc',
+      placeId: 'place_cccccccccccccccccccccccccccccccc',
+      occurredAt: '2026-08-15T05:00:00Z',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 55,
+      currency: null,
+      note: null,
+      status: 'active',
+      createdAt: '2026-08-15T06:00:00Z',
+      updatedAt: '2026-08-15T06:00:00Z',
+    });
+
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    const sameName = summary.byCompany.filter((row) => row.companyName === 'Бухара Арт');
+    expect(sameName).toHaveLength(2);
+    expect(sameName[0]!.totalCommission).toBe(55);
+    expect(sameName[1]!.totalCommission).toBe(55);
+    expect(sameName[0]!.placeId < sameName[1]!.placeId).toBe(true);
+  });
+
+  it('respects inclusive boundaries and Tashkent UTC day boundary', async () => {
+    __testPersonalCommissions().length = 0;
+    __testPersonalCommissions().push(
+      {
+        id: 'entry_before________________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-07-31T10:00:00+05:00',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 1,
+        currency: null,
+        note: null,
+        status: 'active',
+        createdAt: '2026-07-31T10:00:00Z',
+        updatedAt: '2026-07-31T10:00:00Z',
+      },
+      {
+        id: 'entry_from__________________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-08-01T00:00:00+05:00',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 2,
+        currency: null,
+        note: null,
+        status: 'active',
+        createdAt: '2026-08-01T00:00:00Z',
+        updatedAt: '2026-08-01T00:00:00Z',
+      },
+      {
+        id: 'entry_to____________________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-08-31T23:59:00+05:00',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 4,
+        currency: null,
+        note: null,
+        status: 'active',
+        createdAt: '2026-08-31T23:59:00Z',
+        updatedAt: '2026-08-31T23:59:00Z',
+      },
+      {
+        id: 'entry_after_________________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-09-01T00:00:00+05:00',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 8,
+        currency: null,
+        note: null,
+        status: 'active',
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+      },
+      {
+        id: 'entry_utc_boundary__________________',
+        placeId: 'place_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        // 2026-08-31T20:30:00Z == 2026-09-01 01:30 Asia/Tashkent
+        occurredAt: '2026-08-31T20:30:00Z',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 16,
+        currency: null,
+        note: null,
+        status: 'active',
+        createdAt: '2026-08-31T20:30:00Z',
+        updatedAt: '2026-08-31T20:30:00Z',
+      },
+    );
+
+    const august = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(august.totalCommission).toBe(6);
+    expect(august.recordCount).toBe(2);
+
+    const september = await mockClient.getCommissionReportsSummary({
+      from: '2026-09-01',
+      to: '2026-09-30',
+    });
+    expect(september.totalCommission).toBe(24);
+  });
+
+  it('excludes inactive and legacy money-only records', async () => {
+    __testPersonalCommissions().length = 0;
+    __testPersonalCommissions().push(
+      {
+        id: 'entry_inactive______________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-08-10T05:00:00Z',
+        purchaseAmountMinor: null,
+        receivedIncomeMinor: null,
+        receivedPoints: 50,
+        currency: null,
+        note: null,
+        status: 'inactive',
+        createdAt: '2026-08-10T05:00:00Z',
+        updatedAt: '2026-08-10T05:00:00Z',
+      },
+      {
+        id: 'entry_money_only____________________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-08-11T05:00:00Z',
+        purchaseAmountMinor: 10000,
+        receivedIncomeMinor: 2500,
+        receivedPoints: null,
+        currency: 'USD',
+        note: null,
+        status: 'active',
+        createdAt: '2026-08-11T05:00:00Z',
+        updatedAt: '2026-08-11T05:00:00Z',
+      },
+      {
+        id: 'entry_with_money_and_points_________',
+        placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        occurredAt: '2026-08-12T05:00:00Z',
+        purchaseAmountMinor: 9000,
+        receivedIncomeMinor: 1000,
+        receivedPoints: 7,
+        currency: 'USD',
+        note: null,
+        status: 'active',
+        createdAt: '2026-08-12T05:00:00Z',
+        updatedAt: '2026-08-12T05:00:00Z',
+      },
+    );
+
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(7);
+    expect(summary.recordCount).toBe(1);
+  });
+
+  it('keeps active commissions under deactivated companies', async () => {
+    const place = __testPersonalPlaces().find(
+      (item) => item.id === 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    )!;
+    place.status = 'inactive';
+
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(80);
+    expect(summary.byCompany.some((row) => row.companyName === 'Бухара Арт')).toBe(true);
+  });
+
+  it('uses safe missing-place fallback name', async () => {
+    __testPersonalCommissions().push({
+      id: 'entry_orphan________________________',
+      placeId: 'place_missingmissingmissingmissingmis',
+      occurredAt: '2026-08-20T05:00:00Z',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 3,
+      currency: null,
+      note: null,
+      status: 'active',
+      createdAt: '2026-08-20T05:00:00Z',
+      updatedAt: '2026-08-20T05:00:00Z',
+    });
+
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    const orphan = summary.byCompany.find(
+      (row) => row.placeId === 'place_missingmissingmissingmissingmis',
+    );
+    expect(orphan?.companyName).toBe('Компания не найдена');
+    expect(orphan?.totalCommission).toBe(3);
+  });
+
+  it('does not allow mutating returned summary to affect later responses', async () => {
+    const first = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    first.totalCommission = 0;
+    first.byCompany[0]!.companyName = 'mutated';
+    first.byCompany.pop();
+
+    const second = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(second.totalCommission).toBe(80);
+    expect(second.byCompany).toHaveLength(2);
+    expect(second.byCompany[0]!.companyName).toBe('Бухара Арт');
+  });
+
+  it('updates summary after create, edit, and deactivate', async () => {
+    const placeId = 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const created = await mockClient.createPersonalCommission(placeId, {
+      occurredAt: '2026-08-18T00:00:00+05:00',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 9,
+      currency: null,
+      note: null,
+    });
+
+    let summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(89);
+
+    await mockClient.updatePersonalCommission(created.id, {
+      occurredAt: '2026-08-18T00:00:00+05:00',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 11,
+      currency: null,
+      note: null,
+    });
+    summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(91);
+
+    await mockClient.deactivatePersonalCommission(created.id);
+    summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(80);
+  });
+
+  it('__resetMockStore restores deterministic commission reports', async () => {
+    await mockClient.createPersonalCommission('place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', {
+      occurredAt: '2026-08-19T00:00:00+05:00',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 100,
+      currency: null,
+      note: null,
+    });
+    __resetMockStore();
+    const summary = await mockClient.getCommissionReportsSummary({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    });
+    expect(summary.totalCommission).toBe(80);
+    expect(summary.recordCount).toBe(3);
   });
 });
