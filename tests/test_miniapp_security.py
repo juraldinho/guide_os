@@ -1358,6 +1358,283 @@ class TestPayloadValidation:
 # ---------------------------------------------------------------------------
 
 
+OWNER_COMMISSION_NOTE = "OWNER_COMMISSION_NOTE_SECRET"
+OWNER_PLACE_NAME = "OWNER_COMMISSION_PLACE_SECRET"
+MALFORMED_COMMISSION_ID = "entry_not_a_valid_id"
+MALFORMED_PLACE_ID = "place_not_a_valid_id"
+SCRIPTISH_NOTE = "<script>alert(1)</script>"
+
+
+def _commission_create_payload(**overrides) -> dict[str, Any]:
+    payload = {
+        "occurredAt": "2026-08-15T10:00:00+05:00",
+        "purchaseAmountMinor": 10000,
+        "receivedIncomeMinor": 1000,
+        "receivedPoints": 5,
+        "currency": "USD",
+        "note": OWNER_COMMISSION_NOTE,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _create_owner_place_and_commission(ctx: SecurityContext) -> tuple[str, str]:
+    place_response = api_request(
+        ctx.settings,
+        "POST",
+        "/app/v1/personal-places",
+        headers=bearer_headers(ctx.owner_token),
+        json={
+            "name": OWNER_PLACE_NAME,
+            "category": None,
+            "generalLocation": None,
+            "landmark": None,
+            "note": None,
+        },
+    )
+    assert place_response.status == 201, _response_text(place_response)
+    place_id = response_json(place_response)["data"]["id"]
+    commission_response = api_request(
+        ctx.settings,
+        "POST",
+        f"/app/v1/personal-places/{place_id}/commissions",
+        headers=bearer_headers(ctx.owner_token),
+        json=_commission_create_payload(),
+    )
+    assert commission_response.status == 201, _response_text(commission_response)
+    commission_id = response_json(commission_response)["data"]["id"]
+    return place_id, commission_id
+
+
+class TestPersonalCommissionsIdorBola:
+    def test_attacker_cannot_list_owner_commissions(self, security_context: SecurityContext):
+        ctx = security_context
+        place_id, _ = _create_owner_place_and_commission(ctx)
+        response = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-places/{place_id}/commissions",
+            headers=bearer_headers(ctx.attacker_token),
+        )
+        assert response.status == 404
+        _not_found_body(response_json(response))
+        _assert_no_leak(
+            _response_text(response),
+            extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE, place_id),
+        )
+
+    def test_attacker_cannot_get_owner_commission(self, security_context: SecurityContext):
+        ctx = security_context
+        _, commission_id = _create_owner_place_and_commission(ctx)
+        response = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-commissions/{commission_id}",
+            headers=bearer_headers(ctx.attacker_token),
+        )
+        assert response.status == 404
+        _not_found_body(response_json(response))
+        _assert_no_leak(
+            _response_text(response),
+            extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE, commission_id),
+        )
+
+    def test_attacker_cannot_update_owner_commission(self, security_context: SecurityContext):
+        ctx = security_context
+        _, commission_id = _create_owner_place_and_commission(ctx)
+        before = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-commissions/{commission_id}",
+            headers=bearer_headers(ctx.owner_token),
+        )
+        before_body = response_json(before)["data"]
+        response = api_request(
+            ctx.settings,
+            "PUT",
+            f"/app/v1/personal-commissions/{commission_id}",
+            headers=bearer_headers(ctx.attacker_token),
+            json=_commission_create_payload(note="HACKED", receivedPoints=99),
+        )
+        assert response.status == 404
+        _not_found_body(response_json(response))
+        _assert_no_leak(
+            _response_text(response),
+            extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE, "HACKED"),
+        )
+        after = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-commissions/{commission_id}",
+            headers=bearer_headers(ctx.owner_token),
+        )
+        assert response_json(after)["data"] == before_body
+
+    def test_attacker_cannot_deactivate_owner_commission(self, security_context: SecurityContext):
+        ctx = security_context
+        _, commission_id = _create_owner_place_and_commission(ctx)
+        response = api_request(
+            ctx.settings,
+            "POST",
+            f"/app/v1/personal-commissions/{commission_id}/deactivate",
+            headers=bearer_headers(ctx.attacker_token),
+        )
+        assert response.status == 404
+        _not_found_body(response_json(response))
+        _assert_no_leak(
+            _response_text(response),
+            extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE, commission_id),
+        )
+        owner_get = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-commissions/{commission_id}",
+            headers=bearer_headers(ctx.owner_token),
+        )
+        assert owner_get.status == 200
+        assert response_json(owner_get)["data"]["status"] == "active"
+
+    def test_attacker_cannot_create_under_owner_place(self, security_context: SecurityContext):
+        ctx = security_context
+        place_id, _ = _create_owner_place_and_commission(ctx)
+        response = api_request(
+            ctx.settings,
+            "POST",
+            f"/app/v1/personal-places/{place_id}/commissions",
+            headers=bearer_headers(ctx.attacker_token),
+            json=_commission_create_payload(note="ATTACKER_NOTE", receivedPoints=1),
+        )
+        assert response.status == 404
+        _not_found_body(response_json(response))
+        _assert_no_leak(
+            _response_text(response),
+            extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE, "ATTACKER_NOTE", place_id),
+        )
+        owner_list = api_request(
+            ctx.settings,
+            "GET",
+            f"/app/v1/personal-places/{place_id}/commissions",
+            headers=bearer_headers(ctx.owner_token),
+        )
+        assert owner_list.status == 200
+        notes = [item["note"] for item in response_json(owner_list)["data"]["commissions"]]
+        assert "ATTACKER_NOTE" not in notes
+        assert OWNER_COMMISSION_NOTE in notes
+
+    def test_foreign_and_malformed_ids_same_safe_404(self, security_context: SecurityContext):
+        ctx = security_context
+        place_id, commission_id = _create_owner_place_and_commission(ctx)
+        cases = [
+            ("GET", f"/app/v1/personal-places/{place_id}/commissions"),
+            ("GET", f"/app/v1/personal-places/{MALFORMED_PLACE_ID}/commissions"),
+            ("GET", f"/app/v1/personal-commissions/{commission_id}"),
+            ("GET", f"/app/v1/personal-commissions/{MALFORMED_COMMISSION_ID}"),
+            (
+                "PUT",
+                f"/app/v1/personal-commissions/{commission_id}",
+                {"json": _commission_create_payload(receivedPoints=1)},
+            ),
+            (
+                "PUT",
+                f"/app/v1/personal-commissions/{MALFORMED_COMMISSION_ID}",
+                {"json": _commission_create_payload(receivedPoints=1)},
+            ),
+            ("POST", f"/app/v1/personal-commissions/{commission_id}/deactivate"),
+            ("POST", f"/app/v1/personal-commissions/{MALFORMED_COMMISSION_ID}/deactivate"),
+            (
+                "POST",
+                f"/app/v1/personal-places/{place_id}/commissions",
+                {"json": _commission_create_payload(receivedPoints=1)},
+            ),
+            (
+                "POST",
+                f"/app/v1/personal-places/{MALFORMED_PLACE_ID}/commissions",
+                {"json": _commission_create_payload(receivedPoints=1)},
+            ),
+        ]
+        for method, path, *extra in cases:
+            kwargs = extra[0] if extra else {}
+            response = api_request(
+                ctx.settings,
+                method,
+                path,
+                headers=bearer_headers(ctx.attacker_token),
+                **kwargs,
+            )
+            assert response.status == 404, (method, path, response.status)
+            body = _not_found_body(response_json(response))
+            assert body["error"]["code"] == "not_found"
+            _assert_no_leak(
+                _response_text(response),
+                extra_forbidden=(OWNER_PLACE_NAME, OWNER_COMMISSION_NOTE),
+            )
+
+    def test_script_like_strings_remain_inert_json(self, security_context: SecurityContext):
+        ctx = security_context
+        place_response = api_request(
+            ctx.settings,
+            "POST",
+            "/app/v1/personal-places",
+            headers=bearer_headers(ctx.owner_token),
+            json={
+                "name": "Script place",
+                "category": None,
+                "generalLocation": None,
+                "landmark": None,
+                "note": None,
+            },
+        )
+        assert place_response.status == 201
+        place_id = response_json(place_response)["data"]["id"]
+        response = api_request(
+            ctx.settings,
+            "POST",
+            f"/app/v1/personal-places/{place_id}/commissions",
+            headers=bearer_headers(ctx.owner_token),
+            json=_commission_create_payload(note=SCRIPTISH_NOTE, receivedPoints=1),
+        )
+        assert response.status == 201
+        body = response_json(response)
+        assert body["data"]["note"] == SCRIPTISH_NOTE
+        text = _response_text(response)
+        assert SCRIPTISH_NOTE in text
+        assert "<script>" in text
+        parsed = json.loads(text)
+        assert parsed["data"]["note"] == SCRIPTISH_NOTE
+
+    def test_no_security_case_accepts_http_500(self, security_context: SecurityContext):
+        ctx = security_context
+        place_id, commission_id = _create_owner_place_and_commission(ctx)
+        endpoints = [
+            ("GET", f"/app/v1/personal-places/{place_id}/commissions"),
+            ("GET", f"/app/v1/personal-commissions/{commission_id}"),
+            (
+                "PUT",
+                f"/app/v1/personal-commissions/{commission_id}",
+                {"json": _commission_create_payload()},
+            ),
+            ("POST", f"/app/v1/personal-commissions/{commission_id}/deactivate"),
+            (
+                "POST",
+                f"/app/v1/personal-places/{place_id}/commissions",
+                {"json": _commission_create_payload()},
+            ),
+            ("GET", f"/app/v1/personal-commissions/{MALFORMED_COMMISSION_ID}"),
+            ("GET", f"/app/v1/personal-places/{MALFORMED_PLACE_ID}/commissions"),
+        ]
+        for method, path, *extra in endpoints:
+            kwargs = extra[0] if extra else {}
+            response = api_request(
+                ctx.settings,
+                method,
+                path,
+                headers=bearer_headers(ctx.attacker_token),
+                **kwargs,
+            )
+            assert response.status != 500
+            assert response.status == 404
+
+
 class TestErrorLeakage:
     def test_auth_errors_do_not_leak_secrets(self):
         settings = _settings(dev_auth=False)

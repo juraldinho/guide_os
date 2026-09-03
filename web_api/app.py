@@ -7,6 +7,8 @@ from aiohttp import web
 from services.miniapp_api_settings import MiniAppApiSettings
 from web_api.routes.availability import register_availability_routes
 from web_api.routes.entries import register_entries_routes
+from web_api.routes.personal_commissions import register_personal_commissions_routes
+from web_api.routes.personal_places import register_personal_places_routes
 from web_api.routes.profile import register_profile_routes
 from web_api.routes.reports import register_reports_routes
 from web_api.routes.session import register_session_routes
@@ -17,7 +19,7 @@ MAX_REQUEST_BODY_BYTES = 65536
 
 MINIAPP_CORS_MIDDLEWARE_REGISTERED_KEY = "miniapp_cors_middleware_registered"
 
-CORS_ALLOWED_METHODS = "GET, POST, PATCH, DELETE, OPTIONS"
+CORS_ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 CORS_ALLOWED_HEADERS = "Authorization, Content-Type, Idempotency-Key"
 
 
@@ -96,6 +98,8 @@ def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettin
     register_session_routes(app)
     register_entries_routes(app)
     register_profile_routes(app)
+    register_personal_places_routes(app)
+    register_personal_commissions_routes(app)
     register_reports_routes(app)
     register_availability_routes(app)
 

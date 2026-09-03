@@ -504,3 +504,241 @@ def conflict_to_error(conflict: dict[str, Any]) -> tuple[str, str, dict[str, Any
             "ack_field": "ack_date_warning",
         },
     )
+
+
+_PERSONAL_PLACE_ID_RE = re.compile(r"place_[0-9a-f]{32}")
+_PERSONAL_PLACE_BODY_KEYS = frozenset(
+    {"name", "category", "generalLocation", "landmark", "note"}
+)
+_PERSONAL_PLACE_FORBIDDEN_KEYS = frozenset(
+    {"id", "userId", "status", "createdAt", "updatedAt"}
+)
+
+
+@dataclass(frozen=True)
+class PersonalPlaceBody:
+    name: str
+    category: str | None
+    general_location: str | None
+    landmark: str | None
+    note: str | None
+
+
+def parse_personal_place_id(raw: str) -> str | None:
+    if not isinstance(raw, str) or _PERSONAL_PLACE_ID_RE.fullmatch(raw) is None:
+        return None
+    return raw
+
+
+def _parse_personal_place_optional_field(data: dict[str, Any], key: str) -> str | None:
+    if key not in data:
+        return None
+    value = data[key]
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("invalid personal place")
+    return value
+
+
+def parse_personal_place_body(data: dict[str, Any]) -> PersonalPlaceBody:
+    if not isinstance(data, dict):
+        raise ValueError("invalid personal place")
+    if _PERSONAL_PLACE_FORBIDDEN_KEYS.intersection(data.keys()):
+        raise ValueError("invalid personal place")
+    unknown = set(data.keys()) - _PERSONAL_PLACE_BODY_KEYS
+    if unknown:
+        raise ValueError("invalid personal place")
+    if "name" not in data:
+        raise ValueError("invalid personal place name")
+    name = data["name"]
+    if not isinstance(name, str):
+        raise ValueError("invalid personal place name")
+    return PersonalPlaceBody(
+        name=name,
+        category=_parse_personal_place_optional_field(data, "category"),
+        general_location=_parse_personal_place_optional_field(data, "generalLocation"),
+        landmark=_parse_personal_place_optional_field(data, "landmark"),
+        note=_parse_personal_place_optional_field(data, "note"),
+    )
+
+
+def personal_place_to_api(place: Any) -> dict[str, Any]:
+    if hasattr(place, "public_id"):
+        public_id = place.public_id
+        name = place.name
+        category = place.category
+        general_location = place.general_location
+        landmark = place.landmark
+        note = place.note
+        status = place.status
+        created_at = place.created_at
+        updated_at = place.updated_at
+    else:
+        public_id = place["public_id"]
+        name = place["name"]
+        category = place.get("category")
+        general_location = place.get("general_location")
+        landmark = place.get("landmark")
+        note = place.get("note")
+        status = place["status"]
+        created_at = place["created_at"]
+        updated_at = place["updated_at"]
+    return {
+        "id": public_id,
+        "name": name,
+        "category": category,
+        "generalLocation": general_location,
+        "landmark": landmark,
+        "note": note,
+        "status": status,
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+    }
+
+
+_PERSONAL_COMMISSION_ID_RE = re.compile(r"entry_[0-9a-f]{32}")
+_PERSONAL_COMMISSION_BODY_KEYS = frozenset(
+    {
+        "occurredAt",
+        "purchaseAmountMinor",
+        "receivedIncomeMinor",
+        "receivedPoints",
+        "currency",
+        "note",
+    }
+)
+_PERSONAL_COMMISSION_FORBIDDEN_KEYS = frozenset(
+    {"id", "placeId", "userId", "status", "createdAt", "updatedAt"}
+)
+
+
+@dataclass(frozen=True)
+class PersonalCommissionBody:
+    occurred_at: datetime.datetime
+    purchase_amount_minor: int | None
+    received_income_minor: int | None
+    received_points: int | None
+    currency: str | None
+    note: str | None
+
+
+def parse_personal_commission_id(raw: str) -> str | None:
+    if not isinstance(raw, str) or _PERSONAL_COMMISSION_ID_RE.fullmatch(raw) is None:
+        return None
+    return raw
+
+
+def parse_occurred_at(value: Any) -> datetime.datetime:
+    if not isinstance(value, str):
+        raise ValueError("invalid occurredAt")
+    if not value or value != value.strip():
+        raise ValueError("invalid occurredAt")
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError("invalid occurredAt") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("invalid occurredAt")
+    return parsed
+
+
+def _parse_optional_non_negative_int(value: Any, *, field: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"invalid {field}")
+    if value < 0:
+        raise ValueError(f"invalid {field}")
+    return value
+
+
+def _parse_optional_positive_int(value: Any, *, field: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"invalid {field}")
+    if value <= 0:
+        raise ValueError(f"invalid {field}")
+    return value
+
+
+def _parse_optional_string(value: Any, *, field: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"invalid {field}")
+    return value
+
+
+def parse_personal_commission_body(data: dict[str, Any]) -> PersonalCommissionBody:
+    if not isinstance(data, dict):
+        raise ValueError("invalid personal commission")
+    if _PERSONAL_COMMISSION_FORBIDDEN_KEYS.intersection(data.keys()):
+        raise ValueError("invalid personal commission")
+    unknown = set(data.keys()) - _PERSONAL_COMMISSION_BODY_KEYS
+    if unknown:
+        raise ValueError("invalid personal commission")
+    if "occurredAt" not in data:
+        raise ValueError("invalid occurredAt")
+    occurred_at = parse_occurred_at(data["occurredAt"])
+    purchase = (
+        _parse_optional_non_negative_int(data["purchaseAmountMinor"], field="purchaseAmountMinor")
+        if "purchaseAmountMinor" in data
+        else None
+    )
+    income = (
+        _parse_optional_non_negative_int(data["receivedIncomeMinor"], field="receivedIncomeMinor")
+        if "receivedIncomeMinor" in data
+        else None
+    )
+    points = (
+        _parse_optional_positive_int(data["receivedPoints"], field="receivedPoints")
+        if "receivedPoints" in data
+        else None
+    )
+    currency = (
+        _parse_optional_string(data["currency"], field="currency")
+        if "currency" in data
+        else None
+    )
+    note = _parse_optional_string(data["note"], field="note") if "note" in data else None
+    return PersonalCommissionBody(
+        occurred_at=occurred_at,
+        purchase_amount_minor=purchase,
+        received_income_minor=income,
+        received_points=points,
+        currency=currency,
+        note=note,
+    )
+
+
+def personal_commission_to_api(sale: Any) -> dict[str, Any]:
+    if hasattr(sale, "public_id"):
+        return {
+            "id": sale.public_id,
+            "placeId": sale.personal_place_id,
+            "occurredAt": sale.occurred_at,
+            "purchaseAmountMinor": sale.purchase_amount_minor,
+            "receivedIncomeMinor": sale.received_income_minor,
+            "receivedPoints": sale.received_points,
+            "currency": sale.currency,
+            "note": sale.note,
+            "status": sale.status,
+            "createdAt": sale.created_at,
+            "updatedAt": sale.updated_at,
+        }
+    return {
+        "id": sale["public_id"],
+        "placeId": sale["personal_place_id"],
+        "occurredAt": sale["occurred_at"],
+        "purchaseAmountMinor": sale.get("purchase_amount_minor"),
+        "receivedIncomeMinor": sale.get("received_income_minor"),
+        "receivedPoints": sale.get("received_points"),
+        "currency": sale.get("currency"),
+        "note": sale.get("note"),
+        "status": sale["status"],
+        "createdAt": sale["created_at"],
+        "updatedAt": sale["updated_at"],
+    }

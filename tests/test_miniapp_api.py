@@ -30,6 +30,7 @@ from web_api.app import (
     CORS_ALLOWED_HEADERS,
     CORS_ALLOWED_METHODS,
     create_miniapp_api_app,
+    register_miniapp_api_on_app,
     start_miniapp_api,
 )
 from web_api.auth import dev_session_token
@@ -370,6 +371,73 @@ def _patch_profile(user_id, payload):
 def _assert_validation_error(response):
     assert response.status == 400
     assert response_json(response)["error"]["code"] == "validation_error"
+
+
+def _assert_not_found(response):
+    assert response.status == 404
+    assert response_json(response)["error"]["code"] == "not_found"
+
+
+def _place_payload(**overrides):
+    payload = {
+        "name": "Company name",
+        "category": None,
+        "generalLocation": None,
+        "landmark": None,
+        "note": None,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _post_place(user_id, payload=None, **header_overrides):
+    return api_request(
+        "POST",
+        "/app/v1/personal-places",
+        headers=_auth_headers(user_id, **header_overrides),
+        json=payload if payload is not None else _place_payload(),
+    )
+
+
+def _put_place(user_id, place_id, payload=None, **header_overrides):
+    return api_request(
+        "PUT",
+        f"/app/v1/personal-places/{place_id}",
+        headers=_auth_headers(user_id, **header_overrides),
+        json=payload if payload is not None else _place_payload(),
+    )
+
+
+def _get_place(user_id, place_id):
+    return api_request(
+        "GET",
+        f"/app/v1/personal-places/{place_id}",
+        headers=_auth_headers(user_id),
+    )
+
+
+def _list_places(user_id, query=""):
+    return api_request(
+        "GET",
+        f"/app/v1/personal-places{query}",
+        headers=_auth_headers(user_id),
+    )
+
+
+def _deactivate_place(user_id, place_id, **header_overrides):
+    headers = _auth_headers(user_id, **header_overrides)
+    return api_request(
+        "POST",
+        f"/app/v1/personal-places/{place_id}/deactivate",
+        headers=headers,
+    )
+
+
+def _create_place_for_user(user_id):
+    response = _post_place(user_id)
+    body = response_json(response)
+    assert response.status == 201
+    return body["data"]["id"]
 
 
 def test_profile_migration_adds_json_columns():
@@ -936,6 +1004,1008 @@ def test_idempotency_replay_and_conflict(seeded_user):
     conflict_body = response_json(conflict)
     assert conflict.status == 409
     assert conflict_body["error"]["code"] == "idempotency_replay"
+
+
+def test_personal_places_routes_registered_on_miniapp_app():
+    from aiohttp import web
+
+    app = web.Application()
+    register_miniapp_api_on_app(app, _settings())
+    routes = {(route.method, route.resource.canonical) for route in app.router.routes()}
+    assert ("GET", "/app/v1/personal-places") in routes
+    assert ("POST", "/app/v1/personal-places") in routes
+    assert ("GET", "/app/v1/personal-places/{placeId}") in routes
+    assert ("PUT", "/app/v1/personal-places/{placeId}") in routes
+    assert ("POST", "/app/v1/personal-places/{placeId}/deactivate") in routes
+
+
+def test_personal_places_auth_required_for_all_endpoints():
+    place_id = "place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    endpoints = [
+        ("GET", "/app/v1/personal-places"),
+        ("POST", "/app/v1/personal-places", {"json": _place_payload()}),
+        ("GET", f"/app/v1/personal-places/{place_id}"),
+        ("PUT", f"/app/v1/personal-places/{place_id}", {"json": _place_payload()}),
+        ("POST", f"/app/v1/personal-places/{place_id}/deactivate"),
+    ]
+    for method, path, *extra in endpoints:
+        kwargs = extra[0] if extra else {}
+        response = api_request(method, path, **kwargs)
+        body = response_json(response)
+        assert response.status == 401
+        assert body["error"]["code"] == "auth_required"
+
+
+def test_personal_places_create_rejects_owner_override(seeded_user):
+    _assert_validation_error(
+        _post_place(seeded_user, {"name": "X", "userId": PROFILE_USER_B})
+    )
+
+
+def test_personal_places_list_empty(seeded_user):
+    response = _list_places(seeded_user)
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["places"] == []
+
+
+def test_personal_places_list_active_only_by_default(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, place_id)
+    body = response_json(_list_places(seeded_user))
+    assert body["data"]["places"] == []
+
+
+def test_personal_places_list_include_inactive_true(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, place_id)
+    body = response_json(_list_places(seeded_user, "?includeInactive=true"))
+    assert len(body["data"]["places"]) == 1
+    assert body["data"]["places"][0]["id"] == place_id
+    assert body["data"]["places"][0]["status"] == "inactive"
+
+
+def test_personal_places_list_include_inactive_false(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    body = response_json(_list_places(seeded_user, "?includeInactive=false"))
+    assert len(body["data"]["places"]) == 1
+    assert body["data"]["places"][0]["id"] == place_id
+
+
+def test_personal_places_list_rejects_invalid_include_inactive(seeded_user):
+    _assert_validation_error(_list_places(seeded_user, "?includeInactive=yes"))
+    _assert_validation_error(
+        _list_places(seeded_user, "?includeInactive=true&includeInactive=false")
+    )
+
+
+def test_personal_places_get_returns_camel_case_dto(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _get_place(seeded_user, place_id)
+    body = response_json(response)
+    assert response.status == 200
+    place = body["data"]
+    assert place["id"] == place_id
+    assert place["name"] == "Company name"
+    assert place["category"] is None
+    assert place["generalLocation"] is None
+    assert place["landmark"] is None
+    assert place["note"] is None
+    assert place["status"] == "active"
+    assert "createdAt" in place
+    assert "updatedAt" in place
+    assert "user_id" not in place
+    assert "userId" not in place
+
+
+def test_personal_places_get_foreign_id_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    foreign_id = _create_place_for_user(PROFILE_USER_B)
+    _assert_not_found(_get_place(seeded_user, foreign_id))
+
+
+def test_personal_places_get_malformed_id_not_found(seeded_user):
+    _assert_not_found(_get_place(seeded_user, "place_invalid"))
+
+
+def test_personal_places_create_full_payload(seeded_user):
+    response = _post_place(
+        seeded_user,
+        {
+            "name": "Full place",
+            "category": "shop",
+            "generalLocation": "district",
+            "landmark": "landmark",
+            "note": "note",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["name"] == "Full place"
+    assert body["data"]["category"] == "shop"
+    assert body["data"]["generalLocation"] == "district"
+    assert body["data"]["landmark"] == "landmark"
+    assert body["data"]["note"] == "note"
+
+
+def test_personal_places_create_minimal_payload(seeded_user):
+    response = _post_place(seeded_user, {"name": "Minimal"})
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["name"] == "Minimal"
+    assert body["data"]["category"] is None
+
+
+def test_personal_places_create_trims_and_preserves_limits(seeded_user):
+    response = _post_place(
+        seeded_user,
+        {
+            "name": "  Trimmed name  ",
+            "category": "  cat  ",
+            "generalLocation": "  loc  ",
+            "landmark": "  mark  ",
+            "note": "  note  ",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["name"] == "Trimmed name"
+    assert body["data"]["category"] == "cat"
+
+
+def test_personal_places_create_rejects_missing_name(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"category": "shop"}))
+
+
+def test_personal_places_create_rejects_empty_name(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"name": "   "}))
+
+
+def test_personal_places_create_rejects_too_long_name(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"name": "x" * 101}))
+
+
+def test_personal_places_create_rejects_invalid_optional_types(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "category": 1}))
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "note": []}))
+
+
+def test_personal_places_create_rejects_too_long_optional_fields(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "category": "x" * 101}))
+    _assert_validation_error(
+        _post_place(seeded_user, {"name": "X", "generalLocation": "x" * 201})
+    )
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "note": "x" * 501}))
+
+
+def test_personal_places_create_rejects_server_owned_keys(seeded_user):
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "id": "place_fake"}))
+    _assert_validation_error(_post_place(seeded_user, {"name": "X", "status": "active"}))
+
+
+def test_personal_places_create_response_never_contains_user_id(seeded_user):
+    response = _post_place(seeded_user)
+    serialized = response._body_text
+    assert "user_id" not in serialized
+    assert "userId" not in serialized
+
+
+def test_personal_places_update_full_replacement(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _put_place(
+        seeded_user,
+        place_id,
+        {
+            "name": "Updated",
+            "category": "new",
+            "generalLocation": "new loc",
+            "landmark": "new mark",
+            "note": "new note",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["name"] == "Updated"
+    assert body["data"]["category"] == "new"
+    assert body["data"]["generalLocation"] == "new loc"
+
+
+def test_personal_places_update_omitted_optionals_become_null(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _put_place(seeded_user, place_id, {"name": "Only name"})
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["name"] == "Only name"
+    assert body["data"]["category"] is None
+    assert body["data"]["generalLocation"] is None
+    assert body["data"]["landmark"] is None
+    assert body["data"]["note"] is None
+
+
+def test_personal_places_update_validation_failure_no_partial_write(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(_put_place(seeded_user, place_id, {"name": ""}))
+    body = response_json(_get_place(seeded_user, place_id))
+    assert body["data"]["name"] == "Company name"
+
+
+def test_personal_places_update_foreign_malformed_inactive_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    foreign_id = _create_place_for_user(PROFILE_USER_B)
+    _assert_not_found(_put_place(seeded_user, foreign_id, {"name": "Hack"}))
+    _assert_not_found(_put_place(seeded_user, "place_badid", {"name": "Hack"}))
+    own_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, own_id)
+    _assert_not_found(_put_place(seeded_user, own_id, {"name": "Again"}))
+
+
+def test_personal_places_deactivate_soft_delete(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _deactivate_place(seeded_user, place_id)
+    assert response.status == 200
+    assert response_json(response)["data"] == {}
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT status FROM personal_places WHERE public_id = ?",
+        (place_id,),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row["status"] == "inactive"
+
+
+def test_personal_places_deactivate_hidden_from_default_list(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, place_id)
+    assert response_json(_list_places(seeded_user))["data"]["places"] == []
+
+
+def test_personal_places_deactivate_visible_with_include_inactive(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, place_id)
+    places = response_json(_list_places(seeded_user, "?includeInactive=true"))["data"]["places"]
+    assert any(item["id"] == place_id and item["status"] == "inactive" for item in places)
+
+
+def test_personal_places_deactivate_repeat_without_idempotency_not_found(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    assert _deactivate_place(seeded_user, place_id).status == 200
+    _assert_not_found(_deactivate_place(seeded_user, place_id))
+
+
+def test_personal_places_deactivate_foreign_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    foreign_id = _create_place_for_user(PROFILE_USER_B)
+    _assert_not_found(_deactivate_place(seeded_user, foreign_id))
+
+
+def test_personal_places_deactivate_rejects_non_empty_body(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = api_request(
+        "POST",
+        f"/app/v1/personal-places/{place_id}/deactivate",
+        headers=_auth_headers(seeded_user),
+        data=b"{}",
+    )
+    _assert_validation_error(response)
+    body = response_json(_get_place(seeded_user, place_id))
+    assert body["data"]["status"] == "active"
+
+
+def test_personal_places_create_idempotency_replay(seeded_user):
+    first = _post_place(seeded_user, **{"Idempotency-Key": "place-create-1"})
+    second = _post_place(seeded_user, **{"Idempotency-Key": "place-create-1"})
+    assert first.status == 201
+    assert second.status == 201
+    first_id = response_json(first)["data"]["id"]
+    assert response_json(second)["data"]["id"] == first_id
+    conn = get_connection()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM personal_places WHERE user_id = ?",
+        (seeded_user,),
+    ).fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
+def test_personal_places_update_idempotency_replay(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    payload = {"name": "Replay name"}
+    first = _put_place(
+        seeded_user,
+        place_id,
+        payload,
+        **{"Idempotency-Key": "place-update-1"},
+    )
+    second = _put_place(
+        seeded_user,
+        place_id,
+        payload,
+        **{"Idempotency-Key": "place-update-1"},
+    )
+    assert first.status == 200
+    assert second.status == 200
+    assert response_json(first)["data"]["name"] == "Replay name"
+    assert response_json(second)["data"]["name"] == "Replay name"
+
+
+def test_personal_places_deactivate_idempotency_replay(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    first = _deactivate_place(
+        seeded_user,
+        place_id,
+        **{"Idempotency-Key": "place-deactivate-1"},
+    )
+    second = _deactivate_place(
+        seeded_user,
+        place_id,
+        **{"Idempotency-Key": "place-deactivate-1"},
+    )
+    assert first.status == 200
+    assert second.status == 200
+    assert response_json(first)["data"] == {}
+    assert response_json(second)["data"] == {}
+
+
+def test_personal_places_idempotency_replay_conflict(seeded_user):
+    first = _post_place(
+        seeded_user,
+        {"name": "First"},
+        **{"Idempotency-Key": "place-conflict-1"},
+    )
+    assert first.status == 201
+    conflict = _post_place(
+        seeded_user,
+        {"name": "Second"},
+        **{"Idempotency-Key": "place-conflict-1"},
+    )
+    body = response_json(conflict)
+    assert conflict.status == 409
+    assert body["error"]["code"] == "idempotency_replay"
+
+
+def test_personal_places_idempotency_isolated_between_users(seeded_user):
+    register_user(PROFILE_USER_B)
+    first = _post_place(
+        seeded_user,
+        {"name": "User A"},
+        **{"Idempotency-Key": "shared-place-key"},
+    )
+    second = _post_place(
+        PROFILE_USER_B,
+        {"name": "User B"},
+        **{"Idempotency-Key": "shared-place-key"},
+    )
+    assert first.status == 201
+    assert second.status == 201
+    assert response_json(first)["data"]["id"] != response_json(second)["data"]["id"]
+
+
+def test_cors_preflight_allows_put_method():
+    response = cors_request(
+        "OPTIONS",
+        "/app/v1/personal-places",
+        origin=PRODUCTION_FRONTEND_ORIGIN,
+    )
+    assert response.status == 200
+    assert "PUT" in response.headers.get("Access-Control-Allow-Methods", "")
+
+
+COMMISSION_OCCURRED_AT = "2026-08-15T10:00:00+05:00"
+COMMISSION_OCCURRED_AT_UTC = "2026-08-15T05:00:00Z"
+
+
+def _commission_payload(**overrides):
+    payload = {
+        "occurredAt": COMMISSION_OCCURRED_AT,
+        "purchaseAmountMinor": 10000,
+        "receivedIncomeMinor": 1000,
+        "receivedPoints": 5,
+        "currency": "USD",
+        "note": "Optional note",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _post_commission(user_id, place_id, payload=None, **header_overrides):
+    return api_request(
+        "POST",
+        f"/app/v1/personal-places/{place_id}/commissions",
+        headers=_auth_headers(user_id, **header_overrides),
+        json=payload if payload is not None else _commission_payload(),
+    )
+
+
+def _list_commissions(user_id, place_id, query=""):
+    return api_request(
+        "GET",
+        f"/app/v1/personal-places/{place_id}/commissions{query}",
+        headers=_auth_headers(user_id),
+    )
+
+
+def _get_commission(user_id, commission_id):
+    return api_request(
+        "GET",
+        f"/app/v1/personal-commissions/{commission_id}",
+        headers=_auth_headers(user_id),
+    )
+
+
+def _put_commission(user_id, commission_id, payload=None, **header_overrides):
+    return api_request(
+        "PUT",
+        f"/app/v1/personal-commissions/{commission_id}",
+        headers=_auth_headers(user_id, **header_overrides),
+        json=payload if payload is not None else _commission_payload(),
+    )
+
+
+def _deactivate_commission(user_id, commission_id, **header_overrides):
+    return api_request(
+        "POST",
+        f"/app/v1/personal-commissions/{commission_id}/deactivate",
+        headers=_auth_headers(user_id, **header_overrides),
+    )
+
+
+def _create_commission_for_user(user_id, place_id=None, **payload_overrides):
+    if place_id is None:
+        place_id = _create_place_for_user(user_id)
+    response = _post_commission(user_id, place_id, _commission_payload(**payload_overrides))
+    body = response_json(response)
+    assert response.status == 201, body
+    return place_id, body["data"]["id"]
+
+
+def _assert_personal_commission_routes(app):
+    routes = {(route.method, route.resource.canonical) for route in app.router.routes()}
+    assert ("GET", "/app/v1/personal-places/{placeId}/commissions") in routes
+    assert ("POST", "/app/v1/personal-places/{placeId}/commissions") in routes
+    assert ("GET", "/app/v1/personal-commissions/{commissionId}") in routes
+    assert ("PUT", "/app/v1/personal-commissions/{commissionId}") in routes
+    assert ("POST", "/app/v1/personal-commissions/{commissionId}/deactivate") in routes
+
+
+def test_personal_commissions_routes_registered_on_create_miniapp_api_app():
+    _assert_personal_commission_routes(create_miniapp_api_app(_settings()))
+
+
+def test_personal_commissions_routes_registered_on_miniapp_app():
+    from aiohttp import web
+
+    app = web.Application()
+    register_miniapp_api_on_app(app, _settings())
+    _assert_personal_commission_routes(app)
+
+
+def test_personal_commissions_auth_required_for_all_endpoints():
+    place_id = "place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    commission_id = "entry_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    endpoints = [
+        ("GET", f"/app/v1/personal-places/{place_id}/commissions"),
+        (
+            "POST",
+            f"/app/v1/personal-places/{place_id}/commissions",
+            {"json": _commission_payload()},
+        ),
+        ("GET", f"/app/v1/personal-commissions/{commission_id}"),
+        (
+            "PUT",
+            f"/app/v1/personal-commissions/{commission_id}",
+            {"json": _commission_payload()},
+        ),
+        ("POST", f"/app/v1/personal-commissions/{commission_id}/deactivate"),
+    ]
+    for method, path, *extra in endpoints:
+        kwargs = extra[0] if extra else {}
+        response = api_request(method, path, **kwargs)
+        body = response_json(response)
+        assert response.status == 401
+        assert body["error"]["code"] == "auth_required"
+
+
+def test_personal_commissions_create_rejects_owner_override(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            _commission_payload(userId=PROFILE_USER_B, receivedPoints=1, purchaseAmountMinor=None, receivedIncomeMinor=None, currency=None),
+        )
+    )
+
+
+def test_personal_commissions_list_empty(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _list_commissions(seeded_user, place_id)
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["commissions"] == []
+
+
+def test_personal_commissions_list_active_only_by_default(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    _deactivate_commission(seeded_user, commission_id)
+    body = response_json(_list_commissions(seeded_user, place_id))
+    assert body["data"]["commissions"] == []
+
+
+def test_personal_commissions_list_include_inactive_true(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    _deactivate_commission(seeded_user, commission_id)
+    body = response_json(_list_commissions(seeded_user, place_id, "?includeInactive=true"))
+    assert len(body["data"]["commissions"]) == 1
+    assert body["data"]["commissions"][0]["id"] == commission_id
+    assert body["data"]["commissions"][0]["status"] == "inactive"
+
+
+def test_personal_commissions_list_include_inactive_false(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    body = response_json(_list_commissions(seeded_user, place_id, "?includeInactive=false"))
+    assert len(body["data"]["commissions"]) == 1
+    assert body["data"]["commissions"][0]["id"] == commission_id
+
+
+def test_personal_commissions_list_rejects_invalid_include_inactive(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(_list_commissions(seeded_user, place_id, "?includeInactive=yes"))
+    _assert_validation_error(
+        _list_commissions(seeded_user, place_id, "?includeInactive=true&includeInactive=false")
+    )
+
+
+def test_personal_commissions_get_returns_camel_case_dto(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    response = _get_commission(seeded_user, commission_id)
+    body = response_json(response)
+    assert response.status == 200
+    item = body["data"]
+    assert item["id"] == commission_id
+    assert item["placeId"] == place_id
+    assert item["occurredAt"] == COMMISSION_OCCURRED_AT_UTC
+    assert item["purchaseAmountMinor"] == 10000
+    assert item["receivedIncomeMinor"] == 1000
+    assert item["receivedPoints"] == 5
+    assert item["currency"] == "USD"
+    assert item["note"] == "Optional note"
+    assert item["status"] == "active"
+    assert "createdAt" in item
+    assert "updatedAt" in item
+    assert "user_id" not in item
+    assert "userId" not in item
+
+
+def test_personal_commissions_owner_can_read_inactive(seeded_user):
+    _, commission_id = _create_commission_for_user(seeded_user)
+    _deactivate_commission(seeded_user, commission_id)
+    response = _get_commission(seeded_user, commission_id)
+    assert response.status == 200
+    assert response_json(response)["data"]["status"] == "inactive"
+
+
+def test_personal_commissions_get_foreign_and_malformed_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    _, foreign_id = _create_commission_for_user(PROFILE_USER_B)
+    _assert_not_found(_get_commission(seeded_user, foreign_id))
+    _assert_not_found(_get_commission(seeded_user, "entry_invalid"))
+    _assert_not_found(_get_commission(seeded_user, "not-an-id"))
+
+
+def test_personal_commissions_list_foreign_or_malformed_parent_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    foreign_place = _create_place_for_user(PROFILE_USER_B)
+    _assert_not_found(_list_commissions(seeded_user, foreign_place))
+    _assert_not_found(_list_commissions(seeded_user, "place_bad"))
+
+
+def test_personal_commissions_create_full_payload(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _post_commission(seeded_user, place_id)
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["placeId"] == place_id
+    assert body["data"]["occurredAt"] == COMMISSION_OCCURRED_AT_UTC
+    assert body["data"]["currency"] == "USD"
+
+
+def test_personal_commissions_create_points_only(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _post_commission(
+        seeded_user,
+        place_id,
+        {
+            "occurredAt": COMMISSION_OCCURRED_AT,
+            "receivedPoints": 3,
+        },
+    )
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["receivedPoints"] == 3
+    assert body["data"]["currency"] is None
+    assert body["data"]["purchaseAmountMinor"] is None
+
+
+def test_personal_commissions_create_income_only_with_currency(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _post_commission(
+        seeded_user,
+        place_id,
+        {
+            "occurredAt": COMMISSION_OCCURRED_AT,
+            "receivedIncomeMinor": 500,
+            "currency": "uzs",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["receivedIncomeMinor"] == 500
+    assert body["data"]["currency"] == "UZS"
+
+
+def test_personal_commissions_create_purchase_only_with_currency(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _post_commission(
+        seeded_user,
+        place_id,
+        {
+            "occurredAt": COMMISSION_OCCURRED_AT,
+            "purchaseAmountMinor": 2500,
+            "currency": "USD",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 201
+    assert body["data"]["purchaseAmountMinor"] == 2500
+    assert body["data"]["currency"] == "USD"
+
+
+def test_personal_commissions_create_rejects_invalid_timestamps(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    for bad in ("2026-09-02", "2026-09-02T00:00:00", "invalid", None, 123):
+        payload = _commission_payload(receivedPoints=1, purchaseAmountMinor=None, receivedIncomeMinor=None, currency=None)
+        payload["occurredAt"] = bad
+        _assert_validation_error(_post_commission(seeded_user, place_id, payload))
+
+
+def test_personal_commissions_create_rejects_future_timestamp(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {
+                "occurredAt": "2099-01-01T00:00:00Z",
+                "receivedPoints": 1,
+            },
+        )
+    )
+
+
+def test_personal_commissions_create_rejects_invalid_money_and_points(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    for field, value in (
+        ("purchaseAmountMinor", True),
+        ("purchaseAmountMinor", 1.5),
+        ("purchaseAmountMinor", "10"),
+        ("purchaseAmountMinor", []),
+        ("receivedIncomeMinor", {}),
+        ("receivedPoints", 0),
+        ("receivedPoints", -1),
+        ("receivedPoints", True),
+        ("receivedPoints", "5"),
+    ):
+        payload = _commission_payload(receivedPoints=1, purchaseAmountMinor=None, receivedIncomeMinor=None, currency=None)
+        payload[field] = value
+        _assert_validation_error(_post_commission(seeded_user, place_id, payload))
+
+
+def test_personal_commissions_create_rejects_currency_and_empty_outcome(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1, "currency": "USD"},
+        )
+    )
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "purchaseAmountMinor": 10},
+        )
+    )
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "purchaseAmountMinor": 10, "currency": "ZZZ"},
+        )
+    )
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT},
+        )
+    )
+
+
+def test_personal_commissions_create_rejects_note_limit_and_server_keys(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1, "note": "x" * 501},
+        )
+    )
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            _commission_payload(id="entry_fake", receivedPoints=1, purchaseAmountMinor=None, receivedIncomeMinor=None, currency=None),
+        )
+    )
+    _assert_validation_error(
+        _post_commission(
+            seeded_user,
+            place_id,
+            _commission_payload(placeId=place_id, receivedPoints=1, purchaseAmountMinor=None, receivedIncomeMinor=None, currency=None),
+        )
+    )
+
+
+def test_personal_commissions_create_inactive_missing_foreign_parent_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    place_id = _create_place_for_user(seeded_user)
+    _deactivate_place(seeded_user, place_id)
+    _assert_not_found(
+        _post_commission(
+            seeded_user,
+            place_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+    foreign_place = _create_place_for_user(PROFILE_USER_B)
+    _assert_not_found(
+        _post_commission(
+            seeded_user,
+            foreign_place,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+    _assert_not_found(
+        _post_commission(
+            seeded_user,
+            "place_not_a_valid_hex_place_id_here",
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+
+
+def test_personal_commissions_create_response_never_contains_user_id(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    response = _post_commission(
+        seeded_user,
+        place_id,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+    )
+    assert "user_id" not in response._body_text
+    assert "userId" not in response._body_text
+
+
+def test_personal_commissions_update_full_replacement(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    response = _put_commission(
+        seeded_user,
+        commission_id,
+        {
+            "occurredAt": COMMISSION_OCCURRED_AT,
+            "receivedPoints": 9,
+            "note": "Updated",
+        },
+    )
+    body = response_json(response)
+    assert response.status == 200
+    assert body["data"]["receivedPoints"] == 9
+    assert body["data"]["note"] == "Updated"
+    assert body["data"]["purchaseAmountMinor"] is None
+    assert body["data"]["currency"] is None
+    assert body["data"]["placeId"] == place_id
+
+
+def test_personal_commissions_update_validation_failure_no_partial_write(seeded_user):
+    _, commission_id = _create_commission_for_user(seeded_user)
+    before = response_json(_get_commission(seeded_user, commission_id))["data"]
+    _assert_validation_error(
+        _put_commission(
+            seeded_user,
+            commission_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT},
+        )
+    )
+    after = response_json(_get_commission(seeded_user, commission_id))["data"]
+    assert after == before
+
+
+def test_personal_commissions_update_foreign_malformed_inactive_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    _, foreign_id = _create_commission_for_user(PROFILE_USER_B)
+    _assert_not_found(
+        _put_commission(
+            seeded_user,
+            foreign_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+    _assert_not_found(
+        _put_commission(
+            seeded_user,
+            "entry_bad",
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+    _, own_id = _create_commission_for_user(seeded_user)
+    _deactivate_commission(seeded_user, own_id)
+    _assert_not_found(
+        _put_commission(
+            seeded_user,
+            own_id,
+            {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        )
+    )
+
+
+def test_personal_commissions_deactivate_soft_delete_and_visibility(seeded_user):
+    place_id, commission_id = _create_commission_for_user(seeded_user)
+    response = _deactivate_commission(seeded_user, commission_id)
+    assert response.status == 200
+    assert response_json(response)["data"] == {}
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT status FROM personal_place_entries WHERE public_id = ?",
+        (commission_id,),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row["status"] == "inactive"
+    assert response_json(_list_commissions(seeded_user, place_id))["data"]["commissions"] == []
+    places = response_json(
+        _list_commissions(seeded_user, place_id, "?includeInactive=true")
+    )["data"]["commissions"]
+    assert any(item["id"] == commission_id and item["status"] == "inactive" for item in places)
+    assert response_json(_get_commission(seeded_user, commission_id))["data"]["status"] == "inactive"
+
+
+def test_personal_commissions_deactivate_repeat_and_foreign_not_found(seeded_user):
+    register_user(PROFILE_USER_B)
+    _, commission_id = _create_commission_for_user(seeded_user)
+    assert _deactivate_commission(seeded_user, commission_id).status == 200
+    _assert_not_found(_deactivate_commission(seeded_user, commission_id))
+    _, foreign_id = _create_commission_for_user(PROFILE_USER_B)
+    _assert_not_found(_deactivate_commission(seeded_user, foreign_id))
+
+
+def test_personal_commissions_deactivate_rejects_non_empty_body(seeded_user):
+    _, commission_id = _create_commission_for_user(seeded_user)
+    response = api_request(
+        "POST",
+        f"/app/v1/personal-commissions/{commission_id}/deactivate",
+        headers=_auth_headers(seeded_user),
+        data=b"{}",
+    )
+    _assert_validation_error(response)
+    assert response_json(_get_commission(seeded_user, commission_id))["data"]["status"] == "active"
+
+
+def test_personal_commissions_create_idempotency_replay(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    first = _post_commission(
+        seeded_user,
+        place_id,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 2},
+        **{"Idempotency-Key": "commission-create-1"},
+    )
+    second = _post_commission(
+        seeded_user,
+        place_id,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 2},
+        **{"Idempotency-Key": "commission-create-1"},
+    )
+    assert first.status == 201
+    assert second.status == 201
+    first_id = response_json(first)["data"]["id"]
+    assert response_json(second)["data"]["id"] == first_id
+    conn = get_connection()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM personal_place_entries WHERE user_id = ?",
+        (seeded_user,),
+    ).fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
+def test_personal_commissions_update_idempotency_replay(seeded_user):
+    _, commission_id = _create_commission_for_user(seeded_user)
+    payload = {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 8}
+    first = _put_commission(
+        seeded_user,
+        commission_id,
+        payload,
+        **{"Idempotency-Key": "commission-update-1"},
+    )
+    second = _put_commission(
+        seeded_user,
+        commission_id,
+        payload,
+        **{"Idempotency-Key": "commission-update-1"},
+    )
+    assert first.status == 200
+    assert second.status == 200
+    assert response_json(first)["data"]["receivedPoints"] == 8
+    assert response_json(second)["data"]["receivedPoints"] == 8
+
+
+def test_personal_commissions_deactivate_idempotency_replay(seeded_user):
+    _, commission_id = _create_commission_for_user(seeded_user)
+    first = _deactivate_commission(
+        seeded_user,
+        commission_id,
+        **{"Idempotency-Key": "commission-deactivate-1"},
+    )
+    second = _deactivate_commission(
+        seeded_user,
+        commission_id,
+        **{"Idempotency-Key": "commission-deactivate-1"},
+    )
+    assert first.status == 200
+    assert second.status == 200
+    assert response_json(first)["data"] == {}
+    assert response_json(second)["data"] == {}
+
+
+def test_personal_commissions_idempotency_replay_conflict(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    first = _post_commission(
+        seeded_user,
+        place_id,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        **{"Idempotency-Key": "commission-conflict-1"},
+    )
+    assert first.status == 201
+    conflict = _post_commission(
+        seeded_user,
+        place_id,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 2},
+        **{"Idempotency-Key": "commission-conflict-1"},
+    )
+    body = response_json(conflict)
+    assert conflict.status == 409
+    assert body["error"]["code"] == "idempotency_replay"
+
+
+def test_personal_commissions_idempotency_isolated_between_users(seeded_user):
+    register_user(PROFILE_USER_B)
+    place_a = _create_place_for_user(seeded_user)
+    place_b = _create_place_for_user(PROFILE_USER_B)
+    first = _post_commission(
+        seeded_user,
+        place_a,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        **{"Idempotency-Key": "shared-commission-key"},
+    )
+    second = _post_commission(
+        PROFILE_USER_B,
+        place_b,
+        {"occurredAt": COMMISSION_OCCURRED_AT, "receivedPoints": 1},
+        **{"Idempotency-Key": "shared-commission-key"},
+    )
+    assert first.status == 201
+    assert second.status == 201
+    assert response_json(first)["data"]["id"] != response_json(second)["data"]["id"]
 
 
 PRODUCTION_FRONTEND_ORIGIN = "https://guide-os-miniapp.example"
