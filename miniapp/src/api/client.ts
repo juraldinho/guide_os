@@ -5,6 +5,12 @@ import type {
   DayOffFormValues,
   GuideProfile,
   GuideProfilePatch,
+  ListPersonalCommissionsOptions,
+  ListPersonalPlacesOptions,
+  PersonalCommission,
+  PersonalCommissionInput,
+  PersonalPlace,
+  PersonalPlaceInput,
   ReportsSummary,
   ReportsSummaryParams,
   TourFormValues,
@@ -26,4 +32,23 @@ export interface GuideOsClient {
   updateProfile(patch: GuideProfilePatch): Promise<GuideProfile>;
   getReportsSummary(params: ReportsSummaryParams): Promise<ReportsSummary>;
   previewAvailability(params: AvailabilityPreviewParams): Promise<AvailabilityPreview>;
+  listPersonalPlaces(options?: ListPersonalPlacesOptions): Promise<PersonalPlace[]>;
+  getPersonalPlace(id: string): Promise<PersonalPlace | null>;
+  createPersonalPlace(input: PersonalPlaceInput): Promise<PersonalPlace>;
+  updatePersonalPlace(id: string, input: PersonalPlaceInput): Promise<PersonalPlace>;
+  deactivatePersonalPlace(id: string): Promise<void>;
+  listPersonalCommissions(
+    placeId: string,
+    options?: ListPersonalCommissionsOptions,
+  ): Promise<PersonalCommission[]>;
+  getPersonalCommission(id: string): Promise<PersonalCommission | null>;
+  createPersonalCommission(
+    placeId: string,
+    input: PersonalCommissionInput,
+  ): Promise<PersonalCommission>;
+  updatePersonalCommission(
+    id: string,
+    input: PersonalCommissionInput,
+  ): Promise<PersonalCommission>;
+  deactivatePersonalCommission(id: string): Promise<void>;
 }

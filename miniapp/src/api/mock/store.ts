@@ -6,6 +6,12 @@ import type {
   GuideProfile,
   GuideProfilePatch,
   GuideTypeCode,
+  ListPersonalCommissionsOptions,
+  ListPersonalPlacesOptions,
+  PersonalCommission,
+  PersonalCommissionInput,
+  PersonalPlace,
+  PersonalPlaceInput,
   ReportsSummaryParams,
   TourFormValues,
 } from '../types';
@@ -19,6 +25,89 @@ const MOCK_GUIDE_TYPE_LABELS: Record<GuideTypeCode, string> = {
   accompanying: 'Сопровождающий гид',
 };
 
+const PLACE_A = 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const PLACE_B = 'place_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+const INITIAL_PERSONAL_PLACES: PersonalPlace[] = [
+  {
+    id: PLACE_A,
+    name: 'Бухара Арт',
+    category: 'Магазин',
+    generalLocation: 'Бухара',
+    landmark: 'Рядом с Ляби-Хауз',
+    note: 'Личная компания для учёта комиссий',
+    status: 'active',
+    createdAt: '2026-08-01T10:00:00Z',
+    updatedAt: '2026-08-01T10:00:00Z',
+  },
+  {
+    id: PLACE_B,
+    name: 'Restaurant Platan',
+    category: 'Ресторан',
+    generalLocation: 'Самарканд',
+    landmark: null,
+    note: null,
+    status: 'active',
+    createdAt: '2026-08-02T10:00:00Z',
+    updatedAt: '2026-08-02T10:00:00Z',
+  },
+];
+
+const INITIAL_PERSONAL_COMMISSIONS: PersonalCommission[] = [
+  {
+    id: 'entry_11111111111111111111111111111111',
+    placeId: PLACE_A,
+    occurredAt: '2026-08-10T05:00:00Z',
+    purchaseAmountMinor: 10000,
+    receivedIncomeMinor: 12500,
+    receivedPoints: null,
+    currency: 'USD',
+    note: 'USD комиссия',
+    status: 'active',
+    createdAt: '2026-08-10T06:00:00Z',
+    updatedAt: '2026-08-10T06:00:00Z',
+  },
+  {
+    id: 'entry_22222222222222222222222222222222',
+    placeId: PLACE_A,
+    occurredAt: '2026-08-12T05:00:00Z',
+    purchaseAmountMinor: 50000000,
+    receivedIncomeMinor: 50000000,
+    receivedPoints: null,
+    currency: 'UZS',
+    note: 'UZS комиссия',
+    status: 'active',
+    createdAt: '2026-08-12T06:00:00Z',
+    updatedAt: '2026-08-12T06:00:00Z',
+  },
+  {
+    id: 'entry_33333333333333333333333333333333',
+    placeId: PLACE_B,
+    occurredAt: '2026-08-14T05:00:00Z',
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: null,
+    receivedPoints: 25,
+    currency: null,
+    note: 'Только баллы',
+    status: 'active',
+    createdAt: '2026-08-14T06:00:00Z',
+    updatedAt: '2026-08-14T06:00:00Z',
+  },
+  {
+    id: 'entry_44444444444444444444444444444444',
+    placeId: PLACE_A,
+    occurredAt: '2026-08-05T05:00:00Z',
+    purchaseAmountMinor: null,
+    receivedIncomeMinor: 100,
+    receivedPoints: null,
+    currency: 'USD',
+    note: 'Неактивная запись',
+    status: 'inactive',
+    createdAt: '2026-08-05T06:00:00Z',
+    updatedAt: '2026-08-05T07:00:00Z',
+  },
+];
+
 function cloneProfile(source: GuideProfile): GuideProfile {
   return {
     ...source,
@@ -28,9 +117,25 @@ function cloneProfile(source: GuideProfile): GuideProfile {
   };
 }
 
+function clonePlace(place: PersonalPlace): PersonalPlace {
+  return { ...place };
+}
+
+function cloneCommission(item: PersonalCommission): PersonalCommission {
+  return { ...item };
+}
+
+function utcNow(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 let nextId = 10;
+let nextPlaceSeq = 12;
+let nextCommissionSeq = 20;
 const entries: CalendarEntry[] = INITIAL_ENTRIES.map((e) => ({ ...e }));
 let profile: GuideProfile = cloneProfile(MOCK_PROFILE);
+let personalPlaces: PersonalPlace[] = INITIAL_PERSONAL_PLACES.map(clonePlace);
+let personalCommissions: PersonalCommission[] = INITIAL_PERSONAL_COMMISSIONS.map(cloneCommission);
 
 function tourFromForm(form: TourFormValues): Omit<CalendarEntry, 'id'> {
   return {
@@ -48,6 +153,18 @@ function tourFromForm(form: TourFormValues): Omit<CalendarEntry, 'id'> {
     note: form.note,
     source: 'Mini App',
   };
+}
+
+function nextPlaceId(): string {
+  const hex = nextPlaceSeq.toString(16).padStart(32, 'c');
+  nextPlaceSeq += 1;
+  return `place_${hex}`;
+}
+
+function nextCommissionId(): string {
+  const hex = nextCommissionSeq.toString(16).padStart(32, 'e');
+  nextCommissionSeq += 1;
+  return `entry_${hex}`;
 }
 
 export const mockClient: GuideOsClient = {
@@ -138,6 +255,116 @@ export const mockClient: GuideOsClient = {
   async previewAvailability(params: AvailabilityPreviewParams) {
     return buildAvailabilityPreview(entries, params.from, params.to);
   },
+
+  async listPersonalPlaces(options?: ListPersonalPlacesOptions) {
+    const includeInactive = options?.includeInactive === true;
+    return personalPlaces
+      .filter((place) => includeInactive || place.status === 'active')
+      .map(clonePlace);
+  },
+
+  async getPersonalPlace(id: string) {
+    const place = personalPlaces.find((item) => item.id === id);
+    return place ? clonePlace(place) : null;
+  },
+
+  async createPersonalPlace(input: PersonalPlaceInput) {
+    const now = utcNow();
+    const place: PersonalPlace = {
+      id: nextPlaceId(),
+      name: input.name,
+      category: input.category,
+      generalLocation: input.generalLocation,
+      landmark: input.landmark,
+      note: input.note,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    personalPlaces.push(place);
+    return clonePlace(place);
+  },
+
+  async updatePersonalPlace(id: string, input: PersonalPlaceInput) {
+    const idx = personalPlaces.findIndex((item) => item.id === id && item.status === 'active');
+    if (idx < 0) throw new Error('Personal place not found');
+    personalPlaces[idx] = {
+      ...personalPlaces[idx],
+      name: input.name,
+      category: input.category,
+      generalLocation: input.generalLocation,
+      landmark: input.landmark,
+      note: input.note,
+      updatedAt: utcNow(),
+    };
+    return clonePlace(personalPlaces[idx]);
+  },
+
+  async deactivatePersonalPlace(id: string) {
+    const place = personalPlaces.find((item) => item.id === id && item.status === 'active');
+    if (!place) throw new Error('Personal place not found');
+    place.status = 'inactive';
+    place.updatedAt = utcNow();
+  },
+
+  async listPersonalCommissions(placeId: string, options?: ListPersonalCommissionsOptions) {
+    const includeInactive = options?.includeInactive === true;
+    return personalCommissions
+      .filter((item) => item.placeId === placeId)
+      .filter((item) => includeInactive || item.status === 'active')
+      .map(cloneCommission);
+  },
+
+  async getPersonalCommission(id: string) {
+    const item = personalCommissions.find((entry) => entry.id === id);
+    return item ? cloneCommission(item) : null;
+  },
+
+  async createPersonalCommission(placeId: string, input: PersonalCommissionInput) {
+    const parent = personalPlaces.find((place) => place.id === placeId && place.status === 'active');
+    if (!parent) throw new Error('Personal place not found');
+    const now = utcNow();
+    const created: PersonalCommission = {
+      id: nextCommissionId(),
+      placeId,
+      occurredAt: input.occurredAt,
+      purchaseAmountMinor: input.purchaseAmountMinor,
+      receivedIncomeMinor: input.receivedIncomeMinor,
+      receivedPoints: input.receivedPoints,
+      currency: input.currency,
+      note: input.note,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    personalCommissions.push(created);
+    return cloneCommission(created);
+  },
+
+  async updatePersonalCommission(id: string, input: PersonalCommissionInput) {
+    const idx = personalCommissions.findIndex(
+      (item) => item.id === id && item.status === 'active',
+    );
+    if (idx < 0) throw new Error('Personal commission not found');
+    personalCommissions[idx] = {
+      ...personalCommissions[idx],
+      occurredAt: input.occurredAt,
+      purchaseAmountMinor: input.purchaseAmountMinor,
+      receivedIncomeMinor: input.receivedIncomeMinor,
+      receivedPoints: input.receivedPoints,
+      currency: input.currency,
+      note: input.note,
+      updatedAt: utcNow(),
+    };
+    return cloneCommission(personalCommissions[idx]);
+  },
+
+  async deactivatePersonalCommission(id: string) {
+    const item = personalCommissions.find((entry) => entry.id === id && entry.status === 'active');
+    if (!item) throw new Error('Personal commission not found');
+    item.status = 'inactive';
+    item.updatedAt = utcNow();
+  },
 };
 
 /** Test-only access to in-memory entries */
@@ -145,9 +372,23 @@ export function __testEntries(): CalendarEntry[] {
   return entries;
 }
 
+/** Test-only access to in-memory personal places */
+export function __testPersonalPlaces(): PersonalPlace[] {
+  return personalPlaces;
+}
+
+/** Test-only access to in-memory personal commissions */
+export function __testPersonalCommissions(): PersonalCommission[] {
+  return personalCommissions;
+}
+
 export function __resetMockStore() {
   entries.length = 0;
   entries.push(...INITIAL_ENTRIES.map((e) => ({ ...e })));
   nextId = 10;
+  nextPlaceSeq = 12;
+  nextCommissionSeq = 20;
   profile = cloneProfile(MOCK_PROFILE);
+  personalPlaces = INITIAL_PERSONAL_PLACES.map(clonePlace);
+  personalCommissions = INITIAL_PERSONAL_COMMISSIONS.map(cloneCommission);
 }

@@ -471,3 +471,299 @@ describe('CalendarContext saveProfessionalProfile', () => {
     expect(ctx!.profile).toEqual(snapshot);
   });
 });
+
+describe('personal places HTTP client', () => {
+  const place = {
+    id: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    name: 'Бухара Арт',
+    category: 'Магазин',
+    generalLocation: 'Бухара',
+    landmark: null,
+    note: null,
+    status: 'active' as const,
+    createdAt: '2026-08-01T10:00:00Z',
+    updatedAt: '2026-08-01T10:00:00Z',
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists personal places from /app/v1/personal-places', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { places: [place] } }));
+
+    const places = await createHttpClient().listPersonalPlaces();
+
+    expect(places).toEqual([place]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/app/v1/personal-places');
+  });
+
+  it('lists with includeInactive=true exact query', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { places: [place] } }));
+
+    await createHttpClient().listPersonalPlaces({ includeInactive: true });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/app/v1/personal-places?includeInactive=true',
+    );
+  });
+
+  it('gets personal place with encoded id', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: place }));
+
+    const result = await createHttpClient().getPersonalPlace(place.id);
+
+    expect(result).toEqual(place);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(place.id)}`,
+    );
+  });
+
+  it('returns null only on not_found for getPersonalPlace', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'not_found', message: 'missing' } }, 404),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'auth_required', message: 'auth' } }, 401),
+      );
+
+    await expect(createHttpClient().getPersonalPlace(place.id)).resolves.toBeNull();
+    await expect(createHttpClient().getPersonalPlace(place.id)).rejects.toMatchObject({
+      code: 'auth_required',
+    });
+  });
+
+  it('creates personal place with POST body and Idempotency-Key', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: place }, 201));
+
+    const input = {
+      name: 'Бухара Арт',
+      category: 'Магазин',
+      generalLocation: 'Бухара',
+      landmark: null,
+      note: null,
+    };
+    await createHttpClient().createPersonalPlace(input);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual(input);
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('id');
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('status');
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('userId');
+  });
+
+  it('updates personal place with PUT complete body and Idempotency-Key', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: place }));
+
+    const input = {
+      name: 'Updated',
+      category: null,
+      generalLocation: null,
+      landmark: null,
+      note: null,
+    };
+    await createHttpClient().updatePersonalPlace(place.id, input);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('PUT');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(place.id)}`,
+    );
+    expect(JSON.parse(String(init?.body))).toEqual(input);
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+  });
+
+  it('deactivates personal place with POST, Idempotency-Key, and no body', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: {} }));
+
+    await createHttpClient().deactivatePersonalPlace(place.id);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('POST');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(place.id)}/deactivate`,
+    );
+    expect(init?.body).toBeUndefined();
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+  });
+});
+
+describe('httpClient personal commissions', () => {
+  const commission = {
+    id: 'entry_11111111111111111111111111111111',
+    placeId: 'place_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    occurredAt: '2026-08-10T05:00:00Z',
+    purchaseAmountMinor: 10000,
+    receivedIncomeMinor: 1000,
+    receivedPoints: 5,
+    currency: 'USD',
+    note: 'note',
+    status: 'active' as const,
+    createdAt: '2026-08-10T06:00:00Z',
+    updatedAt: '2026-08-10T06:00:00Z',
+  };
+
+  beforeEach(() => {
+    __testClearSession();
+    __resetMockStore();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists commissions from nested encoded place path', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { commissions: [commission] } }));
+
+    const list = await createHttpClient().listPersonalCommissions(commission.placeId);
+
+    expect(list).toEqual([commission]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(commission.placeId)}/commissions`,
+    );
+  });
+
+  it('lists with includeInactive=true exact query', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { commissions: [commission] } }));
+
+    await createHttpClient().listPersonalCommissions(commission.placeId, {
+      includeInactive: true,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(commission.placeId)}/commissions?includeInactive=true`,
+    );
+  });
+
+  it('gets commission with encoded id', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: commission }));
+
+    const result = await createHttpClient().getPersonalCommission(commission.id);
+
+    expect(result).toEqual(commission);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-commissions/${encodeURIComponent(commission.id)}`,
+    );
+  });
+
+  it('returns null only on not_found for getPersonalCommission', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'not_found', message: 'missing' } }, 404),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'auth_required', message: 'auth' } }, 401),
+      );
+
+    await expect(createHttpClient().getPersonalCommission(commission.id)).resolves.toBeNull();
+    await expect(createHttpClient().getPersonalCommission(commission.id)).rejects.toMatchObject({
+      code: 'auth_required',
+    });
+  });
+
+  it('creates commission with POST body and Idempotency-Key', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: commission }, 201));
+
+    const input = {
+      occurredAt: '2026-08-10T00:00:00+05:00',
+      purchaseAmountMinor: 10000,
+      receivedIncomeMinor: 1000,
+      receivedPoints: 5,
+      currency: 'USD',
+      note: 'note',
+    };
+    await createHttpClient().createPersonalCommission(commission.placeId, input);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('POST');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-places/${encodeURIComponent(commission.placeId)}/commissions`,
+    );
+    expect(JSON.parse(String(init?.body))).toEqual(input);
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('id');
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('status');
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('userId');
+  });
+
+  it('updates commission with PUT complete body and Idempotency-Key', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: commission }));
+
+    const input = {
+      occurredAt: '2026-08-10T00:00:00+05:00',
+      purchaseAmountMinor: null,
+      receivedIncomeMinor: null,
+      receivedPoints: 9,
+      currency: null,
+      note: null,
+    };
+    await createHttpClient().updatePersonalCommission(commission.id, input);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('PUT');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-commissions/${encodeURIComponent(commission.id)}`,
+    );
+    expect(JSON.parse(String(init?.body))).toEqual(input);
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+  });
+
+  it('deactivates commission with POST, Idempotency-Key, and no body', async () => {
+    __testSetSessionToken('tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: {} }));
+
+    await createHttpClient().deactivatePersonalCommission(commission.id);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = init?.headers as Headers;
+    expect(init?.method).toBe('POST');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/app/v1/personal-commissions/${encodeURIComponent(commission.id)}/deactivate`,
+    );
+    expect(init?.body).toBeUndefined();
+    expect(headers.get('Idempotency-Key')).toBeTruthy();
+  });
+});

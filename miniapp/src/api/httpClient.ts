@@ -12,6 +12,12 @@ import type {
   DayOffFormValues,
   GuideProfile,
   GuideProfilePatch,
+  ListPersonalCommissionsOptions,
+  ListPersonalPlacesOptions,
+  PersonalCommission,
+  PersonalCommissionInput,
+  PersonalPlace,
+  PersonalPlaceInput,
   ReportsSummary,
   ReportsSummaryParams,
   TourFormValues,
@@ -322,6 +328,105 @@ export function createHttpClient(): GuideOsClient {
           format: params.format ?? 'text',
         }),
       });
+    },
+
+    async listPersonalPlaces(options?: ListPersonalPlacesOptions) {
+      const path =
+        options?.includeInactive === true
+          ? '/app/v1/personal-places?includeInactive=true'
+          : '/app/v1/personal-places';
+      const data = await apiRequest<{ places: PersonalPlace[] }>(path);
+      return data.places;
+    },
+
+    async getPersonalPlace(id: string) {
+      try {
+        return await apiRequest<PersonalPlace>(
+          `/app/v1/personal-places/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async createPersonalPlace(input: PersonalPlaceInput) {
+      return apiRequest<PersonalPlace>('/app/v1/personal-places', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': newIdempotencyKey() },
+        body: JSON.stringify(input),
+      });
+    },
+
+    async updatePersonalPlace(id: string, input: PersonalPlaceInput) {
+      return apiRequest<PersonalPlace>(
+        `/app/v1/personal-places/${encodeURIComponent(id)}`,
+        {
+          method: 'PUT',
+          headers: { 'Idempotency-Key': newIdempotencyKey() },
+          body: JSON.stringify(input),
+        },
+      );
+    },
+
+    async deactivatePersonalPlace(id: string) {
+      await apiRequest<Record<string, never>>(
+        `/app/v1/personal-places/${encodeURIComponent(id)}/deactivate`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': newIdempotencyKey() },
+        },
+      );
+    },
+
+    async listPersonalCommissions(placeId: string, options?: ListPersonalCommissionsOptions) {
+      const base = `/app/v1/personal-places/${encodeURIComponent(placeId)}/commissions`;
+      const path = options?.includeInactive === true ? `${base}?includeInactive=true` : base;
+      const data = await apiRequest<{ commissions: PersonalCommission[] }>(path);
+      return data.commissions;
+    },
+
+    async getPersonalCommission(id: string) {
+      try {
+        return await apiRequest<PersonalCommission>(
+          `/app/v1/personal-commissions/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async createPersonalCommission(placeId: string, input: PersonalCommissionInput) {
+      return apiRequest<PersonalCommission>(
+        `/app/v1/personal-places/${encodeURIComponent(placeId)}/commissions`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': newIdempotencyKey() },
+          body: JSON.stringify(input),
+        },
+      );
+    },
+
+    async updatePersonalCommission(id: string, input: PersonalCommissionInput) {
+      return apiRequest<PersonalCommission>(
+        `/app/v1/personal-commissions/${encodeURIComponent(id)}`,
+        {
+          method: 'PUT',
+          headers: { 'Idempotency-Key': newIdempotencyKey() },
+          body: JSON.stringify(input),
+        },
+      );
+    },
+
+    async deactivatePersonalCommission(id: string) {
+      await apiRequest<Record<string, never>>(
+        `/app/v1/personal-commissions/${encodeURIComponent(id)}/deactivate`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': newIdempotencyKey() },
+        },
+      );
     },
   };
 }

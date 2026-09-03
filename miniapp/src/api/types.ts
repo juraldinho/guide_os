@@ -193,3 +193,58 @@ export interface AvailabilityPreviewParams {
   to: string;
   format?: 'text' | 'structured';
 }
+
+export type PersonalPlaceStatus = 'active' | 'inactive';
+
+export interface PersonalPlace {
+  id: string;
+  name: string;
+  category: string | null;
+  generalLocation: string | null;
+  landmark: string | null;
+  note: string | null;
+  status: PersonalPlaceStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalPlaceInput {
+  name: string;
+  category: string | null;
+  generalLocation: string | null;
+  landmark: string | null;
+  note: string | null;
+}
+
+export interface ListPersonalPlacesOptions {
+  includeInactive?: boolean;
+}
+
+export type PersonalCommissionStatus = 'active' | 'inactive';
+
+export interface PersonalCommission {
+  id: string;
+  placeId: string;
+  occurredAt: string;
+  purchaseAmountMinor: number | null;
+  receivedIncomeMinor: number | null;
+  receivedPoints: number | null;
+  currency: string | null;
+  note: string | null;
+  status: PersonalCommissionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalCommissionInput {
+  occurredAt: string;
+  purchaseAmountMinor: number | null;
+  receivedIncomeMinor: number | null;
+  receivedPoints: number | null;
+  currency: string | null;
+  note: string | null;
+}
+
+export interface ListPersonalCommissionsOptions {
+  includeInactive?: boolean;
+}
