@@ -457,7 +457,7 @@ export function PersonalPlacesSection({
                   setCommissionActionError(null);
                 }}
               >
-                {t.guideShopDeactivate}
+                {t.delete}
               </button>
               <button
                 type="button"
@@ -517,8 +517,8 @@ export function PersonalPlacesSection({
                 disabled={commissionDeactivating}
               >
                 {commissionDeactivating
-                  ? t.guideShopDeactivating
-                  : t.guideShopDeactivate}
+                  ? t.guideShopCommissionDeleting
+                  : t.delete}
               </button>
               <button
                 type="button"

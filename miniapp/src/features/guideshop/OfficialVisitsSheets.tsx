@@ -38,6 +38,26 @@ function formatVisitPointStatus(status: string): string {
   return status;
 }
 
+function visitAtMs(visitAt: string): number | null {
+  const ms = Date.parse(visitAt);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Newest `visitAt` first; does not mutate the input array. */
+export function sortVisitsNewestFirst(visits: OfficialVisit[]): OfficialVisit[] {
+  return [...visits].sort((a, b) => {
+    const aMs = visitAtMs(a.visitAt);
+    const bMs = visitAtMs(b.visitAt);
+    if (aMs === null && bMs === null) {
+      return a.id.localeCompare(b.id);
+    }
+    if (aMs === null) return 1;
+    if (bMs === null) return -1;
+    if (bMs !== aMs) return bMs - aMs;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 type ListError = 'integration_disabled' | 'access_denied' | 'generic';
 
 interface OfficialVisitsSheetsProps {
@@ -83,7 +103,8 @@ export function OfficialVisitsSheets({
     setNextCursor(null);
     try {
       const result = await guideOsClient.listOfficialVisits();
-      setVisits(result.visits.filter((visit) => visit.companyId === companyId));
+      const matched = result.visits.filter((visit) => visit.companyId === companyId);
+      setVisits(sortVisitsNewestFirst(matched));
       setNextCursor(result.page.nextCursor);
     } catch (error) {
       setVisits([]);
@@ -100,7 +121,7 @@ export function OfficialVisitsSheets({
     try {
       const result = await guideOsClient.listOfficialVisits({ cursor: nextCursor });
       const matched = result.visits.filter((visit) => visit.companyId === companyId);
-      setVisits((prev) => [...prev, ...matched]);
+      setVisits((prev) => sortVisitsNewestFirst([...prev, ...matched]));
       setNextCursor(result.page.nextCursor);
     } catch (error) {
       applyListError(error);

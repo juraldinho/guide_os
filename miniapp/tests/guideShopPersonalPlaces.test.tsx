@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApiError } from '@/api/httpClient';
-import type { OfficialCompany, PersonalPlace } from '@/api/types';
+import type { OfficialCompany, OfficialVisit, PersonalPlace } from '@/api/types';
 import { guideOsClient } from '@/api/createClient';
 import { mockClient, __resetMockStore, __testPersonalPlaces } from '@/api/mock/store';
 import { GuideShopPage } from '@/features/guideshop/GuideShopPage';
+import { sortVisitsNewestFirst } from '@/features/guideshop/OfficialVisitsSheets';
 import { t } from '@/i18n/strings';
 
 const GLOBAL_CSS = readFileSync(
@@ -1067,6 +1068,167 @@ describe('GuideShop official visits UI', () => {
     await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsAction }));
     await waitFor(() => expect(screen.getByText(t.guideShopVisitsEmpty)).toBeInTheDocument());
+  });
+
+  it('sorts visits newest first without mutating the API array', async () => {
+    const oldest = {
+      ...visitForCompany,
+      id: 'gsvis_old_01',
+      visitAt: '2026-08-01T09:00:00Z',
+      touristCount: 1,
+    };
+    const middle = {
+      ...visitForCompany,
+      id: 'gsvis_mid_02',
+      visitAt: '2026-08-10T09:00:00Z',
+      touristCount: 2,
+    };
+    const newest = {
+      ...visitForCompany,
+      id: 'gsvis_new_03',
+      visitAt: '2026-08-20T09:00:00Z',
+      touristCount: 3,
+    };
+    const apiVisits = [oldest, newest, middle, visitOtherCompany];
+    const frozenOrder = apiVisits.map((item) => item.id);
+    vi.spyOn(guideOsClient, 'listOfficialVisits').mockResolvedValue({
+      visits: apiVisits,
+      page: { nextCursor: null },
+    });
+    const detailSpy = vi.spyOn(guideOsClient, 'getOfficialVisit').mockResolvedValue({
+      ...newest,
+      points: [],
+    });
+
+    renderPage();
+    await waitForLoaded();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: t.guideShopOpenOfficialCompany(officialFull.displayName),
+      }),
+    );
+    await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsAction }));
+    await waitFor(() => expect(screen.getByText(t.guideShopVisitTourists(3))).toBeInTheDocument());
+
+    const listSheet = screen.getByText(t.guideShopVisitsTitle).closest('.sheet');
+    expect(listSheet).toBeTruthy();
+    const rows = within(listSheet!).getAllByRole('button', { name: /Открыть визит/ });
+    expect(rows.map((row) => within(row).getByText(/Туристов:/).textContent)).toEqual([
+      t.guideShopVisitTourists(3),
+      t.guideShopVisitTourists(2),
+      t.guideShopVisitTourists(1),
+    ]);
+    expect(screen.queryByText(t.guideShopVisitTourists(0))).not.toBeInTheDocument();
+    expect(apiVisits.map((item) => item.id)).toEqual(frozenOrder);
+
+    fireEvent.click(rows[0]!);
+    await waitFor(() => expect(detailSpy).toHaveBeenCalledWith(newest.id));
+    expect(screen.queryByRole('button', { name: t.delete })).not.toBeInTheDocument();
+  });
+
+  it('re-sorts the merged list after loading another page and keeps cursor opaque', async () => {
+    const pageOneOlder = {
+      ...visitForCompany,
+      id: 'gsvis_p1_old',
+      visitAt: '2026-08-10T09:00:00Z',
+      touristCount: 11,
+    };
+    const pageOneNewer = {
+      ...visitForCompany,
+      id: 'gsvis_p1_new',
+      visitAt: '2026-08-12T09:00:00Z',
+      touristCount: 12,
+    };
+    const pageTwoNewest = {
+      ...visitForCompany,
+      id: 'gsvis_p2_new',
+      visitAt: '2026-08-18T09:00:00Z',
+      touristCount: 18,
+    };
+    const pageTwoOldest = {
+      ...visitForCompany,
+      id: 'gsvis_p2_old',
+      visitAt: '2026-08-05T09:00:00Z',
+      touristCount: 5,
+    };
+    const listSpy = vi
+      .spyOn(guideOsClient, 'listOfficialVisits')
+      .mockResolvedValueOnce({
+        visits: [pageOneOlder, pageOneNewer, visitOtherCompany],
+        page: { nextCursor: 'opaque_visits_page_two' },
+      })
+      .mockResolvedValueOnce({
+        visits: [pageTwoOldest, pageTwoNewest],
+        page: { nextCursor: null },
+      });
+
+    renderPage();
+    await waitForLoaded();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: t.guideShopOpenOfficialCompany(officialFull.displayName),
+      }),
+    );
+    await waitFor(() => expect(screen.getByText(officialFull.description!)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsAction }));
+    await waitFor(() => expect(screen.getByText(t.guideShopVisitTourists(12))).toBeInTheDocument());
+
+    let listSheet = screen.getByText(t.guideShopVisitsTitle).closest('.sheet')!;
+    let rows = within(listSheet).getAllByRole('button', { name: /Открыть визит/ });
+    expect(rows.map((row) => within(row).getByText(/Туристов:/).textContent)).toEqual([
+      t.guideShopVisitTourists(12),
+      t.guideShopVisitTourists(11),
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: t.guideShopVisitsLoadMore }));
+    await waitFor(() => expect(screen.getByText(t.guideShopVisitTourists(18))).toBeInTheDocument());
+    expect(listSpy).toHaveBeenNthCalledWith(2, { cursor: 'opaque_visits_page_two' });
+
+    listSheet = screen.getByText(t.guideShopVisitsTitle).closest('.sheet')!;
+    rows = within(listSheet).getAllByRole('button', { name: /Открыть визит/ });
+    expect(rows.map((row) => within(row).getByText(/Туристов:/).textContent)).toEqual([
+      t.guideShopVisitTourists(18),
+      t.guideShopVisitTourists(12),
+      t.guideShopVisitTourists(11),
+      t.guideShopVisitTourists(5),
+    ]);
+  });
+
+  it('sortVisitsNewestFirst handles invalid timestamps without crashing', () => {
+    const valid: OfficialVisit = {
+      ...visitForCompany,
+      id: 'gsvis_valid',
+      visitAt: '2026-08-15T09:00:00Z',
+      touristCount: 7,
+    };
+    const invalid: OfficialVisit = {
+      ...visitForCompany,
+      id: 'gsvis_invalid',
+      visitAt: 'not-a-date',
+      touristCount: 9,
+    };
+    const source = [invalid, valid];
+    const sorted = sortVisitsNewestFirst(source);
+    expect(sorted.map((item) => item.id)).toEqual(['gsvis_valid', 'gsvis_invalid']);
+    expect(source.map((item) => item.id)).toEqual(['gsvis_invalid', 'gsvis_valid']);
+  });
+
+  it('tie-breaks equal visitAt by id without mutating the source', () => {
+    const laterId: OfficialVisit = {
+      ...visitForCompany,
+      id: 'gsvis_b_tie',
+      visitAt: '2026-08-15T09:00:00Z',
+    };
+    const earlierId: OfficialVisit = {
+      ...visitForCompany,
+      id: 'gsvis_a_tie',
+      visitAt: '2026-08-15T09:00:00Z',
+    };
+    const source = [laterId, earlierId];
+    const sorted = sortVisitsNewestFirst(source);
+    expect(sorted.map((item) => item.id)).toEqual(['gsvis_a_tie', 'gsvis_b_tie']);
+    expect(source.map((item) => item.id)).toEqual(['gsvis_b_tie', 'gsvis_a_tie']);
   });
 });
 
