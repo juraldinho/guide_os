@@ -8,7 +8,10 @@ import pytest
 
 from database.db import get_connection
 from database.queries import register_user
-from services.guide_shop_client import InMemoryGuideShopClient
+from services.guide_shop_client import (
+    GuideShopTemporarilyUnavailableError,
+    InMemoryGuideShopClient,
+)
 from services.guide_shop_contracts import CompanyDTO
 from services.guide_shop_runtime import (
     RequestScopedGuideShopUIServiceProvider,
@@ -22,6 +25,7 @@ from tests.test_miniapp_api import (
     PROFILE_USER_B,
     _auth_headers,
     _commission_payload,
+    _commission_reports,
     _create_commission_for_user,
     _create_place_for_user,
     _deactivate_place,
@@ -31,6 +35,7 @@ from tests.test_miniapp_api import (
     _list_places,
     _place_payload,
     _post_commission,
+    _post_place,
     _put_commission,
     _put_place,
     _settings,
@@ -292,3 +297,137 @@ def test_official_detail_uses_request_scoped_identity(seeded_user):
     )
     assert own.status == 200, own._body_text
     _assert_not_found(foreign, "company_user_a", GUIDE_ID_A, GUIDE_ID_B)
+
+
+def test_commission_reports_session_scoped_period_only(seeded_user):
+    register_user(PROFILE_USER_B)
+    owner_place = _create_place_for_user(seeded_user)
+    attacker_place = _create_place_for_user(PROFILE_USER_B)
+    _create_commission_for_user(
+        seeded_user,
+        owner_place,
+        occurredAt="2026-08-10T12:00:00+05:00",
+        receivedPoints=11,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+    _create_commission_for_user(
+        PROFILE_USER_B,
+        attacker_place,
+        occurredAt="2026-08-10T12:00:00+05:00",
+        receivedPoints=99,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+
+    own = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    body = response_json(own)
+    assert own.status == 200
+    assert own.status != 500
+    assert body["data"]["totalCommission"] == 11
+    assert "99" not in str(body["data"])
+    assert "userId" not in body["data"]
+    assert "user_id" not in own._body_text
+
+    spoof = _commission_reports(
+        seeded_user,
+        f"?from=2026-08-01&to=2026-08-31&userId={PROFILE_USER_B}",
+    )
+    assert spoof.status == 400
+    assert spoof.status != 500
+    assert response_json(spoof)["error"]["code"] == "validation_error"
+
+    missing = api_request(
+        "GET",
+        "/app/v1/reports/commissions?from=2026-08-01&to=2026-08-31",
+    )
+    assert missing.status == 401
+    assert missing.status != 500
+    assert response_json(missing)["error"]["code"] == "auth_required"
+
+
+def test_personal_place_and_commission_html_roundtrip_is_inert(seeded_user):
+    scriptish = "<script>alert(1)</script>"
+    created = _post_place(
+        seeded_user,
+        _place_payload(name=scriptish, note=scriptish),
+    )
+    assert created.status == 201
+    assert created.status != 500
+    place_body = response_json(created)["data"]
+    assert place_body["name"] == scriptish
+    assert place_body["note"] == scriptish
+    assert scriptish in created._body_text
+
+    place_id = place_body["id"]
+    commission = _post_commission(
+        seeded_user,
+        place_id,
+        _commission_payload(
+            occurredAt="2026-08-10T12:00:00+05:00",
+            receivedPoints=3,
+            purchaseAmountMinor=None,
+            receivedIncomeMinor=None,
+            currency=None,
+            note=scriptish,
+        ),
+    )
+    assert commission.status == 201
+    assert response_json(commission)["data"]["note"] == scriptish
+    parsed = response_json(commission)
+    assert parsed["data"]["note"] == scriptish
+
+
+def test_official_outage_does_not_block_personal_or_commission_reports(seeded_user):
+    place_id = _create_place_for_user(seeded_user)
+    _create_commission_for_user(
+        seeded_user,
+        place_id,
+        occurredAt="2026-08-10T12:00:00+05:00",
+        receivedPoints=4,
+        purchaseAmountMinor=None,
+        receivedIncomeMinor=None,
+        currency=None,
+    )
+
+    class FakeService:
+        async def list_official_companies(self):
+            raise GuideShopTemporarilyUnavailableError("outage")
+
+        async def list_visits(self, cursor=None):
+            raise GuideShopTemporarilyUnavailableError("outage")
+
+    configure_miniapp_guideshop_provider(
+        StaticGuideShopUIServiceProvider(FakeService()),
+        reads_enabled=True,
+    )
+    official = api_request(
+        "GET",
+        "/app/v1/guideshop/companies",
+        headers=_auth_headers(seeded_user),
+    )
+    assert official.status == 503
+    assert official.status != 500
+    assert response_json(official)["error"]["code"] == "temporarily_unavailable"
+
+    places = _list_places(seeded_user)
+    assert places.status == 200
+    assert any(item["id"] == place_id for item in response_json(places)["data"]["places"])
+
+    reports = _commission_reports(seeded_user, "?from=2026-08-01&to=2026-08-31")
+    assert reports.status == 200
+    assert response_json(reports)["data"]["totalCommission"] == 4
+
+
+def test_unregistered_official_history_detail_and_sales_never_500(seeded_user):
+    cases = (
+        ("GET", "/app/v1/guideshop/history/gspay_forged_01", 404),
+        ("GET", "/app/v1/guideshop/sales", 404),
+        ("POST", "/app/v1/guideshop/points/summary", 405),
+    )
+    for method, path, expected_status in cases:
+        response = api_request(method, path, headers=_auth_headers(seeded_user))
+        assert response.status == expected_status
+        assert response.status != 500

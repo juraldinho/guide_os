@@ -141,7 +141,10 @@ GuideShop (`services/guide_shop_*`):
 - Владелец активировал добавление третьего раздела `GuideShop` в Mini App после `Календарь` и `Итоги`.
 - Нижняя навигация проектируется как горизонтально прокручиваемая панель будущих модулей; full-page swipe не входит в первый scope.
 - Official GuideShop companies остаются read-only; личные компании переиспользуют `personal_places`, комиссии — `personal_place_entries`/`ExternalSalesService`.
-- Следующий этап — GSMA0 product/API audit; application code ещё не изменён.
+- GSMA0–GSMA10 complete for the public production pilot. Mini App GuideShop sales withdrawn. GSMA10 two-account owner E2E PASS on 2026-09-04 (`docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`).
+- Public production pilot remains enabled. Formal general release was **not** separately declared. No active GuideShop coding task.
+- Future Google Calendar and tips roadmaps remain inactive until explicitly activated by the owner.
+- Security matrix: `docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`.
 - Канонический план GSMA0–GSMA10: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
 
 ### Tests (`tests/`)

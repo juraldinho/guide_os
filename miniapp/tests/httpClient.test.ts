@@ -1380,6 +1380,16 @@ describe('official GuideShop points summary API', () => {
 });
 
 describe('official GuideShop sales API withdrawn', () => {
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('does not expose sales methods on GuideOsClient', () => {
     const client = createHttpClient() as unknown as Record<string, unknown>;
     expect(client).not.toHaveProperty('listOfficialSales');
@@ -1390,6 +1400,18 @@ describe('official GuideShop sales API withdrawn', () => {
     expect(mockClient as unknown as Record<string, unknown>).not.toHaveProperty(
       'getOfficialSale',
     );
+  });
+
+  it('never requests GuideShop /integration/v1 from the Mini App client', async () => {
+    __testSetSessionToken('tok_gs');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ data: { companies: [], page: { nextCursor: null } } }),
+    );
+    await createHttpClient().listOfficialCompanies();
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => !url.includes('/integration/v1'))).toBe(true);
+    expect(urls.some((url) => url.startsWith('/app/v1/guideshop/'))).toBe(true);
   });
 });
 
