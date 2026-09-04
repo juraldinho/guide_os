@@ -1,14 +1,14 @@
 # Guide OS Mini App — Session
 
-> Обновлено: 2026-09-03
+> Обновлено: 2026-09-04
 
-## Active workstream — GuideShop Mini App (2026-09-03)
+## Active workstream — GuideShop Mini App (2026-09-04)
 
 Owner activated the GuideShop Mini App roadmap. Planned UX: horizontally scrollable bottom module navigation `Calendar → Reports → GuideShop → future`; GuideShop page groups official read-only GuideShop companies and user-owned personal companies with commission records. Existing `personal_places`, `personal_place_entries`, `PersonalPlacesService`, `ExternalSalesService` and request-scoped GuideShop runtime are authoritative; no parallel frontend data model.
 
-**GSMA0–GSMA8 complete.** Unified GuideShop page ships official companies (read-only) + personal companies/commissions; official company detail opens Visits, «Баллы GuideShop» (+ «История выплат»). GuideShop sales withdrawn from Mini App. GSMA8 added timeouts, safe GET retry, sanitized logs, rollback runbook.
+**GSMA0–GSMA10 complete** for the current public production **pilot**. Owner two-account E2E: **PASS** (2026-09-04, sanitized). Unified GuideShop: official companies (read-only) + personal companies/commissions; Visits + visit points, «Баллы GuideShop», «История выплат». Sales withdrawn. Formal general release **not** separately declared. Pilot **remains ENABLED**.
 
-Current stage: **GSMA8 complete → next GSMA9** (security/full regression). Do not start GSMA9 until owner requests it. Runbook: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`.
+Current stage: **no active GuideShop Mini App coding task.** Wait for owner to activate the next roadmap. Google Calendar and tips remain planned but not automatically active. Checklist: `../../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`. Matrix: `../../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`. Runbook: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`.
 
 ## Future roadmap decision — Google Calendar (2026-09-02)
 
@@ -32,8 +32,9 @@ Implementation has **not started** and no deployment is authorized. Canonical TI
 | Accounts | Two real Telegram accounts (primary + second new user) |
 | Bot ↔ Mini App sync | **PASS** |
 | Cross-account isolation | **PASS** (IDOR manual verification) |
-| Pilot status | **ACTIVE** — owner explicitly approved leaving pilot enabled |
+| Pilot status | **ACTIVE** — owner E2E PASS 2026-09-04; pilot remains enabled |
 | Formal general release | **Not** separately declared |
+| GSMA10 two-account E2E | **PASS** (sanitized; no IDs/tokens in docs) |
 
 No Telegram IDs, bot tokens, session tokens, Railway variable values, raw `initData`, private URLs, or other secrets recorded in this file.
 

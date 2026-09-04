@@ -2,6 +2,28 @@
 
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
+## 2026-09-04 — GSMA10 owner E2E PASS (sanitized)
+
+- Owner completed two-account production GuideShop Mini App E2E: **PASS**;
+- Navigation, visits newest-first, personal company/commission UX, bot ↔ Mini App sync, cross-account isolation, commission stats periods/filter independence, soft-deleted commissions gone from history/reports: **PASS**;
+- Public production **pilot remains ENABLED**; formal general release **not** separately declared;
+- Official GuideShop remains read-only; Mini App sales remain withdrawn;
+- Sanitized checklist update only — no Telegram IDs, tokens, initData, or production names;
+- No active GuideShop Mini App coding task; wait for owner to activate next roadmap.
+
+## 2026-09-04 — GSMA10 two-account E2E checklist (docs)
+
+- Owner-run checklist: `docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md` (isolation, Reports «Комиссии», visits newest-first, sales withdrawn, degraded official, layout spot-check);
+- Owner E2E **pending** until they fill Pass/Fail locally; do not commit PII; not formal general release;
+- No application code, tests, Railway, or production flags.
+
+## 2026-09-03 — GSMA9 GuideShop security matrix / regression
+
+- Matrix: `docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md` (auth, IDOR/BOLA, official GET-only, no Mini App sales, no frontend `/integration/v1`, inert HTML, commission reports session scope, sanitized logs, outage isolation);
+- Gap tests in `tests/test_guide_shop_miniapp_security_matrix.py` + httpClient no `/integration/v1`; expected auth/ownership failures ≠ HTTP 500;
+- Not a production security sign-off; next = GSMA10 two-account E2E after owner request;
+- Sales remain withdrawn; bot, schema, Railway и production flags не изменялись.
+
 ## 2026-09-03 — GSMA8 GuideShop resilience / observability
 
 - Upstream GuideShop timeouts reused (`GUIDESHOP_API_TIMEOUT_SECONDS=10`); Mini App GuideShop GETs: 12s AbortController timeout + one safe retry (not on 401/403/404; no mutation retries);

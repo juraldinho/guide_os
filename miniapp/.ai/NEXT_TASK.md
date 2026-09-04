@@ -1,33 +1,34 @@
 # Guide OS Mini App — Next Task
 
-> Обновлено: 2026-09-03
+> Обновлено: 2026-09-04
 
 ## Единственная следующая задача
 
-**GSMA9 — security matrix and full regression.**
+**Нет активной GuideShop Mini App coding-задачи.**
 
-GSMA8 complete (timeouts/cancellation, safe GET retry, sanitized logs, isolation, rollback runbook). GuideShop sales remain withdrawn from Mini App. Do not start GSMA9 coding until the owner explicitly asks.
+GSMA0–GSMA10 complete for the current public production **pilot**. Owner two-account E2E: **PASS** (2026-09-04, sanitized record in [`../../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md)).
 
-Канонический план GSMA0–GSMA10: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
+- Public production pilot: **REMAINS ENABLED**
+- Formal general Mini App release: **NOT** separately declared
+- Official GuideShop data: remains **read-only**
+- Mini App GuideShop sales: remain **withdrawn**
 
-Rollback/resilience runbook: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
+Ждать явной активации следующего roadmap владельцем. Не кодировать, не деплоить и не объявлять general release без нового запроса.
 
-Канонический contract GSMA7: [`../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`](../../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md).
+Канонический план: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
 
-GSMA9 focus (from roadmap): security review / threat matrix for Mini App GuideShop surfaces; full targeted + broader regression — only when owner requests.
+Security matrix: [`../../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md).
+
+Rollback: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
 
 ## Утверждённый будущий roadmap — Google Calendar
 
-Владелец утвердил будущую одностороннюю интеграцию `Google Calendar → Guide OS`, включая преобразование импортированного события в полноценный тур после дополнения стоимости и других полей. Реализация не начата и не является активной задачей до отдельной команды владельца.
-
-Канонический поэтапный план GC0–GC13: [`../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`](../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md).
+Владелец утвердил будущую одностороннюю интеграцию `Google Calendar → Guide OS`. Реализация не начата и **не** активируется автоматически. План: [`../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`](../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md).
 
 ## Утверждённый будущий roadmap — чаевые
 
-Владелец утвердил bot-first функцию дневных чаевых: одна общая сумма на пользователя и календарную дату, независимо от туров; сначала Telegram bot, затем общий Web API и Mini App. Реализация не начата и не является активной задачей до отдельной команды владельца.
-
-Канонический план TIP0–TIP10: [`../../docs/TIPS_ROADMAP.md`](../../docs/TIPS_ROADMAP.md).
+Bot-first дневные чаевые не начаты и **не** активируются автоматически. План: [`../../docs/TIPS_ROADMAP.md`](../../docs/TIPS_ROADMAP.md).
 
 ## Public production pilot — ACTIVE
 
-Public production pilot remains owner-validated and active. Do not disable pilot, redeploy, or flip production flags without a new explicit owner request. Rollback remains reversible via `MINI_APP_ENABLED=false` (+ `MINI_APP_API_ENABLED=false` if needed).
+Do not disable pilot, redeploy, or flip production flags without a new explicit owner request. Rollback: `MINI_APP_ENABLED=false` (+ `MINI_APP_API_ENABLED=false` if needed).

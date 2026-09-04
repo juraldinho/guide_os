@@ -1,7 +1,7 @@
 # Guide OS Mini App — GuideShop module roadmap
 
 > Зафиксировано: 2026-09-02  
-> Статус: **GSMA0–GSMA8 complete** (optional submodules + resilience/observability 2026-09-03; Mini App sales withdrawn); следующий этап — **GSMA9** security/full regression
+> Статус: **GSMA0–GSMA10 complete** for the current public production **pilot** (owner E2E PASS 2026-09-04). Not an unrestricted formal general production release.
 > Порядок: navigation → personal companies/commissions → official GuideShop → unified UX → optional official submodules → security/E2E
 
 ## 1. Цель
@@ -269,28 +269,15 @@ Mini App GuideShop tab
 
 ### GSMA9 — security и full regression
 
-- IDOR/BOLA для personal places/entries;
-- forged/foreign opaque IDs;
-- input limits, HTML/script text as inert data;
-- auth/session tests;
-- official read-only guarantee;
-- no GuideShop direct frontend requests;
-- bot/Mini App parity;
-- full backend/frontend suites, build и `git diff --check`.
+**Complete (2026-09-03).** Threat matrix [`GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`](GUIDESHOP_MINIAPP_SECURITY_GSMA9.md); IDOR/BOLA personal places/commissions; forged official IDs; GET-only official surface; Mini App sales withdrawn; commission reports session-scoped; inert HTML roundtrip; official outage isolated. Automated evidence is not production security sign-off.
 
 **Готово, когда:** security tests не принимают HTTP 500 и все user-scoped paths fail closed.
 
 ### GSMA10 — two-account E2E и release
 
-- два Telegram accounts с разными personal companies/commissions;
-- official catalog visibility согласно GuideShop identity/link/access;
-- cross-account isolation;
-- GuideShop unavailable smoke;
-- iPhone/Android/Desktop navigation and layouts;
-- explicit owner production approval;
-- staged/reversible rollout без изменения GuideShop write ownership.
+**Owner E2E PASS (2026-09-04).** Checklist [`GUIDESHOP_MINIAPP_E2E_GSMA10.md`](GUIDESHOP_MINIAPP_E2E_GSMA10.md) filled with sanitized PASS (no Telegram IDs / tokens / production PII). Confirms **pilot** isolation/parity/navigation — **not** automatic formal general release. GuideShop write ownership unchanged (official read-only); Mini App sales stay withdrawn. Public production pilot **remains ENABLED**.
 
-**Готово, когда:** owner подтверждает navigation, data parity, isolation и degraded behavior.
+**Готово, когда:** owner подтверждает navigation, data parity, isolation и degraded behavior — **met** for the current pilot.
 
 ## 8. Порядок поставки
 
@@ -336,4 +323,4 @@ GSMA10 Two-account E2E/release
 
 ## 11. Активный следующий шаг
 
-GSMA0–GSMA8 завершены. **Следующий coding этап — GSMA9** (security/full regression). Не начинать без явного запроса владельца. Rollback: [`GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
+**GSMA0–GSMA10 complete** for the current public production pilot (owner E2E PASS 2026-09-04). Нет активной GuideShop Mini App coding-задачи. Ждать явной активации следующего roadmap владельцем. Formal general release **не** объявлен. Google Calendar / tips остаются planned, но не активны автоматически. Matrix: [`GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`](GUIDESHOP_MINIAPP_SECURITY_GSMA9.md). Rollback: [`GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
