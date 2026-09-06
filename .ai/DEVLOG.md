@@ -1,5 +1,22 @@
 # Guide OS — Development Log
 
+## 2026-09-06 — GO11A read-only reconciliation local snapshots
+
+- Added authenticated GET reconcile routes on the API-only Guide Operator integration surface under `/integration/v1/reconcile/guides/{guideOsId}/…` with exact scope `guide-operator:reconcile`.
+- Returns local connection status, assignment status, active/pending version numbers, protected calendar projection existence/dates/version, and cancellation state only. Bounded `limit`/`cursor`/`ids`. Non-disclosing 404 for wrong guide/resource.
+- Read-only: no mutations, outbox writes, repairs, or delivery marks. Service auth remains default-off/fail-closed.
+- Did not change calendar, polling, reports, GuideShop, Mini App UI, or personal tours.
+- Targeted tests: `tests/test_guide_operator_reconcile_http.py` plus discovery/integration/auth suite passed.
+- STOP before GO11B comparison/repair.
+
+## 2026-09-05 — GO9A local two-service HTTP E2E
+
+- Added test-only `tests/go9a_guide_os_servers.py` (GO8D1/D2 + Mini App on loopback, isolated SQLite) and skip-if-missing wrapper `tests/test_guide_operator_shared_e2e.py`.
+- Canonical harness lives in sibling Guide Operator `tests/test_guide_os_shared_e2e.py`: real HTTP, ephemeral Ed25519 keys, outbox workers, privacy/idempotency/occupancy asserts, one queued-retry scenario.
+- Production flags remain off. No calendar/GuideShop/UI behavior change.
+- Contract fix (smallest): `_validate_critical_change_summary` now accepts Operator full diffs whose items may be `ordinary` or `uncertain` while the envelope severity is `critical`. Title/driver/day-added publishes were 400 against the previous "every item must be critical" rule.
+- STOP before reconciliation, notifications, frontend API wiring, or deployment.
+
 ## 2026-08-28 — Stage 19 personal records in progress
 
 - Integration Stages 0–18 remain production-complete: GuideShop events ON, Guide OS events/notifications ON, reconciliation CLEAN after owner notification and observation smoke.

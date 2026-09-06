@@ -147,6 +147,9 @@ def parse_income_value(raw: Any) -> int:
 
 
 def entry_to_api(entry: dict[str, Any]) -> dict[str, Any]:
+    from services.tour_service import is_guide_operator_managed_entry
+
+    is_operator = is_guide_operator_managed_entry(entry)
     payload: dict[str, Any] = {
         "id": entry["id"],
         "type": entry["type"],
@@ -155,7 +158,8 @@ def entry_to_api(entry: dict[str, Any]) -> dict[str, Any]:
         "endDate": entry["end_date"],
         "startTime": entry.get("start_time"),
         "endTime": entry.get("end_time"),
-        "income": entry.get("income") or 0,
+        # Preserve NULL fee for Guide Operator; personal tours keep numeric income.
+        "income": None if is_operator else (entry.get("income") or 0),
         "company": entry.get("company"),
         "location": entry.get("location"),
         "note": entry.get("note"),
@@ -163,11 +167,26 @@ def entry_to_api(entry: dict[str, Any]) -> dict[str, Any]:
     }
     if entry["type"] != ENTRY_TYPE_DAY_OFF:
         payload["status"] = entry.get("status")
-        payload["payment"] = entry.get("payment")
+        if is_operator:
+            payload["payment"] = None
+        else:
+            payload["payment"] = entry.get("payment")
     if entry.get("day_locations"):
         payload["dayLocations"] = entry["day_locations"]
     if entry.get("group_id"):
         payload["groupId"] = entry["group_id"]
+    assignment_id = entry.get("guide_operator_assignment_id")
+    if assignment_id:
+        payload["guideOperatorAssignmentId"] = assignment_id
+        payload["guideOperatorVersion"] = int(
+            entry.get("guide_operator_version") or 1
+        )
+        payload["guideOperatorVersionUnread"] = bool(
+            entry.get("guide_operator_version_unread")
+        )
+        payload["guideOperatorPendingCritical"] = bool(
+            entry.get("guide_operator_pending_critical")
+        )
     return payload
 
 

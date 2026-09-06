@@ -45,6 +45,10 @@ export function locationFor(entry: CalendarEntry, date: string): string {
   return entry.location || '—';
 }
 
+export function isGuideOperatorManaged(entry: CalendarEntry): boolean {
+  return Boolean(entry.guideOperatorAssignmentId);
+}
+
 export function sortEntriesForDay(entries: CalendarEntry[]): CalendarEntry[] {
   return [...entries].sort((a, b) => {
     if (isFullDay(a)) return -1;

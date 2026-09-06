@@ -35,11 +35,13 @@
 
 **GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0–GSMA10 complete for the public production pilot — official Visits (detail includes GuideShop points), «Баллы GuideShop» (+ «История выплат»), resilience, security matrix. **«Продажи GuideShop» withdrawn from Mini App.** GSMA10 two-account owner E2E **PASS** on 2026-09-04 (`../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`). Pilot remains enabled; formal general release was **not** separately declared. **No active GuideShop coding task.** Future Google Calendar and tips roadmaps remain inactive until explicitly activated. Contract: `../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Rollback: `../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`. Security: `../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
 
+**Guide Operator Mini App (GO6B1–GO6B5, GO7B2, GO7D2, GO7E3, GO8C3):** authenticated assignments API + lifecycle lists + connection-consent list/confirm/decline UX above assignment sections + pending-offers UX + accepted calendar projections + reports/income semantics + cancelled retained detail + ordinary unread/diff/`Ознакомился` + critical pending indicator. Backend GO7B1/GO7D1/GO7E1–GO7E2/GO8B/GO8C2/GO8D1–GO8D2/GO8F2A–GO8F2B/GO9A/GO10A1–GO10A2B paths are complete; **STOP before operator-facing notifications UI or reconciliation**.
+
 **Агентам:** не отключать pilot, не redeploy, не расширять scope и не объявлять formal general release без **нового явного запроса владельца**. Rollback reversible: `MINI_APP_ENABLED=false`, при необходимости `MINI_APP_API_ENABLED=false`, redeploy bot — только когда owner попросит скрыть Mini App.
 
 **Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Production Web API** с **real initData auth**; production bot и Mini App используют общий Guide OS data layer через shared services/database.
 
-Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **no active GuideShop coding task**; Google Calendar / tips remain inactive until owner activates).
+Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **STOP before operator-facing notifications UI or reconciliation**; Google Calendar / tips remain inactive until owner activates).
 
 ## Цель и приоритет
 

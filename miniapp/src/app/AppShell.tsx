@@ -4,6 +4,7 @@ import { CalendarPage } from '@/features/calendar/CalendarPage';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { GuideShopPage } from '@/features/guideshop/GuideShopPage';
+import { GuideOperatorPage } from '@/features/guideOperator/GuideOperatorPage';
 import { GlobalOverlays } from './GlobalOverlays';
 import { DemoErrorScreen, DemoLoadingScreen, DemoOfflineScreen } from './DemoScreens';
 
@@ -47,8 +48,10 @@ export function AppShell() {
           <CalendarPage />
         ) : activeTab === 'reports' ? (
           <ReportsPage />
-        ) : (
+        ) : activeTab === 'guideshop' ? (
           <GuideShopPage />
+        ) : (
+          <GuideOperatorPage />
         )}
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
       </div>

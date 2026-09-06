@@ -68,6 +68,14 @@ def _bot_runtime(monkeypatch):
         bot_module, "start_guide_shop_event_worker", AsyncMock(return_value=None)
     )
     monkeypatch.setattr(bot_module, "stop_guide_shop_event_worker", AsyncMock())
+    monkeypatch.setattr(
+        bot_module,
+        "start_guide_operator_notification_worker",
+        AsyncMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        bot_module, "stop_guide_operator_notification_worker", AsyncMock()
+    )
     monkeypatch.setattr(bot_module, "start_guide_shop_link_provider", start_provider)
     monkeypatch.setattr(bot_module, "start_miniapp_api", start_miniapp_api)
     monkeypatch.setattr(bot_module, "Dispatcher", Mock(return_value=dispatcher))

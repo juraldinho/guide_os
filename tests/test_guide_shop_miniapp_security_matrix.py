@@ -326,9 +326,18 @@ def test_commission_reports_session_scoped_period_only(seeded_user):
     body = response_json(own)
     assert own.status == 200
     assert own.status != 500
-    assert body["data"]["totalCommission"] == 11
-    assert "99" not in str(body["data"])
-    assert "userId" not in body["data"]
+    data = body["data"]
+    assert data["totalCommission"] == 11
+    assert data["recordCount"] == 1
+    assert [row["placeId"] for row in data["byCompany"]] == [owner_place]
+    assert attacker_place not in {row["placeId"] for row in data["byCompany"]}
+    commission_values = [
+        data["totalCommission"],
+        *(row["totalCommission"] for row in data["byCompany"]),
+    ]
+    assert 99 not in commission_values
+    assert all(row["recordCount"] != 99 for row in data["byCompany"])
+    assert "userId" not in data
     assert "user_id" not in own._body_text
 
     spoof = _commission_reports(

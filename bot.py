@@ -62,6 +62,10 @@ from services.guide_shop_event_worker import (
     build_guide_shop_event_worker,
     validate_guide_shop_event_flags,
 )
+from services.guide_operator_notification_worker import (
+    start_guide_operator_notification_worker as _start_go_notification_worker,
+    stop_guide_operator_notification_worker as _stop_go_notification_worker,
+)
 from web_api.routes.guideshop_companies import configure_miniapp_guideshop_provider
 
 from utils.logger import setup_logging
@@ -83,6 +87,15 @@ async def stop_guide_shop_event_worker(task) -> None:
         await task
     except asyncio.CancelledError:
         pass
+
+
+async def start_guide_operator_notification_worker(values=None):
+    """Background notification drain in this bot process only (GO10A2B)."""
+    return await _start_go_notification_worker(values)
+
+
+async def stop_guide_operator_notification_worker(task, worker) -> None:
+    await _stop_go_notification_worker(task, worker)
 
 
 def configure_guide_shop_runtime(values=None) -> None:
@@ -203,8 +216,13 @@ async def main() -> None:
     link_provider_runner = None
     miniapp_runner = None
     event_worker_task = None
+    notification_worker_task = None
+    notification_worker = None
     try:
         event_worker_task = await start_guide_shop_event_worker(bot)
+        notification_worker_task, notification_worker = (
+            await start_guide_operator_notification_worker()
+        )
         link_provider_runner = await start_guide_shop_link_provider(attach_miniapp_api=True)
         if link_provider_runner is None:
             miniapp_runner = await start_miniapp_api()
@@ -236,14 +254,19 @@ async def main() -> None:
         await dp.start_polling(bot, skip_updates=True)
     finally:
         try:
-            await stop_guide_shop_event_worker(event_worker_task)
+            await stop_guide_operator_notification_worker(
+                notification_worker_task, notification_worker
+            )
         finally:
             try:
-                if link_provider_runner is not None:
-                    await link_provider_runner.cleanup()
+                await stop_guide_shop_event_worker(event_worker_task)
             finally:
-                if miniapp_runner is not None:
-                    await miniapp_runner.cleanup()
+                try:
+                    if link_provider_runner is not None:
+                        await link_provider_runner.cleanup()
+                finally:
+                    if miniapp_runner is not None:
+                        await miniapp_runner.cleanup()
 
 
 if __name__ == "__main__":

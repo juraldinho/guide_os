@@ -3,6 +3,7 @@ import {
   dayStatus,
   entriesOnDate,
   getPartialAvailability,
+  isGuideOperatorManaged,
   locationFor,
   sortEntriesForDay,
 } from '../lib/dayStatus';
@@ -43,6 +44,9 @@ export function DayDetail() {
             key={e.id}
             className="day-detail-entry"
             onClick={() => openDetail(e.id)}
+            data-testid={
+              isGuideOperatorManaged(e) ? `go-calendar-entry-${e.id}` : undefined
+            }
           >
             {e.type === 'day_off' ? (
               <>
@@ -52,13 +56,39 @@ export function DayDetail() {
             ) : (
               <>
                 <div className="entry-title">{e.title}</div>
-                <div className="entry-row">
-                  {timeLabel(e)} · {statusLabel(e.status)} · {paymentLabel(e.payment)}
-                </div>
+                {isGuideOperatorManaged(e) ? (
+                  <div className="entry-row guide-operator-inline-unread">
+                    <span>{t.assignedViaGuideOperator}</span>
+                    {e.guideOperatorVersionUnread ? (
+                      <span
+                        className="guide-operator-unread-dot"
+                        role="status"
+                        aria-label={t.guideOperatorUnreadAria}
+                        data-testid={`go-calendar-unread-${e.id}`}
+                      />
+                    ) : null}
+                    {e.guideOperatorPendingCritical ? (
+                      <span
+                        className="guide-operator-critical-badge"
+                        role="status"
+                        aria-label={t.guideOperatorCriticalPendingAria}
+                        data-testid={`go-calendar-critical-${e.id}`}
+                      >
+                        {t.guideOperatorCriticalPendingBadge}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="entry-row">
+                    {timeLabel(e)} · {statusLabel(e.status)} · {paymentLabel(e.payment)}
+                  </div>
+                )}
                 <div className="entry-row">
                   {e.company || '—'} · {locationFor(e, selectedDate)}
                 </div>
-                {e.income ? <div className="entry-row">${e.income}</div> : null}
+                {!isGuideOperatorManaged(e) && e.income ? (
+                  <div className="entry-row">${e.income}</div>
+                ) : null}
               </>
             )}
           </div>

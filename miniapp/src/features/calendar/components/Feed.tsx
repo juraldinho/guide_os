@@ -8,7 +8,7 @@ import {
   parseDate,
   dowShortUpper,
 } from '../lib/dates';
-import { dayStatus, entriesOnDate, sortEntriesForDay } from '../lib/dayStatus';
+import { dayStatus, entriesOnDate, isGuideOperatorManaged, sortEntriesForDay } from '../lib/dayStatus';
 import { dayStatusText, statusLabel, timeLabel } from '../lib/format';
 import { useCalendar } from '../CalendarContext';
 
@@ -69,8 +69,32 @@ function FeedDayRow({
               <br />
               {dayEntries[0].title}
             </div>
-            <div className="feed-tour-meta">
-              {statusLabel(dayEntries[0].status)}
+            <div className="feed-tour-meta guide-operator-inline-unread">
+              {isGuideOperatorManaged(dayEntries[0]) ? (
+                <>
+                  <span>{t.assignedViaGuideOperator}</span>
+                  {dayEntries[0].guideOperatorVersionUnread ? (
+                    <span
+                      className="guide-operator-unread-dot"
+                      role="status"
+                      aria-label={t.guideOperatorUnreadAria}
+                      data-testid={`go-feed-unread-${dayEntries[0].id}`}
+                    />
+                  ) : null}
+                  {dayEntries[0].guideOperatorPendingCritical ? (
+                    <span
+                      className="guide-operator-critical-badge"
+                      role="status"
+                      aria-label={t.guideOperatorCriticalPendingAria}
+                      data-testid={`go-feed-critical-${dayEntries[0].id}`}
+                    >
+                      {t.guideOperatorCriticalPendingBadge}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                statusLabel(dayEntries[0].status)
+              )}
               {dayEntries.length > 1 ? ` · ${t.moreTours(dayEntries.length - 1)}` : ''}
             </div>
           </>
@@ -84,6 +108,8 @@ export function Feed() {
   const {
     entries,
     scrollToTodaySignal,
+    feedRestoreIso,
+    clearFeedRestoreIso,
     monthExpanded,
     openDayDetail,
     setVisibleFeedFromIso,
@@ -112,6 +138,19 @@ export function Feed() {
       behavior: 'smooth',
     });
   }, [scrollToTodaySignal, todayIndex]);
+
+  useEffect(() => {
+    if (!feedRestoreIso) return;
+    const index = ALL_FEED_DATES.indexOf(feedRestoreIso);
+    if (index >= 0) {
+      virtuosoRef.current?.scrollToIndex({
+        index,
+        align: 'start',
+        behavior: 'auto',
+      });
+    }
+    clearFeedRestoreIso();
+  }, [feedRestoreIso, clearFeedRestoreIso]);
 
   return (
     <div className="feed-virtuoso-wrap" data-testid="feed-virtuoso">

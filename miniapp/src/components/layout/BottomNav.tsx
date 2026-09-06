@@ -9,6 +9,22 @@ interface BottomNavProps {
   onTabChange: (tab: TabId) => void;
 }
 
+function IconGuideOperator() {
+  return (
+    <svg
+      className="nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M12 3l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7l8-4Z" />
+      <path d="M9.5 12.5l1.8 1.8 3.7-3.8" />
+    </svg>
+  );
+}
+
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const activeItemRef = useRef<HTMLButtonElement | null>(null);
 
@@ -47,6 +63,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         {tabButton('calendar', t.calendar, <IconCalendar />)}
         {tabButton('reports', t.reports, <IconReports />)}
         {tabButton('guideshop', t.guideShop, <IconGuideShop />)}
+        {tabButton('guide_operator', t.guideOperator, <IconGuideOperator />)}
       </div>
     </nav>
   );

@@ -24,6 +24,18 @@ import type {
   OfficialPointsSummary,
   OfficialVisit,
   OfficialVisitsResult,
+  GuideOperatorAssignment,
+  GuideOperatorAssignmentDetail,
+  GuideOperatorAssignmentLists,
+  GuideOperatorDecisionInput,
+  GuideOperatorDecisionResult,
+  GuideOperatorCriticalDecisionInput,
+  GuideOperatorCriticalDecisionResult,
+  GuideOperatorVersionAcknowledgeInput,
+  GuideOperatorVersionAcknowledgeResult,
+  GuideOperatorConnection,
+  GuideOperatorConnectionDecisionInput,
+  GuideOperatorConnectionDecisionResult,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -627,6 +639,138 @@ export function createHttpClient(): GuideOsClient {
       return apiRequest<OfficialHistoryResult>(
         `/app/v1/guideshop/history${query ? `?${query}` : ''}`,
         { signal: options?.signal },
+      );
+    },
+
+    async listPendingGuideOperatorAssignments() {
+      const data = await apiRequest<{ assignments: GuideOperatorAssignment[] }>(
+        '/app/v1/guide-operator/assignments/pending',
+      );
+      return data.assignments;
+    },
+
+    async listGuideOperatorAssignmentLists() {
+      return apiRequest<GuideOperatorAssignmentLists>(
+        '/app/v1/guide-operator/assignments/lists',
+      );
+    },
+
+    async getGuideOperatorAssignment(id: string) {
+      try {
+        return await apiRequest<GuideOperatorAssignmentDetail>(
+          `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'not_found') return null;
+        throw e;
+      }
+    },
+
+    async acceptGuideOperatorAssignment(id: string, input: GuideOperatorDecisionInput) {
+      return apiRequest<GuideOperatorDecisionResult>(
+        `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}/accept`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({ decisionEventId: input.decisionEventId }),
+        },
+      );
+    },
+
+    async declineGuideOperatorAssignment(id: string, input: GuideOperatorDecisionInput) {
+      return apiRequest<GuideOperatorDecisionResult>(
+        `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}/decline`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({ decisionEventId: input.decisionEventId }),
+        },
+      );
+    },
+
+    async acknowledgeGuideOperatorVersion(
+      id: string,
+      input: GuideOperatorVersionAcknowledgeInput,
+    ) {
+      return apiRequest<GuideOperatorVersionAcknowledgeResult>(
+        `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}/acknowledge-version`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({
+            decisionEventId: input.decisionEventId,
+            versionNumber: input.versionNumber,
+          }),
+        },
+      );
+    },
+
+    async confirmGuideOperatorCriticalVersion(
+      id: string,
+      input: GuideOperatorCriticalDecisionInput,
+    ) {
+      return apiRequest<GuideOperatorCriticalDecisionResult>(
+        `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}/confirm-critical`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({
+            decisionEventId: input.decisionEventId,
+            versionNumber: input.versionNumber,
+          }),
+        },
+      );
+    },
+
+    async rejectGuideOperatorCriticalVersion(
+      id: string,
+      input: GuideOperatorCriticalDecisionInput,
+    ) {
+      return apiRequest<GuideOperatorCriticalDecisionResult>(
+        `/app/v1/guide-operator/assignments/${encodeURIComponent(id)}/reject-critical`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({
+            decisionEventId: input.decisionEventId,
+            versionNumber: input.versionNumber,
+          }),
+        },
+      );
+    },
+
+    async listGuideOperatorConnections() {
+      const data = await apiRequest<{ connections: GuideOperatorConnection[] }>(
+        '/app/v1/guide-operator/connections',
+      );
+      return data.connections;
+    },
+
+    async confirmGuideOperatorConnection(
+      id: string,
+      input: GuideOperatorConnectionDecisionInput,
+    ) {
+      return apiRequest<GuideOperatorConnectionDecisionResult>(
+        `/app/v1/guide-operator/connections/${encodeURIComponent(id)}/confirm`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({ decisionEventId: input.decisionEventId }),
+        },
+      );
+    },
+
+    async declineGuideOperatorConnection(
+      id: string,
+      input: GuideOperatorConnectionDecisionInput,
+    ) {
+      return apiRequest<GuideOperatorConnectionDecisionResult>(
+        `/app/v1/guide-operator/connections/${encodeURIComponent(id)}/decline`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.decisionEventId },
+          body: JSON.stringify({ decisionEventId: input.decisionEventId }),
+        },
       );
     },
   };

@@ -14,9 +14,11 @@ ENTRY_TYPE_DAY_OFF = "day_off"
 
 SOURCE_GUIDE_OS_BOT = "guide_os_bot"
 SOURCE_MINI_APP = "mini_app"
+SOURCE_GUIDE_OPERATOR = "guide_operator"
 SOURCE_DISPLAY = {
     SOURCE_GUIDE_OS_BOT: "Guide OS bot",
     SOURCE_MINI_APP: "Mini App",
+    SOURCE_GUIDE_OPERATOR: "Guide Operator",
 }
 
 FREE_LABEL = "свободно"

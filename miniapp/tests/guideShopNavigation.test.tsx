@@ -21,6 +21,7 @@ describe('GuideShop navigation foundation', () => {
       t.calendar,
       t.reports,
       t.guideShop,
+      t.guideOperator,
     ]);
   });
 
@@ -29,6 +30,13 @@ describe('GuideShop navigation foundation', () => {
     render(<BottomNav activeTab="calendar" onTabChange={onTabChange} />);
     fireEvent.click(screen.getByRole('button', { name: t.guideShop }));
     expect(onTabChange).toHaveBeenCalledWith('guideshop');
+  });
+
+  it('changes to Guide Operator when its button is clicked', () => {
+    const onTabChange = vi.fn();
+    render(<BottomNav activeTab="calendar" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByRole('button', { name: t.guideOperator }));
+    expect(onTabChange).toHaveBeenCalledWith('guide_operator');
   });
 
   it('marks only the active tab as the current page', () => {

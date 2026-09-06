@@ -689,6 +689,414 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_service_jti_replay (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jti_hash TEXT NOT NULL UNIQUE,
+        claimed_at TEXT NOT NULL,
+        retain_until TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_service_jti_retain_until
+    ON guide_operator_service_jti_replay(retain_until)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_connections (
+        connection_id TEXT PRIMARY KEY,
+        guide_os_id TEXT NOT NULL,
+        company_id TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(
+            status IN ('invited', 'confirmed', 'declined', 'disconnected')
+        ),
+        invitation_expires_at TEXT NOT NULL,
+        invited_at TEXT NOT NULL,
+        decided_at TEXT,
+        disconnected_at TEXT,
+        invite_event_id TEXT NOT NULL UNIQUE,
+        disconnect_event_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_connections_guide_status
+    ON guide_operator_connections(guide_os_id, status, invited_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_connection_inbox (
+        event_id TEXT PRIMARY KEY,
+        connection_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK(
+            event_type IN (
+                'guide_connection.invited.v1',
+                'guide_connection.disconnected.v1'
+            )
+        ),
+        payload_hash TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied', 'duplicate'))
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_connection_inbox_connection
+    ON guide_operator_connection_inbox(connection_id, received_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_connection_decisions (
+        decision_event_id TEXT PRIMARY KEY,
+        connection_id TEXT NOT NULL UNIQUE,
+        guide_os_id TEXT NOT NULL,
+        decision_type TEXT NOT NULL CHECK(decision_type IN ('confirm', 'decline')),
+        decided_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_offer_inbox (
+        event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied', 'duplicate'))
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_offer_inbox_assignment
+    ON guide_operator_offer_inbox(assignment_id, received_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_cancellation_inbox (
+        event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL CHECK(version_number >= 1),
+        payload_hash TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied', 'duplicate'))
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_cancellation_inbox_assignment
+    ON guide_operator_cancellation_inbox(assignment_id, received_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS go_operator_projection_release (
+        tour_id INTEGER PRIMARY KEY
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS go_operator_projection_metadata_update (
+        tour_id INTEGER PRIMARY KEY
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS go_operator_projection_occupancy_update (
+        tour_id INTEGER PRIMARY KEY
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_version_inbox (
+        event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL CHECK(version_number >= 2),
+        payload_hash TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied', 'duplicate'))
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_version_inbox_assignment
+    ON guide_operator_version_inbox(assignment_id, received_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_assignments (
+        assignment_id TEXT PRIMARY KEY,
+        guide_os_id TEXT NOT NULL,
+        company_id TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        guide_connection_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        response_deadline TEXT,
+        operator_message TEXT,
+        status TEXT NOT NULL CHECK(status IN ('offered', 'accepted', 'declined', 'cancelled')),
+        active_version_number INTEGER NOT NULL DEFAULT 1 CHECK(active_version_number >= 1),
+        projection_tour_id INTEGER UNIQUE,
+        offer_event_id TEXT NOT NULL UNIQUE,
+        offered_at TEXT NOT NULL,
+        decided_at TEXT,
+        cancelled_at TEXT,
+        cancellation_event_id TEXT UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        active_version_unread INTEGER NOT NULL DEFAULT 0
+            CHECK(active_version_unread IN (0, 1)),
+        pending_critical_version_number INTEGER
+            CHECK(
+                pending_critical_version_number IS NULL
+                OR pending_critical_version_number >= 2
+            ),
+        CHECK(start_date <= end_date),
+        FOREIGN KEY(projection_tour_id) REFERENCES tours(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_assignments_guide_status
+    ON guide_operator_assignments(guide_os_id, status, start_date)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_assignment_versions (
+        assignment_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL CHECK(version_number >= 1),
+        severity TEXT NOT NULL CHECK(severity IN ('initial', 'ordinary', 'critical')),
+        working_package_json TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        change_summary_json TEXT,
+        source_event_id TEXT,
+        PRIMARY KEY(assignment_id, version_number),
+        FOREIGN KEY(assignment_id) REFERENCES guide_operator_assignments(assignment_id)
+    )
+    """)
+
+    _migrate_guide_operator_ordinary_version_columns(cursor)
+    _migrate_guide_operator_connection_columns(cursor)
+
+    cursor.execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_go_assignment_versions_source_event
+    ON guide_operator_assignment_versions(source_event_id)
+    WHERE source_event_id IS NOT NULL
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_assignment_decisions (
+        decision_event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL UNIQUE,
+        guide_os_id TEXT NOT NULL,
+        decision_type TEXT NOT NULL CHECK(decision_type IN ('accept', 'decline')),
+        version_number INTEGER NOT NULL CHECK(version_number >= 1),
+        decided_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(assignment_id) REFERENCES guide_operator_assignments(assignment_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_version_acknowledgements (
+        decision_event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL CHECK(version_number >= 1),
+        acknowledged_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(assignment_id, version_number),
+        FOREIGN KEY(assignment_id) REFERENCES guide_operator_assignments(assignment_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_version_ack_guide
+    ON guide_operator_version_acknowledgements(guide_os_id, assignment_id)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_critical_version_decisions (
+        decision_event_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL CHECK(version_number >= 2),
+        decision_type TEXT NOT NULL
+            CHECK(decision_type IN ('confirm_critical', 'reject_critical')),
+        decided_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(assignment_id, version_number),
+        FOREIGN KEY(assignment_id) REFERENCES guide_operator_assignments(assignment_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_critical_version_decisions_guide
+    ON guide_operator_critical_version_decisions(guide_os_id, assignment_id)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL UNIQUE,
+        event_type TEXT NOT NULL,
+        aggregate_type TEXT NOT NULL,
+        aggregate_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        delivered_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+        next_attempt_at TEXT,
+        last_error_code TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_outbox_pending
+    ON guide_operator_outbox(delivered_at, created_at, id)
+    """)
+
+    _migrate_guide_operator_outbox_delivery_columns(cursor)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_guide_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_event_id TEXT NOT NULL UNIQUE,
+        guide_os_id TEXT NOT NULL,
+        notification_type TEXT NOT NULL CHECK(
+            notification_type IN (
+                'connection_invitation',
+                'assignment_offer',
+                'ordinary_version_change',
+                'critical_confirmation_required',
+                'assignment_cancellation',
+                'connection_disconnection'
+            )
+        ),
+        company_name TEXT NOT NULL,
+        connection_id TEXT,
+        assignment_id TEXT,
+        version_number INTEGER CHECK(
+            version_number IS NULL OR version_number >= 1
+        ),
+        deep_link_target TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        delivery_status TEXT NOT NULL DEFAULT 'pending' CHECK(
+            delivery_status IN ('pending', 'delivered', 'failed')
+        ),
+        delivered_at TEXT,
+        failed_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+        last_error_code TEXT,
+        next_attempt_at TEXT,
+        CHECK (
+            (
+                notification_type IN (
+                    'connection_invitation',
+                    'connection_disconnection'
+                )
+                AND connection_id IS NOT NULL
+                AND assignment_id IS NULL
+                AND version_number IS NULL
+            )
+            OR
+            (
+                notification_type IN (
+                    'assignment_offer',
+                    'ordinary_version_change',
+                    'critical_confirmation_required',
+                    'assignment_cancellation'
+                )
+                AND assignment_id IS NOT NULL
+                AND connection_id IS NULL
+                AND version_number IS NOT NULL
+                AND version_number >= 1
+            )
+        )
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_guide_notifications_guide_created
+    ON guide_operator_guide_notifications(guide_os_id, created_at, id)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_guide_notifications_pending
+    ON guide_operator_guide_notifications(delivery_status, created_at, id)
+    """)
+
+    # Recreate update trigger so GO7D1 metadata + GO7E2 occupancy allowlists apply.
+    cursor.execute("DROP TRIGGER IF EXISTS trg_tours_operator_managed_no_update")
+    cursor.execute("""
+    CREATE TRIGGER trg_tours_operator_managed_no_update
+    BEFORE UPDATE ON tours
+    FOR EACH ROW
+    WHEN OLD.source = 'guide_operator'
+     AND NOT (
+         (
+             EXISTS (
+                 SELECT 1 FROM go_operator_projection_metadata_update
+                 WHERE tour_id = OLD.id
+             )
+             AND NEW.user_id = OLD.user_id
+             AND NEW.start_date = OLD.start_date
+             AND NEW.end_date = OLD.end_date
+             AND NEW.status = OLD.status
+             AND NEW.entry_type = OLD.entry_type
+             AND NEW.source = OLD.source
+             AND NEW.income IS OLD.income
+             AND NEW.payment_status IS OLD.payment_status
+             AND NEW.note IS OLD.note
+             AND NEW.tour_group_id IS OLD.tour_group_id
+             AND NEW.start_time IS OLD.start_time
+             AND NEW.end_time IS OLD.end_time
+         )
+         OR (
+             EXISTS (
+                 SELECT 1 FROM go_operator_projection_occupancy_update
+                 WHERE tour_id = OLD.id
+             )
+             AND NEW.user_id = OLD.user_id
+             AND NEW.status = OLD.status
+             AND NEW.entry_type = OLD.entry_type
+             AND NEW.source = OLD.source
+             AND NEW.income IS OLD.income
+             AND NEW.payment_status IS OLD.payment_status
+             AND NEW.note IS OLD.note
+             AND NEW.tour_group_id IS OLD.tour_group_id
+             AND NEW.start_time IS OLD.start_time
+             AND NEW.end_time IS OLD.end_time
+         )
+     )
+    BEGIN
+        SELECT RAISE(ABORT, 'operator-managed calendar entry is protected');
+    END
+    """)
+
+    # Recreate delete trigger so GO7B1 release allowlist is applied on existing DBs.
+    cursor.execute("DROP TRIGGER IF EXISTS trg_tours_operator_managed_no_delete")
+    cursor.execute("""
+    CREATE TRIGGER trg_tours_operator_managed_no_delete
+    BEFORE DELETE ON tours
+    FOR EACH ROW
+    WHEN OLD.source = 'guide_operator'
+     AND NOT EXISTS (
+         SELECT 1 FROM go_operator_projection_release WHERE tour_id = OLD.id
+     )
+    BEGIN
+        SELECT RAISE(ABORT, 'operator-managed calendar entry is protected');
+    END
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -757,6 +1165,198 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     logger.info("SQLite status migration checked")
 
 
+def _migrate_guide_operator_connection_columns(
+    cursor: sqlite3.Cursor,
+) -> None:
+    """Add GO8C2 guide_connection_id on databases created before that stage."""
+    cursor.execute("PRAGMA table_info(guide_operator_assignments)")
+    assignment_columns = {info["name"] for info in cursor.fetchall()}
+    if "guide_connection_id" not in assignment_columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignments
+            ADD COLUMN guide_connection_id TEXT
+            """
+        )
+
+
+def _migrate_guide_operator_outbox_delivery_columns(
+    cursor: sqlite3.Cursor,
+) -> None:
+    """Add GO8F2A claim/retry columns on databases created before that stage."""
+    cursor.execute("PRAGMA table_info(guide_operator_outbox)")
+    columns = {info["name"] for info in cursor.fetchall()}
+    if not columns:
+        return
+    if "next_attempt_at" not in columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_outbox
+            ADD COLUMN next_attempt_at TEXT
+            """
+        )
+    if "last_error_code" not in columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_outbox
+            ADD COLUMN last_error_code TEXT
+            """
+        )
+
+
+def _migrate_guide_operator_ordinary_version_columns(
+    cursor: sqlite3.Cursor,
+) -> None:
+    """Add GO7D1/GO7E1 version columns on databases created before those stages."""
+    cursor.execute("PRAGMA table_info(guide_operator_assignments)")
+    assignment_columns = {info["name"] for info in cursor.fetchall()}
+    if "active_version_unread" not in assignment_columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignments
+            ADD COLUMN active_version_unread INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "pending_critical_version_number" not in assignment_columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignments
+            ADD COLUMN pending_critical_version_number INTEGER
+            """
+        )
+
+    cursor.execute("PRAGMA table_info(guide_operator_assignment_versions)")
+    version_columns = {info["name"] for info in cursor.fetchall()}
+    if "change_summary_json" not in version_columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignment_versions
+            ADD COLUMN change_summary_json TEXT
+            """
+        )
+    if "source_event_id" not in version_columns:
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignment_versions
+            ADD COLUMN source_event_id TEXT
+            """
+        )
+
+
+def _guide_operator_assignments_needs_cancellation_migration(
+    cursor: sqlite3.Cursor,
+) -> bool:
+    cursor.execute(
+        """
+        SELECT sql FROM sqlite_master
+        WHERE type = 'table' AND name = 'guide_operator_assignments'
+        """
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return False
+    sql = row["sql"] or ""
+    cursor.execute("PRAGMA table_info(guide_operator_assignments)")
+    columns = {info["name"] for info in cursor.fetchall()}
+    return (
+        "'cancelled'" not in sql
+        or "cancelled_at" not in columns
+        or "cancellation_event_id" not in columns
+    )
+
+
+def _migrate_guide_operator_assignments_cancellation(
+    conn: sqlite3.Connection,
+) -> None:
+    """Rebuild assignments table for cancelled status (autocommit; FK toggle).
+
+    SQLite cannot ALTER a CHECK constraint and cannot change foreign_keys inside
+    a multi-statement transaction, so this runs before BEGIN IMMEDIATE.
+    """
+    cursor = conn.cursor()
+    if not _guide_operator_assignments_needs_cancellation_migration(cursor):
+        return
+
+    cursor.execute("PRAGMA foreign_keys = OFF")
+    try:
+        cursor.execute(
+            """
+            CREATE TABLE guide_operator_assignments__go7b1 (
+                assignment_id TEXT PRIMARY KEY,
+                guide_os_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                company_name TEXT NOT NULL,
+                role TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                response_deadline TEXT,
+                operator_message TEXT,
+                status TEXT NOT NULL CHECK(
+                    status IN ('offered', 'accepted', 'declined', 'cancelled')
+                ),
+                active_version_number INTEGER NOT NULL DEFAULT 1
+                    CHECK(active_version_number >= 1),
+                projection_tour_id INTEGER UNIQUE,
+                offer_event_id TEXT NOT NULL UNIQUE,
+                offered_at TEXT NOT NULL,
+                decided_at TEXT,
+                cancelled_at TEXT,
+                cancellation_event_id TEXT UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CHECK(start_date <= end_date),
+                FOREIGN KEY(projection_tour_id) REFERENCES tours(id)
+            )
+            """
+        )
+        cursor.execute("PRAGMA table_info(guide_operator_assignments)")
+        existing = {info["name"] for info in cursor.fetchall()}
+        cancelled_at_expr = (
+            "cancelled_at" if "cancelled_at" in existing else "NULL"
+        )
+        cancellation_event_expr = (
+            "cancellation_event_id"
+            if "cancellation_event_id" in existing
+            else "NULL"
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO guide_operator_assignments__go7b1 (
+                assignment_id, guide_os_id, company_id, company_name, role,
+                start_date, end_date, response_deadline, operator_message,
+                status, active_version_number, projection_tour_id,
+                offer_event_id, offered_at, decided_at, cancelled_at,
+                cancellation_event_id, created_at, updated_at
+            )
+            SELECT
+                assignment_id, guide_os_id, company_id, company_name, role,
+                start_date, end_date, response_deadline, operator_message,
+                status, active_version_number, projection_tour_id,
+                offer_event_id, offered_at, decided_at,
+                {cancelled_at_expr}, {cancellation_event_expr},
+                created_at, updated_at
+            FROM guide_operator_assignments
+            """
+        )
+        cursor.execute("DROP TABLE guide_operator_assignments")
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignments__go7b1
+            RENAME TO guide_operator_assignments
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_go_assignments_guide_status
+            ON guide_operator_assignments(guide_os_id, status, start_date)
+            """
+        )
+        conn.commit()
+        logger.info("Guide Operator assignments schema migrated for cancellation")
+    finally:
+        cursor.execute("PRAGMA foreign_keys = ON")
+
+
 def init_db() -> None:
     """Initialize schema under an exclusive SQLite write lock.
 
@@ -777,6 +1377,8 @@ def init_db() -> None:
                     mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
                     if str(mode).lower() != "wal":
                         conn.execute("PRAGMA journal_mode = WAL")
+                    # Autocommit: CHECK rebuild requires toggling foreign_keys.
+                    _migrate_guide_operator_assignments_cancellation(conn)
                     conn.execute("BEGIN IMMEDIATE")
                     if _INIT_DB_PAUSE_HOOK is not None:
                         _INIT_DB_PAUSE_HOOK()

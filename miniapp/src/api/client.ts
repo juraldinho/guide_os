@@ -17,6 +17,18 @@ import type {
   OfficialPointsSummary,
   OfficialVisit,
   OfficialVisitsResult,
+  GuideOperatorAssignment,
+  GuideOperatorAssignmentDetail,
+  GuideOperatorAssignmentLists,
+  GuideOperatorDecisionInput,
+  GuideOperatorDecisionResult,
+  GuideOperatorCriticalDecisionInput,
+  GuideOperatorCriticalDecisionResult,
+  GuideOperatorVersionAcknowledgeInput,
+  GuideOperatorVersionAcknowledgeResult,
+  GuideOperatorConnection,
+  GuideOperatorConnectionDecisionInput,
+  GuideOperatorConnectionDecisionResult,
   PersonalCommission,
   PersonalCommissionInput,
   PersonalPlace,
@@ -75,4 +87,38 @@ export interface GuideOsClient {
   getOfficialVisit(id: string, options?: GuideShopReadOptions): Promise<OfficialVisit | null>;
   getOfficialPointsSummary(options?: GuideShopReadOptions): Promise<OfficialPointsSummary>;
   listOfficialHistory(options?: ListOfficialHistoryOptions): Promise<OfficialHistoryResult>;
+  listPendingGuideOperatorAssignments(): Promise<GuideOperatorAssignment[]>;
+  listGuideOperatorAssignmentLists(): Promise<GuideOperatorAssignmentLists>;
+  getGuideOperatorAssignment(
+    id: string,
+  ): Promise<GuideOperatorAssignmentDetail | null>;
+  acceptGuideOperatorAssignment(
+    id: string,
+    input: GuideOperatorDecisionInput,
+  ): Promise<GuideOperatorDecisionResult>;
+  declineGuideOperatorAssignment(
+    id: string,
+    input: GuideOperatorDecisionInput,
+  ): Promise<GuideOperatorDecisionResult>;
+  acknowledgeGuideOperatorVersion(
+    id: string,
+    input: GuideOperatorVersionAcknowledgeInput,
+  ): Promise<GuideOperatorVersionAcknowledgeResult>;
+  confirmGuideOperatorCriticalVersion(
+    id: string,
+    input: GuideOperatorCriticalDecisionInput,
+  ): Promise<GuideOperatorCriticalDecisionResult>;
+  rejectGuideOperatorCriticalVersion(
+    id: string,
+    input: GuideOperatorCriticalDecisionInput,
+  ): Promise<GuideOperatorCriticalDecisionResult>;
+  listGuideOperatorConnections(): Promise<GuideOperatorConnection[]>;
+  confirmGuideOperatorConnection(
+    id: string,
+    input: GuideOperatorConnectionDecisionInput,
+  ): Promise<GuideOperatorConnectionDecisionResult>;
+  declineGuideOperatorConnection(
+    id: string,
+    input: GuideOperatorConnectionDecisionInput,
+  ): Promise<GuideOperatorConnectionDecisionResult>;
 }

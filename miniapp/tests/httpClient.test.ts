@@ -1894,3 +1894,189 @@ describe('mock commission reports summary', () => {
     expect(summary.recordCount).toBe(3);
   });
 });
+
+describe('Guide Operator assignment API (GO6B1)', () => {
+  beforeEach(() => {
+    __testClearSession();
+    window.Telegram = { WebApp: { initData: '' } };
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists pending offers and loads assignment detail via /app/v1/guide-operator', async () => {
+    __testSetSessionToken('tok_go');
+    const fetchMock = vi.mocked(fetch);
+    const assignment = {
+      id: 'asg_1',
+      companyId: 'co_1',
+      companyName: 'Operator Co',
+      role: 'main_guide',
+      startDate: '2026-06-10',
+      endDate: '2026-06-12',
+      responseDeadline: null,
+      operatorMessage: null,
+      status: 'offered',
+      activeVersionNumber: 1,
+      activeVersionUnread: false,
+      pendingCriticalVersionNumber: null,
+      projectionTourId: null,
+      offeredAt: '2026-06-01T00:00:00Z',
+      decidedAt: null,
+      cancelledAt: null,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: { assignments: [assignment] } }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            assignment,
+            workingPackage: { tour: { title: 'Bukhara route' } },
+            conflictDates: [],
+            activeVersion: {
+              versionNumber: 1,
+              severity: 'initial',
+              publishedAt: '2026-06-01T00:00:00Z',
+              changeSummary: [],
+              unread: false,
+              sourceEventId: null,
+            },
+            pendingCriticalVersion: null,
+            versions: [
+              {
+                versionNumber: 1,
+                severity: 'initial',
+                publishedAt: '2026-06-01T00:00:00Z',
+                changeSummary: [],
+                workingPackage: { tour: { title: 'Bukhara route' } },
+                sourceEventId: null,
+              },
+            ],
+          },
+        }),
+      );
+
+    const client = createHttpClient();
+    const pending = await client.listPendingGuideOperatorAssignments();
+    expect(pending).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      '/app/v1/guide-operator/assignments/pending',
+    );
+
+    const detail = await client.getGuideOperatorAssignment('asg_1');
+    expect(detail?.workingPackage).toEqual({ tour: { title: 'Bukhara route' } });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      '/app/v1/guide-operator/assignments/asg_1',
+    );
+  });
+
+  it('posts confirm-critical and reject-critical with versionNumber', async () => {
+    __testSetSessionToken('tok_go_critical');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            assignmentId: 'asg_1',
+            status: 'accepted',
+            decision: 'confirm_critical',
+            versionNumber: 2,
+            decisionEventId: 'evt-confirm',
+            pendingCriticalVersionNumber: null,
+            activeVersionNumber: 2,
+            projectionTourId: '42',
+            replayed: false,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            assignmentId: 'asg_1',
+            status: 'accepted',
+            decision: 'reject_critical',
+            versionNumber: 2,
+            decisionEventId: 'evt-reject',
+            pendingCriticalVersionNumber: null,
+            activeVersionNumber: 1,
+            projectionTourId: '42',
+            replayed: false,
+          },
+        }),
+      );
+
+    const client = createHttpClient();
+    const confirmed = await client.confirmGuideOperatorCriticalVersion('asg_1', {
+      decisionEventId: 'evt-confirm',
+      versionNumber: 2,
+    });
+    expect(confirmed.decision).toBe('confirm_critical');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/confirm-critical');
+
+    const rejected = await client.rejectGuideOperatorCriticalVersion('asg_1', {
+      decisionEventId: 'evt-reject',
+      versionNumber: 2,
+    });
+    expect(rejected.decision).toBe('reject_critical');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/reject-critical');
+  });
+
+  it('accept and decline send decisionEventId only (no body identity fields)', async () => {
+    __testSetSessionToken('tok_go');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: {
+          assignmentId: 'asg_1',
+          status: 'accepted',
+          decision: 'accept',
+          decisionEventId: '11111111-1111-4111-8111-111111111111',
+          projectionTourId: '42',
+          replayed: false,
+        },
+      }),
+    );
+
+    const client = createHttpClient();
+    await client.acceptGuideOperatorAssignment('asg_1', {
+      decisionEventId: '11111111-1111-4111-8111-111111111111',
+    });
+    const acceptInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      '/app/v1/guide-operator/assignments/asg_1/accept',
+    );
+    expect(JSON.parse(String(acceptInit.body))).toEqual({
+      decisionEventId: '11111111-1111-4111-8111-111111111111',
+    });
+    const acceptHeaders = new Headers(acceptInit.headers);
+    expect(acceptHeaders.get('Authorization')).toBe('Bearer tok_go');
+    expect(acceptHeaders.get('Idempotency-Key')).toBe(
+      '11111111-1111-4111-8111-111111111111',
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          assignmentId: 'asg_1',
+          status: 'declined',
+          decision: 'decline',
+          decisionEventId: '22222222-2222-4222-8222-222222222222',
+          projectionTourId: null,
+          replayed: false,
+        },
+      }),
+    );
+    await client.declineGuideOperatorAssignment('asg_1', {
+      decisionEventId: '22222222-2222-4222-8222-222222222222',
+    });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      '/app/v1/guide-operator/assignments/asg_1/decline',
+    );
+    const declineInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    expect(JSON.parse(String(declineInit.body))).toEqual({
+      decisionEventId: '22222222-2222-4222-8222-222222222222',
+    });
+  });
+});

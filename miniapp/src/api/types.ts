@@ -14,13 +14,22 @@ export interface CalendarEntry {
   startTime: string | null;
   endTime: string | null;
   status?: TourStatus;
-  payment?: PaymentStatus;
-  income: number;
+  payment?: PaymentStatus | null;
+  /** Daily rate; null means unknown / not applicable (Guide Operator projections). */
+  income: number | null;
   company?: string;
   location?: string;
   note?: string;
   source?: SourceKind;
   dayLocations?: Record<string, string>;
+  /** Present when this calendar row is a Guide Operator projection. */
+  guideOperatorAssignmentId?: string | null;
+  /** Active working-package version for the projected assignment. */
+  guideOperatorVersion?: number | null;
+  /** True when the active ordinary version has not been acknowledged. */
+  guideOperatorVersionUnread?: boolean | null;
+  /** True when a critical version awaits guide confirm/reject. */
+  guideOperatorPendingCritical?: boolean | null;
 }
 
 export interface TourFormValues {
@@ -71,7 +80,7 @@ export interface ConflictWarn {
 
 export type ConflictResult = ConflictBlock | ConflictWarn | null;
 
-export type TabId = 'calendar' | 'reports' | 'guideshop';
+export type TabId = 'calendar' | 'reports' | 'guideshop' | 'guide_operator';
 export type CalendarScreen = 'feed' | 'day';
 
 export interface TourFormOverlayData {
@@ -364,4 +373,165 @@ export interface OfficialHistoryResult {
 export interface ListOfficialHistoryOptions {
   cursor?: string;
   signal?: AbortSignal;
+}
+
+export type GuideOperatorAssignmentStatus =
+  | 'offered'
+  | 'accepted'
+  | 'declined'
+  | 'cancelled';
+
+export type GuideOperatorLifecycleSection =
+  | 'awaiting'
+  | 'upcoming'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
+export interface GuideOperatorAssignment {
+  id: string;
+  companyId: string;
+  companyName: string;
+  role: string;
+  startDate: string;
+  endDate: string;
+  responseDeadline: string | null;
+  operatorMessage: string | null;
+  status: GuideOperatorAssignmentStatus;
+  activeVersionNumber: number;
+  activeVersionUnread: boolean;
+  pendingCriticalVersionNumber: number | null;
+  projectionTourId: string | null;
+  offeredAt: string;
+  decidedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface GuideOperatorAssignmentLists {
+  asOfDate: string;
+  awaiting: GuideOperatorAssignment[];
+  upcoming: GuideOperatorAssignment[];
+  inProgress: GuideOperatorAssignment[];
+  completed: GuideOperatorAssignment[];
+  cancelled: GuideOperatorAssignment[];
+}
+
+export interface GuideOperatorChangeSummaryItem {
+  code?: string;
+  severity?: string;
+  path?: string;
+  change?: string;
+  before?: unknown;
+  after?: unknown;
+  [key: string]: unknown;
+}
+
+export interface GuideOperatorAssignmentVersion {
+  versionNumber: number;
+  severity: 'initial' | 'ordinary' | 'critical' | string;
+  publishedAt: string;
+  changeSummary: GuideOperatorChangeSummaryItem[];
+  workingPackage: Record<string, unknown>;
+  sourceEventId?: string | null;
+}
+
+export interface GuideOperatorActiveVersion {
+  versionNumber: number;
+  severity: 'initial' | 'ordinary' | 'critical' | string;
+  publishedAt: string;
+  changeSummary: GuideOperatorChangeSummaryItem[];
+  unread: boolean;
+  sourceEventId?: string | null;
+}
+
+export interface GuideOperatorPendingCriticalVersion {
+  versionNumber: number;
+  severity: 'critical' | string;
+  publishedAt: string;
+  changeSummary: GuideOperatorChangeSummaryItem[];
+  workingPackage: Record<string, unknown>;
+  sourceEventId?: string | null;
+  conflictDates: string[];
+}
+
+export interface GuideOperatorAssignmentDetail {
+  assignment: GuideOperatorAssignment;
+  workingPackage: Record<string, unknown>;
+  conflictDates: string[];
+  activeVersion: GuideOperatorActiveVersion;
+  pendingCriticalVersion: GuideOperatorPendingCriticalVersion | null;
+  versions: GuideOperatorAssignmentVersion[];
+}
+
+export interface GuideOperatorDecisionInput {
+  decisionEventId: string;
+}
+
+export interface GuideOperatorDecisionResult {
+  assignmentId: string;
+  status: GuideOperatorAssignmentStatus;
+  decision: 'accept' | 'decline';
+  decisionEventId: string;
+  projectionTourId: string | null;
+  replayed: boolean;
+}
+
+export interface GuideOperatorVersionAcknowledgeInput {
+  decisionEventId: string;
+  versionNumber: number;
+}
+
+export interface GuideOperatorVersionAcknowledgeResult {
+  assignmentId: string;
+  versionNumber: number;
+  decisionEventId: string;
+  unread: boolean;
+  replayed: boolean;
+}
+
+export interface GuideOperatorCriticalDecisionInput {
+  decisionEventId: string;
+  versionNumber: number;
+}
+
+export interface GuideOperatorCriticalDecisionResult {
+  assignmentId: string;
+  status: GuideOperatorAssignmentStatus;
+  decision: 'confirm_critical' | 'reject_critical';
+  versionNumber: number;
+  decisionEventId: string;
+  pendingCriticalVersionNumber: number | null;
+  activeVersionNumber: number;
+  projectionTourId: string | null;
+  replayed: boolean;
+}
+
+export type GuideOperatorConnectionStatus =
+  | 'invited'
+  | 'confirmed'
+  | 'declined'
+  | 'disconnected';
+
+export interface GuideOperatorConnection {
+  id: string;
+  companyName: string;
+  status: GuideOperatorConnectionStatus;
+  invitedAt: string;
+  invitationExpiresAt: string;
+  decidedAt: string | null;
+  disconnectedAt: string | null;
+  expired: boolean;
+  actionable: boolean;
+}
+
+export interface GuideOperatorConnectionDecisionInput {
+  decisionEventId: string;
+}
+
+export interface GuideOperatorConnectionDecisionResult {
+  connectionId: string;
+  status: GuideOperatorConnectionStatus;
+  decision: 'confirm' | 'decline';
+  decisionEventId: string;
+  replayed: boolean;
 }

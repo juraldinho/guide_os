@@ -17,11 +17,13 @@ from utils.constants import (
     DAY_OFF_TITLE,
     SOURCE_GUIDE_OS_BOT,
     SOURCE_MINI_APP,
+    SOURCE_GUIDE_OPERATOR,
     SOURCE_DISPLAY,
 )
 
 from database.queries import (
     create_tour,
+    get_guide_operator_assignment,
     get_tours_for_month,
     get_tour_by_id,
     delete_tour_by_id,
@@ -167,9 +169,18 @@ def get_current_month_tours(user_id: int) -> list[dict]:
 def get_tour(user_id: int, tour_id: int) -> dict | None:
     return get_tour_by_id(user_id, tour_id)
 
+
+def is_operator_managed_tour(tour: dict | None) -> bool:
+    if not tour:
+        return False
+    return (tour.get("source") or SOURCE_GUIDE_OS_BOT) == SOURCE_GUIDE_OPERATOR
+
+
 def delete_tour(user_id: int, tour_id: int) -> bool:
     tour = get_tour_by_id(user_id, tour_id)
     if not tour:
+        return False
+    if is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -185,7 +196,7 @@ def edit_tour_company(user_id: int, tour_id: int, company: str) -> bool:
         return False
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -201,7 +212,7 @@ def edit_tour_city(user_id: int, tour_id: int, city: str) -> bool:
         return False
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -215,7 +226,7 @@ def edit_tour_income(user_id: int, tour_id: int, income: int) -> bool:
         return False
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -231,7 +242,7 @@ def edit_tour_note(user_id: int, tour_id: int, note: str) -> bool:
         note = None
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -245,7 +256,7 @@ def edit_tour_status(user_id: int, tour_id: int, status: str) -> bool:
         return False
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -260,7 +271,7 @@ def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) ->
         return False
 
     tour = get_tour_by_id(user_id, tour_id)
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return False
 
     tour_group_id = tour.get("tour_group_id")
@@ -270,6 +281,10 @@ def edit_tour_payment_status(user_id: int, tour_id: int, payment_status: str) ->
     return update_tour_payment_status(user_id, tour_id, payment_status)
 
 def edit_tour_dates(user_id: int, tour_id: int, date_text: str) -> bool:
+    tour = get_tour_by_id(user_id, tour_id)
+    if not tour or is_operator_managed_tour(tour):
+        return False
+
     intervals = parse_date_input(date_text)
 
     if len(intervals) != 1:
@@ -329,6 +344,75 @@ def days_in_range(start: str, end: str) -> list[str]:
     return out
 
 
+_GO_ASSIGNMENT_NOTE_PREFIX = "go_assignment:"
+
+
+def is_guide_operator_managed_entry(entry: dict[str, Any]) -> bool:
+    """True for Guide Operator calendar projections (entry dict or raw tour row)."""
+    if entry.get("guide_operator_assignment_id"):
+        return True
+    source = entry.get("source")
+    if source == SOURCE_GUIDE_OPERATOR:
+        return True
+    if source == SOURCE_DISPLAY[SOURCE_GUIDE_OPERATOR]:
+        return True
+    return False
+
+
+def _parse_guide_operator_assignment_id(
+    *, source_key: str | None, group_id: Any, note: Any
+) -> str | None:
+    if source_key != SOURCE_GUIDE_OPERATOR:
+        return None
+    if isinstance(group_id, str) and group_id.strip():
+        return group_id.strip()
+    if isinstance(note, str) and note.startswith(_GO_ASSIGNMENT_NOTE_PREFIX):
+        parsed = note[len(_GO_ASSIGNMENT_NOTE_PREFIX) :].strip()
+        return parsed or None
+    return None
+
+
+def _attach_guide_operator_meta(entry: dict[str, Any]) -> dict[str, Any]:
+    """Expose stable Guide Operator projection metadata for Mini App calendar UX."""
+    if entry.get("source") != SOURCE_DISPLAY[SOURCE_GUIDE_OPERATOR]:
+        return entry
+
+    assignment_id = entry.get("guide_operator_assignment_id")
+    if not assignment_id:
+        assignment_id = _parse_guide_operator_assignment_id(
+            source_key=SOURCE_GUIDE_OPERATOR,
+            group_id=entry.get("group_id"),
+            note=entry.get("note"),
+        )
+    if not assignment_id:
+        return entry
+
+    enriched = dict(entry)
+    enriched["guide_operator_assignment_id"] = assignment_id
+    assignment = get_guide_operator_assignment(assignment_id)
+    if assignment is not None:
+        enriched["guide_operator_version"] = int(
+            assignment.get("active_version_number") or 1
+        )
+        enriched["guide_operator_version_unread"] = (
+            int(assignment.get("active_version_unread") or 0) == 1
+        )
+        enriched["guide_operator_pending_critical"] = (
+            assignment.get("pending_critical_version_number") is not None
+        )
+    else:
+        enriched["guide_operator_version"] = int(
+            entry.get("guide_operator_version") or 1
+        )
+        enriched["guide_operator_version_unread"] = bool(
+            entry.get("guide_operator_version_unread")
+        )
+        enriched["guide_operator_pending_critical"] = bool(
+            entry.get("guide_operator_pending_critical")
+        )
+    return enriched
+
+
 def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
     entry_type = row.get("entry_type", ENTRY_TYPE_TOUR)
     source_key = row.get("source") or SOURCE_GUIDE_OS_BOT
@@ -349,7 +433,9 @@ def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
     else:
         title = row.get("title") or row.get("company") or ""
 
-    return {
+    is_operator = source_key == SOURCE_GUIDE_OPERATOR
+    raw_income = row.get("income")
+    entry: dict[str, Any] = {
         "id": str(row["id"]),
         "type": entry_type,
         "title": title,
@@ -358,8 +444,9 @@ def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
         "start_time": row.get("start_time"),
         "end_time": row.get("end_time"),
         "status": row.get("status"),
-        "payment": row.get("payment_status"),
-        "income": row.get("income") or 0,
+        # Operator MVP has no guide fee / payment state — keep unknown, do not invent 0.
+        "payment": None if is_operator else row.get("payment_status"),
+        "income": None if is_operator else (raw_income or 0),
         "company": row.get("company"),
         "location": row.get("city"),
         "note": row.get("note"),
@@ -367,6 +454,14 @@ def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
         "day_locations": day_locations,
         "group_id": row.get("tour_group_id"),
     }
+    assignment_id = _parse_guide_operator_assignment_id(
+        source_key=source_key,
+        group_id=row.get("tour_group_id"),
+        note=row.get("note"),
+    )
+    if assignment_id:
+        entry["guide_operator_assignment_id"] = assignment_id
+    return _attach_guide_operator_meta(entry)
 
 
 def collapse_rows_to_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -414,7 +509,10 @@ def _merge_group_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def list_entries(user_id: int, from_date: str, to_date: str) -> list[dict[str, Any]]:
     rows = get_tours_in_range(user_id, from_date, to_date)
-    return collapse_rows_to_entries([dict(row) for row in rows])
+    return [
+        _attach_guide_operator_meta(entry)
+        for entry in collapse_rows_to_entries([dict(row) for row in rows])
+    ]
 
 
 def get_entry(user_id: int, entry_id: str) -> dict[str, Any] | None:
@@ -426,9 +524,11 @@ def get_entry(user_id: int, entry_id: str) -> dict[str, Any] | None:
     if group_id:
         rows = get_tours_by_group_id(user_id, group_id)
         entries = collapse_rows_to_entries([dict(row) for row in rows])
-        return entries[0] if entries else None
+        if not entries:
+            return None
+        return _attach_guide_operator_meta(entries[0])
 
-    return row_to_entry_dict(dict(tour))
+    return _attach_guide_operator_meta(row_to_entry_dict(dict(tour)))
 
 
 def _validate_times(start_time: str | None, end_time: str | None) -> None:
@@ -571,7 +671,7 @@ def create_tour_entry(user_id: int, draft: TourEntryDraft) -> dict[str, Any]:
 
 def update_tour_entry(user_id: int, entry_id: str, draft: TourEntryDraft) -> dict[str, Any] | None:
     tour = get_tour_by_id(user_id, int(entry_id))
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return None
 
     _validate_times(draft.start_time, draft.end_time)
@@ -624,7 +724,7 @@ def update_day_locations(
     locations: dict[str, str],
 ) -> dict[str, Any] | None:
     tour = get_tour_by_id(user_id, int(entry_id))
-    if not tour:
+    if not tour or is_operator_managed_tour(tour):
         return None
 
     json_str = json.dumps(locations, ensure_ascii=False)

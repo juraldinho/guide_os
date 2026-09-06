@@ -17,6 +17,7 @@ from utils.constants import (
     STATUS_RESERVED,
     STATUS_CONFIRMED,
     SOURCE_GUIDE_OS_BOT,
+    SOURCE_GUIDE_OPERATOR,
 )
 
 def create_tour(
@@ -91,7 +92,7 @@ def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[
 
     cursor.execute(
         """
-        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
+        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type, source
         FROM tours
         WHERE user_id = ?
           AND status IN (?, ?)
@@ -114,7 +115,9 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
 
     cursor.execute(
         """
-        SELECT id, user_id, company, city, start_date, end_date, status, income, payment_status, note, entry_type, tour_group_id
+        SELECT id, user_id, company, city, start_date, end_date, status, income,
+               payment_status, note, entry_type, tour_group_id, source, title,
+               start_time, end_time, day_locations_json
         FROM tours
         WHERE id = ? AND user_id = ?
         LIMIT 1
@@ -418,6 +421,7 @@ def get_unpaid_tours_count(user_id: int) -> int:
           AND status IN (?, ?)
           AND payment_status = ?
           AND entry_type = ?
+          AND COALESCE(source, '') != ?
         """,
         (
             user_id,
@@ -425,6 +429,7 @@ def get_unpaid_tours_count(user_id: int) -> int:
             STATUS_CONFIRMED,
             PAYMENT_UNPAID,
             ENTRY_TYPE_TOUR,
+            SOURCE_GUIDE_OPERATOR,
         ),
     )
 
@@ -459,7 +464,7 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
 
     cursor.execute(
         """
-        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type
+        SELECT id, company, city, start_date, end_date, status, income, payment_status, note, entry_type, source
         FROM tours
         WHERE user_id = ?
           AND status IN (?, ?)
@@ -1473,6 +1478,39 @@ def claim_guide_shop_link_jti(
     return run_write_with_retry(operation)
 
 
+def claim_guide_operator_service_jti(
+    jti_hash: str,
+    claimed_at: str,
+    retain_until: str,
+    *,
+    now_iso: str,
+) -> bool:
+    """Claim a hashed service JWT jti after deleting expired replay rows."""
+
+    def operation(conn):
+        conn.execute(
+            """
+            DELETE FROM guide_operator_service_jti_replay
+            WHERE retain_until <= ?
+            """,
+            (now_iso,),
+        )
+        try:
+            conn.execute(
+                """
+                INSERT INTO guide_operator_service_jti_replay (
+                    jti_hash, claimed_at, retain_until
+                ) VALUES (?, ?, ?)
+                """,
+                (jti_hash, claimed_at, retain_until),
+            )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    return run_write_with_retry(operation)
+
+
 def claim_guide_shop_lifecycle_jti(
     jti_hash: str, claimed_at: str, retain_until: str
 ) -> bool:
@@ -2081,3 +2119,757 @@ def update_user_guide_types(user_id: int, guide_types: list[dict]) -> bool:
 
 def update_user_guide_languages(user_id: int, languages: list[str]) -> bool:
     return apply_user_profile_patch(user_id, guide_languages=languages)
+
+
+def get_guide_operator_assignment(assignment_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignments
+        WHERE assignment_id = ?
+        LIMIT 1
+        """,
+        (assignment_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_connection(connection_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_connections
+        WHERE connection_id = ?
+        LIMIT 1
+        """,
+        (connection_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_connection_for_guide(
+    guide_os_id: str, connection_id: str
+) -> dict | None:
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_connections
+        WHERE connection_id = ? AND guide_os_id = ?
+        LIMIT 1
+        """,
+        (connection_id, identity),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_guide_operator_connections_for_guide(guide_os_id: str) -> list[dict]:
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_connections
+        WHERE guide_os_id = ?
+        ORDER BY invited_at DESC, connection_id ASC
+        """,
+        (identity,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_guide_operator_connection_inbox(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_connection_inbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_connection_decision(connection_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_connection_decisions
+        WHERE connection_id = ?
+        LIMIT 1
+        """,
+        (connection_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_assignment_for_guide(
+    guide_os_id: str, assignment_id: str
+) -> dict | None:
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignments
+        WHERE assignment_id = ? AND guide_os_id = ?
+        LIMIT 1
+        """,
+        (assignment_id, identity),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_guide_operator_pending_offers(guide_os_id: str) -> list[dict]:
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignments
+        WHERE guide_os_id = ? AND status = 'offered'
+        ORDER BY offered_at ASC, assignment_id ASC
+        """,
+        (identity,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def list_guide_operator_lifecycle_assignments(guide_os_id: str) -> list[dict]:
+    """Offered, accepted, and cancelled assignments for guide-facing lifecycle lists."""
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignments
+        WHERE guide_os_id = ?
+          AND status IN ('offered', 'accepted', 'cancelled')
+        ORDER BY start_date ASC, assignment_id ASC
+        """,
+        (identity,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_guide_operator_assignment_version(
+    assignment_id: str, version_number: int
+) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignment_versions
+        WHERE assignment_id = ? AND version_number = ?
+        LIMIT 1
+        """,
+        (assignment_id, version_number),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_decision(assignment_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignment_decisions
+        WHERE assignment_id = ?
+        LIMIT 1
+        """,
+        (assignment_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_critical_version_decision(
+    *,
+    assignment_id: str,
+    version_number: int,
+) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_critical_version_decisions
+        WHERE assignment_id = ? AND version_number = ?
+        LIMIT 1
+        """,
+        (assignment_id, version_number),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_critical_version_decision_by_event(
+    decision_event_id: str,
+) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_critical_version_decisions
+        WHERE decision_event_id = ?
+        LIMIT 1
+        """,
+        (decision_event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_offer_inbox(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_offer_inbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_cancellation_inbox(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_cancellation_inbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_guide_operator_version_inbox(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_version_inbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_guide_operator_assignment_versions(assignment_id: str) -> list[dict]:
+    ensure_db_ready()
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignment_versions
+        WHERE assignment_id = ?
+        ORDER BY version_number ASC
+        """,
+        (assignment_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_guide_operator_version_acknowledgement(
+    *,
+    assignment_id: str | None = None,
+    version_number: int | None = None,
+    decision_event_id: str | None = None,
+) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    if decision_event_id is not None:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_version_acknowledgements
+            WHERE decision_event_id = ?
+            LIMIT 1
+            """,
+            (decision_event_id,),
+        ).fetchone()
+    elif assignment_id is not None and version_number is not None:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_version_acknowledgements
+            WHERE assignment_id = ? AND version_number = ?
+            LIMIT 1
+            """,
+            (assignment_id, version_number),
+        ).fetchone()
+    else:
+        conn.close()
+        raise ValueError("version acknowledgement lookup requires identifiers")
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_guide_operator_outbox_events(
+    *, assignment_id: str | None = None, event_type: str | None = None
+) -> list[dict]:
+    ensure_db_ready()
+    conn = get_connection()
+    clauses: list[str] = []
+    params: list[Any] = []
+    if assignment_id is not None:
+        clauses.append("aggregate_id = ?")
+        params.append(assignment_id)
+    if event_type is not None:
+        clauses.append("event_type = ?")
+        params.append(event_type)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM guide_operator_outbox
+        {where}
+        ORDER BY id ASC
+        """,
+        params,
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def count_guide_operator_projections(assignment_id: str) -> int:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM tours
+        WHERE source = ? AND note = ?
+        """,
+        (SOURCE_GUIDE_OPERATOR, f"go_assignment:{assignment_id}"),
+    ).fetchone()
+    conn.close()
+    return int(row["cnt"]) if row else 0
+
+
+def get_guide_operator_outbox_by_event_id(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_outbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def claim_guide_operator_outbox_for_delivery(
+    *,
+    now_iso: str,
+    lease_until_iso: str,
+    deliverable_event_types: tuple[str, ...],
+    permanent_error_codes: tuple[str, ...],
+    event_id: str | None = None,
+) -> dict | None:
+    """Atomically claim one eligible undelivered outbox row for outbound HTTP."""
+    ensure_db_ready()
+    if not deliverable_event_types:
+        return None
+
+    type_placeholders = ",".join("?" for _ in deliverable_event_types)
+    permanent_placeholders = (
+        ",".join("?" for _ in permanent_error_codes) if permanent_error_codes else ""
+    )
+
+    def operation(conn):
+        params: list[Any] = list(deliverable_event_types)
+        clauses = [
+            "delivered_at IS NULL",
+            f"event_type IN ({type_placeholders})",
+            "(next_attempt_at IS NULL OR next_attempt_at <= ?)",
+        ]
+        params.append(now_iso)
+        if permanent_error_codes:
+            clauses.append(
+                f"(last_error_code IS NULL OR last_error_code NOT IN ({permanent_placeholders}))"
+            )
+            params.extend(permanent_error_codes)
+        if event_id is not None:
+            clauses.append("event_id = ?")
+            params.append(event_id)
+        where = " AND ".join(clauses)
+        candidate = conn.execute(
+            f"""
+            SELECT *
+            FROM guide_operator_outbox
+            WHERE {where}
+            ORDER BY created_at ASC, id ASC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if candidate is None:
+            return None
+        claim_params = [
+            lease_until_iso,
+            int(candidate["id"]),
+            now_iso,
+            *deliverable_event_types,
+        ]
+        claim_sql = f"""
+            UPDATE guide_operator_outbox
+            SET attempt_count = attempt_count + 1,
+                next_attempt_at = ?
+            WHERE id = ?
+              AND delivered_at IS NULL
+              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+              AND event_type IN ({type_placeholders})
+        """
+        if permanent_error_codes:
+            claim_sql += f"""
+              AND (last_error_code IS NULL OR last_error_code NOT IN ({permanent_placeholders}))
+            """
+            claim_params.extend(permanent_error_codes)
+        if event_id is not None:
+            claim_sql += " AND event_id = ?"
+            claim_params.append(event_id)
+        cursor = conn.execute(claim_sql, claim_params)
+        if cursor.rowcount != 1:
+            return None
+        claimed = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_outbox
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (int(candidate["id"]),),
+        ).fetchone()
+        return dict(claimed) if claimed else None
+
+    return run_write_with_retry(operation)
+
+
+def finish_guide_operator_outbox_delivery(
+    *,
+    outbox_id: int,
+    attempt_count: int,
+    outcome: str,
+    now_iso: str,
+    next_attempt_at: str | None,
+    last_error_code: str | None,
+    delivered_at: str | None,
+) -> dict | None:
+    """Persist delivery outcome for a previously claimed outbox row."""
+    ensure_db_ready()
+
+    def operation(conn):
+        if outcome == "delivered":
+            cursor = conn.execute(
+                """
+                UPDATE guide_operator_outbox
+                SET delivered_at = ?,
+                    last_error_code = NULL,
+                    next_attempt_at = NULL
+                WHERE id = ?
+                  AND attempt_count = ?
+                  AND delivered_at IS NULL
+                """,
+                (delivered_at or now_iso, outbox_id, attempt_count),
+            )
+        else:
+            cursor = conn.execute(
+                """
+                UPDATE guide_operator_outbox
+                SET last_error_code = ?,
+                    next_attempt_at = ?
+                WHERE id = ?
+                  AND attempt_count = ?
+                  AND delivered_at IS NULL
+                """,
+                (last_error_code, next_attempt_at or now_iso, outbox_id, attempt_count),
+            )
+        if cursor.rowcount != 1:
+            return None
+        row = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_outbox
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (outbox_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    return run_write_with_retry(operation)
+
+
+def get_guide_operator_guide_notification_by_source_event_id(
+    source_event_id: str,
+) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_guide_notifications
+        WHERE source_event_id = ?
+        LIMIT 1
+        """,
+        (source_event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_guide_operator_guide_notifications_for_guide(
+    guide_os_id: str,
+) -> list[dict]:
+    """Newest-first guide notifications for one immutable guide_os_id."""
+    ensure_db_ready()
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_guide_notifications
+        WHERE guide_os_id = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (guide_os_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def count_guide_operator_guide_notifications(
+    *,
+    guide_os_id: str | None = None,
+    notification_type: str | None = None,
+) -> int:
+    ensure_db_ready()
+    conn = get_connection()
+    clauses: list[str] = []
+    params: list[Any] = []
+    if guide_os_id is not None:
+        clauses.append("guide_os_id = ?")
+        params.append(guide_os_id)
+    if notification_type is not None:
+        clauses.append("notification_type = ?")
+        params.append(notification_type)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    row = conn.execute(
+        f"SELECT COUNT(*) AS cnt FROM guide_operator_guide_notifications {where}",
+        params,
+    ).fetchone()
+    conn.close()
+    return int(row["cnt"]) if row else 0
+
+
+def claim_guide_operator_guide_notification_for_delivery(
+    *,
+    now_iso: str,
+    lease_until_iso: str,
+    permanent_error_codes: tuple[str, ...],
+    source_event_id: str | None = None,
+    notification_id: int | None = None,
+) -> dict | None:
+    """Atomically claim one eligible pending guide notification for Telegram send."""
+    ensure_db_ready()
+
+    def operation(conn):
+        clauses = [
+            "delivery_status = 'pending'",
+            "(next_attempt_at IS NULL OR next_attempt_at <= ?)",
+        ]
+        params: list[Any] = [now_iso]
+        if permanent_error_codes:
+            placeholders = ",".join("?" for _ in permanent_error_codes)
+            clauses.append(
+                f"(last_error_code IS NULL OR last_error_code NOT IN ({placeholders}))"
+            )
+            params.extend(permanent_error_codes)
+        if source_event_id is not None:
+            clauses.append("source_event_id = ?")
+            params.append(source_event_id)
+        if notification_id is not None:
+            clauses.append("id = ?")
+            params.append(int(notification_id))
+        where = " AND ".join(clauses)
+        candidate = conn.execute(
+            f"""
+            SELECT *
+            FROM guide_operator_guide_notifications
+            WHERE {where}
+            ORDER BY created_at ASC, id ASC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if candidate is None:
+            return None
+        claim_params: list[Any] = [lease_until_iso, int(candidate["id"]), now_iso]
+        claim_sql = """
+            UPDATE guide_operator_guide_notifications
+            SET attempt_count = attempt_count + 1,
+                next_attempt_at = ?
+            WHERE id = ?
+              AND delivery_status = 'pending'
+              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+        """
+        if permanent_error_codes:
+            placeholders = ",".join("?" for _ in permanent_error_codes)
+            claim_sql += f"""
+              AND (last_error_code IS NULL OR last_error_code NOT IN ({placeholders}))
+            """
+            claim_params.extend(permanent_error_codes)
+        if source_event_id is not None:
+            claim_sql += " AND source_event_id = ?"
+            claim_params.append(source_event_id)
+        if notification_id is not None:
+            claim_sql += " AND id = ?"
+            claim_params.append(int(notification_id))
+        cursor = conn.execute(claim_sql, claim_params)
+        if cursor.rowcount != 1:
+            return None
+        claimed = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_guide_notifications
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (int(candidate["id"]),),
+        ).fetchone()
+        return dict(claimed) if claimed else None
+
+    return run_write_with_retry(operation)
+
+
+def finish_guide_operator_guide_notification_delivery(
+    *,
+    notification_id: int,
+    attempt_count: int,
+    outcome: str,
+    now_iso: str,
+    next_attempt_at: str | None,
+    last_error_code: str | None,
+    delivered_at: str | None = None,
+    failed_at: str | None = None,
+) -> dict | None:
+    """Persist Telegram delivery outcome for a previously claimed notification."""
+    ensure_db_ready()
+
+    def operation(conn):
+        if outcome == "delivered":
+            cursor = conn.execute(
+                """
+                UPDATE guide_operator_guide_notifications
+                SET delivery_status = 'delivered',
+                    delivered_at = ?,
+                    failed_at = NULL,
+                    last_error_code = NULL,
+                    next_attempt_at = NULL
+                WHERE id = ?
+                  AND attempt_count = ?
+                  AND delivery_status = 'pending'
+                """,
+                (delivered_at or now_iso, notification_id, attempt_count),
+            )
+        elif outcome == "failed":
+            cursor = conn.execute(
+                """
+                UPDATE guide_operator_guide_notifications
+                SET delivery_status = 'failed',
+                    failed_at = ?,
+                    last_error_code = ?,
+                    next_attempt_at = ?
+                WHERE id = ?
+                  AND attempt_count = ?
+                  AND delivery_status = 'pending'
+                """,
+                (
+                    failed_at or now_iso,
+                    last_error_code,
+                    next_attempt_at or now_iso,
+                    notification_id,
+                    attempt_count,
+                ),
+            )
+        elif outcome == "retrying":
+            cursor = conn.execute(
+                """
+                UPDATE guide_operator_guide_notifications
+                SET delivery_status = 'pending',
+                    last_error_code = ?,
+                    next_attempt_at = ?,
+                    failed_at = NULL
+                WHERE id = ?
+                  AND attempt_count = ?
+                  AND delivery_status = 'pending'
+                """,
+                (
+                    last_error_code,
+                    next_attempt_at or now_iso,
+                    notification_id,
+                    attempt_count,
+                ),
+            )
+        else:
+            return None
+        if cursor.rowcount != 1:
+            return None
+        row = conn.execute(
+            """
+            SELECT *
+            FROM guide_operator_guide_notifications
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (notification_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    return run_write_with_retry(operation)

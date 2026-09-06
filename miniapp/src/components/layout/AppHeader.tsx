@@ -54,7 +54,11 @@ export function AppHeader({
             </button>
           ) : (
             <span className="header-title-static">
-              {activeTab === 'reports' ? t.reportsTitle : t.guideShop}
+              {activeTab === 'reports'
+                ? t.reportsTitle
+                : activeTab === 'guideshop'
+                  ? t.guideShop
+                  : t.guideOperator}
             </span>
           )}
         </div>

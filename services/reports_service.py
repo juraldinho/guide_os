@@ -14,7 +14,11 @@ from services.personal_places_service import (
     PersonalPlacesService,
     PersonalPlaceValidationError,
 )
-from services.tour_service import days_in_range, list_entries
+from services.tour_service import (
+    days_in_range,
+    is_guide_operator_managed_entry,
+    list_entries,
+)
 from utils.constants import ENTRY_TYPE_DAY_OFF, PAYMENT_PAID
 
 _BUSINESS_TZ = ZoneInfo(TIMEZONE)
@@ -46,8 +50,11 @@ def get_reports_summary(
             continue
         if status != "all" and entry.get("status") != status:
             continue
-        if payment != "all" and entry.get("payment") != payment:
-            continue
+        operator_managed = is_guide_operator_managed_entry(entry)
+        # Guide Operator has no paid/unpaid fee state — exclude from payment filters.
+        if payment != "all":
+            if operator_managed or entry.get("payment") != payment:
+                continue
         if company_filter and company_filter not in (entry.get("company") or ""):
             continue
         if location_filter and location_filter not in (entry.get("location") or ""):
@@ -63,11 +70,12 @@ def get_reports_summary(
 
         tour_count += 1
         work_days_set.update(overlap)
-        income += (entry.get("income") or 0) * len(overlap)
-        if entry.get("payment") == PAYMENT_PAID:
-            paid_tours += 1
-        else:
-            unpaid_tours += 1
+        if not operator_managed:
+            income += (entry.get("income") or 0) * len(overlap)
+            if entry.get("payment") == PAYMENT_PAID:
+                paid_tours += 1
+            else:
+                unpaid_tours += 1
 
     return {
         "tour_count": tour_count,

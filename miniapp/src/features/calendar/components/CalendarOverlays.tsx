@@ -11,7 +11,7 @@ import type {
 import { MOCK_TODAY, USE_MOCK_API } from '@/config';
 import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { fmtDate } from '../lib/dates';
-import { locationFor } from '../lib/dayStatus';
+import { locationFor, isGuideOperatorManaged } from '../lib/dayStatus';
 import { paymentLabel, statusLabel, timeLabel } from '../lib/format';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '../CalendarContext';
@@ -190,6 +190,7 @@ export function CalendarOverlays() {
     editTour,
     copyTour,
     openDelete,
+    openDetail,
     confirmDelete,
     saveDayLocations,
     updateMultiLocation,
@@ -277,6 +278,61 @@ export function CalendarOverlays() {
       e.startDate === e.endDate
         ? fmtDate(e.startDate)
         : `${fmtDate(e.startDate)} – ${fmtDate(e.endDate)}`;
+
+    if (isGuideOperatorManaged(e)) {
+      return (
+        <OverlaySheet title={t.tourCard} onClose={closeOverlay}>
+          <div className="detail-row">
+            <span className="detail-label">{t.detailSource}</span>
+            <span className="detail-value guide-operator-inline-unread">
+              <span>{t.assignedViaGuideOperator}</span>
+              {e.guideOperatorVersionUnread ? (
+                <span
+                  className="guide-operator-unread-dot"
+                  role="status"
+                  aria-label={t.guideOperatorUnreadAria}
+                  data-testid={`go-overlay-unread-${e.id}`}
+                />
+              ) : null}
+              {e.guideOperatorPendingCritical ? (
+                <span
+                  className="guide-operator-critical-badge"
+                  role="status"
+                  aria-label={t.guideOperatorCriticalPendingAria}
+                  data-testid={`go-overlay-critical-${e.id}`}
+                >
+                  {t.guideOperatorCriticalPendingBadge}
+                </span>
+              ) : null}
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">{t.detailName}</span>
+            <span className="detail-value">{e.title}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">{t.detailDates}</span>
+            <span className="detail-value">{dateRange}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">{t.detailCompany}</span>
+            <span className="detail-value">{e.company || '—'}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">{t.detailLocation}</span>
+            <span className="detail-value">{locationFor(e, selectedDate)}</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            style={{ marginTop: 16 }}
+            onClick={() => openDetail(e.id)}
+          >
+            {t.guideOperatorOpenFromCalendar}
+          </button>
+        </OverlaySheet>
+      );
+    }
 
     return (
       <OverlaySheet title={t.tourCard} onClose={closeOverlay}>

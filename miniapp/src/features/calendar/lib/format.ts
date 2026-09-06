@@ -13,7 +13,7 @@ export function statusLabel(status?: TourStatus): string {
   return '';
 }
 
-export function paymentLabel(payment?: PaymentStatus): string {
+export function paymentLabel(payment?: PaymentStatus | null): string {
   return payment === 'paid' ? t.paymentPaid : t.paymentUnpaid;
 }
 

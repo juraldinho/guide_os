@@ -2,435 +2,422 @@
 
 ## The Operating System for Professional Tourism
 
-Guide OS is a digital operating platform designed to help professional tour guides organize their work, manage their schedules, track income, receive verified business information, and build a more structured and transparent professional life.
+> Project overview updated on September 5, 2026.
 
-The product began as a practical Telegram tool for working guides. Its long-term ambition is much larger: to become the trusted operational layer connecting guides, tour operators, partner businesses, knowledge, financial information, and intelligent tools across the tourism industry.
+Guide OS is a digital operating platform for professional tour guides. It helps guides manage schedules, tours, availability, income, personal working information, partner relationships, and verified business activity in one place.
 
-Guide OS is part of the broader **Tourism OS ecosystem** and works together with **GuideShop**, a B2B system used by tourism partner businesses to manage visits, sales, guide rewards, and payouts.
+The product now combines a production Telegram bot, a Telegram Mini App, secure production integration with GuideShop, guide-owned personal places, and the guide-facing foundation for Guide Operator assignments.
+
+Guide OS is the guide-centered product within the wider **Tourism OS ecosystem**:
+
+- **Guide OS** is the personal professional workspace for the guide;
+- **GuideShop** is the operating and commercial system for tourism partner businesses;
+- **Guide Operator** is the structured tour-assignment system for tour operators.
+
+Together, these products are designed to replace fragmented chats, spreadsheets, screenshots, informal agreements, and memory-dependent workflows with connected and trusted professional infrastructure.
 
 ---
 
-## 1. The Problem Guide OS Solves
+## 1. Why Guide OS Exists
 
-Professional tourism depends on many independent participants: guides, tour operators, hotels, restaurants, museums, shops, factories, workshops, drivers, wineries, and other local partners.
+Professional tourism depends on guides, tour operators, hotels, restaurants, museums, shops, factories, workshops, drivers, and other local partners. They rely on one another, but their work is often managed through disconnected tools.
 
-These participants often work through disconnected tools and informal processes:
+Common problems include:
 
-- schedules are kept in personal notebooks, chats, or spreadsheets;
-- important information is scattered across messages;
-- guides rely heavily on memory;
-- commission and payment information can be unclear;
-- partner relationships depend on personal contacts rather than structured data;
-- professional knowledge is easily lost;
-- there is no shared operational layer connecting the market.
+- schedules stored in notebooks, chats, and spreadsheets;
+- tour instructions scattered across messages and documents;
+- difficult-to-track changes;
+- dependence on personal memory;
+- unclear partner, commission, and payment information;
+- professional knowledge that is easily lost;
+- different organizations maintaining incompatible versions of the same facts.
 
-This fragmentation creates unnecessary stress, missed opportunities, scheduling conflicts, lost information, and low transparency.
+This fragmentation creates stress, double bookings, missed information, inefficient coordination, payment uncertainty, and service-quality problems.
 
-Guide OS addresses this problem by giving tourism professionals a practical system for organizing daily work today, while creating the foundation for a connected and intelligent tourism ecosystem tomorrow.
+Guide OS begins with the guide's daily needs and connects the wider ecosystem around verified identity, clear data ownership, structured workflows, and responsible technology.
 
 ---
 
 ## 2. What Guide OS Is
 
-Guide OS is more than a calendar, a Telegram bot, or a traditional CRM.
-
-It is designed as a professional operating system that can bring together:
+Guide OS is more than a calendar, Telegram bot, or traditional CRM. It is designed to bring together:
 
 - personal work planning;
-- tour and schedule management;
-- income tracking;
-- verified partner information;
-- official sales and reward data;
-- professional knowledge;
-- business history;
-- analytics;
-- intelligent assistance;
-- trusted connections between tourism participants.
+- tour and availability management;
+- structured operator assignments;
+- guide-owned places and records;
+- income and payment tracking;
+- official partner and visit information;
+- verified reward points and payout history;
+- operational notifications;
+- professional history, analytics, and future intelligent assistance.
 
-The current product focuses on solving clear everyday problems for individual guides. The architecture is being developed so that Guide OS can later support tour operators, partner discovery, knowledge management, AI assistance, marketplace capabilities, financial tools, integrations, and other modules within Tourism OS.
+The platform solves practical problems today while establishing the trust and technical foundations required for a larger tourism ecosystem.
 
 ---
 
-## 3. Who Guide OS Is For
+## 3. Who the Platform Serves
 
-### Professional tour guides
+### Tour guides
 
-Guide OS helps guides manage their calendar, avoid scheduling conflicts, organize tour information, track income, and gradually access verified information from partner businesses.
-
-### Tour operators and coordinators
-
-Future modules can help operators coordinate guides, preserve operational knowledge, manage partner relationships, improve quality control, and increase transparency across their workflows.
+Guides use Guide OS as their personal professional workspace. They organize tours, protect availability, track work and income, maintain private records, view official GuideShop activity, and receive structured Guide Operator assignments.
 
 ### Tourism partner businesses
 
-Partner businesses work through GuideShop, the B2B side of the ecosystem. GuideShop connects official visits, sales, rewards, and payouts with the correct guide in Guide OS.
+Shops, factories, workshops, restaurants, museums, and other venues use GuideShop to manage visits, sales, points, payouts, staff permissions, reports, and guide relationships.
 
-### The wider tourism ecosystem
+### Tour operators
 
-Over time, Guide OS can provide shared infrastructure for hotels, restaurants, museums, shops, transport providers, workshops, factories, wineries, and other businesses that work with tourists and guides.
+Tour operators will use Guide Operator to create structured tours, select consent-connected guides, send offers, publish updates, and deliver complete working packages into Guide OS.
 
 ---
 
-## 4. Current Guide OS Features
+## 4. Guide OS Features Available Today
 
-Guide OS currently operates primarily through Telegram, making it easy to use without requiring guides to install or learn a complex business application.
+### Professional calendar
 
-### Tour calendar
+Guide OS supports:
 
-Guides can maintain a personal work calendar and see their tours by date and month.
-
-The calendar supports:
-
-- single-day tours;
-- multi-day tours;
+- single-day and multi-day tours;
 - days off;
-- monthly views;
-- daily cards;
-- lists of tours for a selected period;
-- quick navigation between dates and tour records.
+- daily and monthly Telegram views;
+- day, week, and month Mini App views;
+- optional start and end times;
+- reserved and confirmed statuses;
+- paid and unpaid statuses;
+- compatibility with older full-day records;
+- fast access to each assignment.
 
-### Tour creation and management
+The central experience answers a frequent working question: **“Am I free on this date?”**
 
-A guide can create and manage a tour with practical working information such as:
+### Tour creation and editing
 
-- tour date or date range;
-- company or customer;
-- city or destination;
-- expected income;
-- notes;
-- tour status;
-- payment status.
+A guide can maintain the date or date range, time, company or customer, city, expected income, notes, booking status, and payment status. Multi-day records remain grouped as one assignment.
 
-Tour information can be updated when plans change. Multi-day tours remain grouped so that the system can treat them as one connected assignment.
+### Conflict prevention
 
-### Schedule conflict prevention
+Guide OS detects overlapping commitments before they are saved. Timed tours may share a day when they do not overlap; full-day entries reserve the entire date. Guides can also prepare clear availability information for a client or operator.
 
-Before saving a tour, Guide OS can detect overlapping dates and warn the guide about a possible conflict.
+### Income and summaries
 
-This helps reduce:
+The platform shows recorded income, unpaid work, monthly results, all-time summaries, and tour activity. This replaces a separate spreadsheet for many everyday use cases.
 
-- accidental double bookings;
-- forgotten commitments;
-- manual calendar checks;
-- last-minute operational problems.
+### Professional identity
 
-### Availability checking
+Every user has a stable, immutable `guide_os_id`. It connects the correct person across Tourism OS services without relying only on names, phone numbers, or Telegram IDs.
 
-Guides can check whether a particular date is free before accepting a new assignment. This provides a quick answer during conversations with tour operators or customers.
+### Reminders and notifications
 
-### Income tracking
+Guides receive tour reminders. Guide OS also consumes verified GuideShop events and delivers Telegram notifications with safe links to current information. Processing is durable and idempotent, so repeated events do not create duplicate notifications.
 
-Guide OS helps the guide keep a simple record of tour income and payment status.
+### Personal places
 
-The system can show:
+Guide OS supports private, guide-owned places. A guide can create, view, edit, and deactivate a place while retaining inactive records safely. Personal places are not automatically treated as official GuideShop companies.
 
-- total recorded income;
-- unpaid tours;
-- monthly results;
-- all-time statistics;
-- work activity over a selected period.
+### Telegram Mini App
 
-This gives the guide a clearer view of personal work performance without maintaining a separate spreadsheet.
+The responsive Mini App uses the same production services and data as the bot. Its public production pilot is active and owner-validated. It offers a visual experience for calendar navigation, tours, availability, reports, settings, personal records, and integrated modules.
 
-### Statistics
-
-The product provides practical summaries for monthly and all-time activity. The goal is to help a guide understand workload, earnings, and work patterns using structured records rather than memory.
-
-### Personal profile
-
-Each user has a Guide OS profile and a stable internal identity. The guide can maintain a display name, while the platform assigns a permanent `guide_os_id` used for secure connections with other Tourism OS services.
-
-### Tour reminders
-
-Guides can enable reminders for upcoming tours and choose when they want to receive them.
-
-Reminders reduce the risk of missing an assignment and make Guide OS useful as an active daily assistant, not only as a passive database.
-
-### Data separation
-
-Each guide sees only their own personal calendar and tour information. User-level access controls are a core part of the system rather than an optional feature.
-
-### Administrative and operational tools
-
-The current platform also includes controlled administrative capabilities such as operational reports, system notifications, broadcasts, backups, logging, and error handling.
+The bot and Mini App are equal interfaces over shared business rules. The frontend has no direct database access and does not maintain a second calendar system. A separate formal general-release declaration has not yet been made.
 
 ---
 
 ## 5. Guide OS and GuideShop
 
-Guide OS and GuideShop are two connected products with different responsibilities.
+GuideShop is the B2B partner-business side of Tourism OS.
 
-| Product | Primary user | Main responsibility |
-|---|---|---|
-| **Guide OS** | Tour guide | Personal schedule, work organization, professional identity, guide-facing information and future intelligent tools |
-| **GuideShop** | Tourism partner business | Company operations, group visits, sales, guides, reward points, payouts, reporting and audit |
+### What GuideShop manages
 
-### How the connection creates value
+- partner companies;
+- owners, managers, and delegated permissions;
+- guide directories and verified links;
+- tourist-group visits;
+- sale categories and multiple sales per visit;
+- payment methods;
+- reward-point calculation;
+- payout history;
+- reports, exports, audit, and backups.
 
-A typical ecosystem workflow is:
+Sales are recorded in USD; guide rewards use PTS in the current reward model.
 
-1. A tourist group visits a partner business.
-2. The business manager records the visit in GuideShop.
-3. A sale is registered and connected to the visit.
-4. GuideShop calculates the guide's reward in points.
-5. The official information becomes available to the correctly linked guide through Guide OS.
-6. The guide can view the company, visit, sale, points balance, and reward history.
-7. In future releases, the guide can receive a notification and open the relevant record directly.
+### How the production integration works
 
-This creates value for both sides:
+The Guide OS–GuideShop integration is active in production:
 
-- businesses gain a structured CRM and clearer guide relationships;
-- guides gain visibility into official visits, sales, rewards, and payouts;
-- both sides work with the same verified business facts;
-- the ecosystem becomes more transparent and professional.
+1. A business records a visit in GuideShop.
+2. The visit is connected to a guide who may be securely linked to Guide OS.
+3. GuideShop records sales and calculates points.
+4. GuideShop publishes a durable domain event.
+5. Guide OS receives and deduplicates the event.
+6. Guide OS refreshes authoritative information through the read-only API.
+7. Guide OS sends the relevant Telegram notification.
+8. The guide opens a safe deep link to the official information.
 
-### Clear ownership of information
+GuideShop publishes business events but does not send guide-facing Telegram notifications. Guide OS owns notification delivery.
 
-The two products do not share one database and do not overwrite each other's records.
+### Information available to the guide
 
-- GuideShop remains the source of truth for official companies, visits, sales, points, and payouts.
-- Guide OS remains the source of truth for the guide's identity, personal calendar, and future private records.
-- Communication happens through a controlled, versioned service API.
-- Every request must prove the guide's identity and may return only that guide's information.
+The current guide-facing experience can show:
 
-This separation makes the integration safer, easier to audit, and easier to expand.
+- connected companies and public contact details;
+- official visits and visit details;
+- points associated with a visit;
+- pending and credited totals;
+- company-level points breakdown;
+- points and payout history.
 
----
+Internal identifiers are not exposed. Guide-facing navigation focuses on useful company, visit, and points information, while official sales remain owned by GuideShop.
 
-## 6. Current Integration Status
+### Clear ownership and trust
 
-The Guide OS–GuideShop integration is technically implemented through a secure, versioned foundation and isolated staging environments. It is being validated in controlled stages before full production activation.
+- GuideShop is authoritative for official companies, visits, sales, points, and payouts.
+- Guide OS is authoritative for guide identity, personal calendar, personal places, guide-facing state, and private records.
+- The products never access each other's SQLite databases directly.
+- Current state comes from protected reads; events act as signals rather than replacing authoritative data.
+- Every request is identity-bound and company/guide scoped.
+- Linking is optional, explicit, audited, conflict-safe, and lifecycle-controlled.
+- Unlinked guides continue to work normally in GuideShop.
 
-The implemented foundation includes:
+### Production reliability
 
-- a permanent Guide OS identity for every guide;
-- a verified account-linking lifecycle;
-- one-time linking requests;
-- explicit guide confirmation;
-- signed service-to-service authentication;
-- protection against repeated or replayed requests;
-- user-bound navigation and deep links;
-- a read-only GuideShop API for companies, visits, sales, points, and history;
-- strict separation between guides and companies;
-- reconciliation data for detecting inconsistencies;
-- feature flags that keep integration functions disabled until an environment is ready;
-- isolated API staging that does not use production databases or credentials.
-
-The integration is intentionally being released in stages. Production activation, automatic events, and user notifications will only be enabled after end-to-end security, isolation, recovery, and operational checks are complete.
-
-This approach protects users and business data while allowing the platform to grow on a reliable foundation.
+The integration completed its staged rollout and operational closure. Linking, reads, event consumption, and notifications are active. Deduplication, checkpoints, watermarks, reconciliation, recovery, canary notifications, deep links, and monitored operation have been validated. Routine monitoring continues as normal operational work.
 
 ---
 
-## 7. Key Benefits
+## 6. Guide OS and Guide Operator
 
-### Benefits for guides
+Guide Operator is the operator-to-guide assignment layer of Tourism OS. It replaces fragmented assignments sent through messages, screenshots, and documents with one structured, versioned working package.
 
-- **Less administrative chaos** — tours, dates, notes, income, and payment status are kept in one place.
-- **Fewer scheduling mistakes** — conflict detection helps prevent double booking.
-- **Faster decisions** — availability can be checked during a conversation with a client or operator.
-- **Better financial visibility** — guides can understand recorded income, unpaid work, official GuideShop sales, and reward history.
-- **Reduced dependence on memory** — professional information becomes a structured asset.
-- **Simple access** — Telegram provides a familiar interface with a low learning barrier.
-- **Verified business information** — official GuideShop data comes from the partner business responsible for the transaction.
-- **A portable professional identity** — the permanent Guide OS identity can support future services and trusted relationships.
+### Intended operator workflow
 
-### Benefits for partner businesses
+An operator will be able to:
 
-- **Structured visit management** — every group visit can be recorded and tracked.
-- **Transparent sales and rewards** — sales, categories, reward calculations, and payouts have a clear history.
-- **Better guide relationships** — the correct guide can receive verified information without informal manual reporting.
-- **Operational accountability** — roles, audit records, reports, and company-level access controls improve control.
-- **A channel back to the guide** — GuideShop becomes part of a wider ecosystem rather than an isolated CRM.
+1. create a tour manually;
+2. build a day-by-day program with ordered events;
+3. add group information and drivers by day;
+4. specify meals, tickets, transport, allowance, and instructions;
+5. publish contacts;
+6. select a consent-connected guide;
+7. send an offer;
+8. publish controlled updates or cancellation.
 
-### Benefits for the tourism market
+### Guide OS-side capabilities already implemented
 
-- **More transparency** between guides, operators, and partner businesses;
-- **higher professional standards** through structured processes;
-- **better preservation of knowledge** that would otherwise remain in private chats or memory;
-- **more reliable decisions** based on history and verified data;
-- **stronger network effects** as more participants use compatible systems;
-- **a foundation for responsible AI**, analytics, and automation based on clean operational data.
+- Guide Operator connection and consent UX;
+- assignment-offer intake;
+- accept and decline semantics;
+- lifecycle lists and details;
+- accepted assignment calendar projection;
+- cancelled assignment views;
+- ordinary version updates and unread acknowledgement;
+- critical change confirmation or rejection;
+- report semantics;
+- authenticated inbound event routes;
+- authenticated guide discovery and availability reads.
 
----
+### Working package
 
-## 8. Product Principles
+The structured package is designed to contain the tour overview, responsible operator, today's program, complete itinerary, group context, drivers, working conditions, contacts, version history, and a private note owned by Guide OS.
 
-Guide OS is built around several long-term principles.
+### Current Guide Operator status
 
-### Transparency
+Guide Operator is not yet a deployed production service.
 
-Important statuses, conditions, rewards, and histories should be understandable to the people responsible for them.
+Completed in its repository:
 
-### Reliability
+- architecture, domain model, and state machines;
+- responsive React/TypeScript/Vite mock prototype;
+- tested FastAPI, SQLAlchemy, and Alembic backend baseline;
+- tour persistence and operator API;
+- secure guide-connection foundation;
+- proposal, acceptance, and decline model;
+- cancellation command;
+- immutable versions and change classification;
+- critical-version publication lock;
+- idempotency and transactional outbox persistence;
+- service authentication;
+- canonical event envelopes aligned with Guide OS intake.
 
-The platform must be dependable enough for real professional work. It should reduce uncertainty rather than introduce new uncertainty.
+Still pending:
 
-### Practicality
+- running PostgreSQL infrastructure;
+- operator authentication;
+- production frontend connected to the API;
+- Guide Operator Telegram notifications;
+- staging deployment and production pilot.
 
-Every feature should solve a real operational problem. The product is not built around technology for its own sake.
+Local GO9A HTTP E2E against sibling Guide OS is complete. Feature flags remain off outside that harness. Reconciliation, notifications, frontend wiring, and deployment still require explicit approval.
 
-### Human-first intelligence
+### Ownership boundaries
 
-AI should support professional judgment, not replace human experience, cultural understanding, responsibility, or relationships.
-
-### Quality data before automation
-
-Useful automation requires structured processes and trustworthy data. Guide OS first creates order, then builds intelligence on top of it.
-
-### Trust before growth
-
-Security, clear ownership, understandable rules, and careful handling of data are more important than uncontrolled expansion.
-
-### Ecosystem thinking
-
-Guide OS is useful to an individual guide today, but its greatest value appears when guides, businesses, and operators can cooperate through a trusted common infrastructure.
-
----
-
-## 9. Future Development
-
-Guide OS is designed as a modular platform. Future features may be introduced gradually after validation and product approval.
-
-### Deeper GuideShop integration
-
-Planned development includes:
-
-- production activation of secure account linking;
-- automatic notifications about new visits, sales, and points changes;
-- direct deep links from notifications to the relevant record;
-- recovery after missed events;
-- stronger reconciliation and operational monitoring;
-- a controlled pilot followed by gradual rollout.
-
-### Professional partner network
-
-Guide OS can evolve into a structured network of trusted tourism partners, helping professionals understand:
-
-- who they have worked with;
-- which conditions were agreed;
-- which partners are reliable;
-- what happened during previous cooperation;
-- where better opportunities may exist.
-
-### Knowledge management
-
-Future modules can help guides and operators preserve:
-
-- destination knowledge;
-- partner information;
-- route notes;
-- operational instructions;
-- cultural and historical materials;
-- lessons learned from previous tours;
-- reusable professional workflows.
-
-### AI assistance
-
-AI is expected to become an assistant for structured professional work. Possible future capabilities include:
-
-- organizing notes and knowledge;
-- preparing tour information;
-- summarizing operational history;
-- identifying scheduling or financial patterns;
-- suggesting next actions;
-- helping compare partners or options;
-- supporting planning and decision-making;
-- reducing repetitive administrative work.
-
-AI features will be introduced only where they provide clear value and can operate on trustworthy data.
-
-### Personal places and external sales
-
-A future Guide OS module may allow a guide to maintain private personal places and record external sales or income that did not originate in GuideShop.
-
-These records would:
-
-- belong only to the guide;
-- remain separate from official GuideShop companies;
-- not create a public catalogue automatically;
-- require explicit rules before they can affect official points.
-
-Any future points claim for an external sale would require separate fraud prevention, legal, tax, and redemption policies.
-
-### Tour operator tools
-
-Future versions may support operator workflows such as:
-
-- guide coordination;
-- team scheduling;
-- partner management;
-- quality control;
-- shared operational knowledge;
-- task and status management;
-- analytics across tours and teams.
-
-### Marketplace and discovery
-
-A marketplace or discovery layer may eventually help participants find suitable partners and services. It would not be a simple public directory: the long-term goal is to combine discovery with context, reliability, history, professional standards, and transparent rules.
-
-### Analytics and financial tools
-
-As the ecosystem grows, Guide OS can provide more advanced analytics around workload, income, partner performance, rewards, operational efficiency, and market trends.
-
-### APIs and ecosystem modules
-
-The architecture can support additional Tourism OS products and approved third-party integrations without forcing every function into one application.
+- Guide Operator owns master tours, assignments, published versions, and operator audit.
+- Guide OS owns guide identity, consent, calendar projection, guide-facing state, acknowledgements, and private notes.
+- Synchronization uses protected APIs and versioned events, not shared database access.
 
 ---
 
-## 10. Long-Term Vision
+## 7. The Three-Product Ecosystem
 
-The long-term vision is to make Guide OS the trusted operating system of professional tourism.
+| Product | Primary user | Source-of-truth responsibility | Current position |
+|---|---|---|---|
+| **Guide OS** | Guide | Identity, personal calendar, personal places, guide state and notifications | Production bot; public Mini App pilot; GuideShop integration active |
+| **GuideShop** | Partner business | Companies, official visits, sales, PTS, payouts and partner audit | Production CRM and production Guide OS integration |
+| **Guide Operator** | Tour operator | Master tours, assignments, versions and operator audit | Backend/prototype implemented; local HTTP E2E proven; deployment pending |
 
-In this vision:
-
-- guides manage their work and professional knowledge in one place;
-- tour operators coordinate people and processes more effectively;
-- partner businesses use GuideShop to manage official commercial activity;
-- verified information moves safely between systems;
-- participants understand their responsibilities and history;
-- AI helps people make better decisions without replacing professional judgment;
-- the market becomes more organized, transparent, and reliable.
-
-Guide OS is not intended to replace human relationships in tourism. Its role is to support those relationships with better structure, memory, data, and trust.
+GuideShop tells the guide what officially happened at a partner business. Guide Operator tells the guide what work was assigned and what changed. Guide OS brings these responsibilities together with the guide's personal schedule, records, and tools.
 
 ---
 
-## 11. Why Guide OS Can Become a Platform
+## 8. Key Benefits
 
-Guide OS has several characteristics that give it platform potential:
+### For guides
 
-1. **It begins with a frequent daily use case.** Calendar, tours, reminders, and income give guides an immediate reason to return.
-2. **It creates a stable professional identity.** This enables secure relationships across products.
-3. **It connects supply-side businesses through GuideShop.** Official visits and commercial data can reach the relevant guide.
-4. **It preserves structured history.** Over time, this becomes valuable operational knowledge.
-5. **It is modular.** New services can be added without turning the product into one monolithic application.
-6. **It is designed around trust.** Data ownership, isolation, explicit linking, and staged activation are part of the foundation.
-7. **It can support network effects.** Every additional guide, operator, and partner can make the ecosystem more useful to others.
+- one workspace for personal tours, operator assignments, partner activity, and private records;
+- fewer scheduling mistakes;
+- less dependence on memory;
+- clearer personal income and official points information;
+- reliable, versioned assignment instructions;
+- familiar access through Telegram and a Mini App;
+- a portable verified professional identity;
+- privacy through explicit consent and owner-scoped personal data.
+
+### For partner businesses
+
+- structured visit and sales operations;
+- transparent points and payout history;
+- controlled staff permissions;
+- auditable guide relationships;
+- a verified channel into the guide's professional workspace.
+
+### For tour operators
+
+- one structured source for tour instructions;
+- explicit offer and decision states;
+- guide availability and identity;
+- versioned updates instead of contradictory messages;
+- controlled cancellations and critical changes;
+- better accountability and operational history.
+
+### For the tourism industry
+
+- greater transparency and clearer ownership;
+- stronger professional standards;
+- preserved operational knowledge;
+- less fragmentation;
+- reliable data for analytics and future AI;
+- network effects across guides, operators, and businesses.
 
 ---
 
-## 12. Current Position in One Sentence
+## 9. Security and Trust by Design
 
-**Guide OS is a working Telegram-based professional organizer for tour guides that is evolving into a secure, connected operating platform where guides can manage their own work and access verified business information from GuideShop.**
+Trust is a product feature. The ecosystem uses:
+
+- immutable guide identities;
+- explicit linking consent and verified evidence;
+- server-side user, guide, and company boundaries;
+- signed short-lived service credentials;
+- replay protection;
+- protected internal identifiers and secrets;
+- fail-closed feature configuration;
+- durable, deduplicated, reconcilable events;
+- isolated staging and production environments;
+- clear data authority for every product.
+
+Names and phone numbers alone are not treated as sufficient proof for automatic identity matching.
 
 ---
 
-## 13. Short Summary
+## 10. Product Principles
 
-Guide OS helps tour guides organize tours, dates, income, reminders, and professional information. It reduces scheduling mistakes, replaces scattered notes and spreadsheets, and gives guides a clearer view of their work.
+- **Practical value first:** every feature must solve a real working problem.
+- **Infrastructure before feature accumulation:** new modules must strengthen the system rather than create new fragmentation.
+- **Trust before uncontrolled growth:** security, consent, reliability, and auditability come first.
+- **Quality data before automation:** useful intelligence requires structured and trustworthy information.
+- **Human-first AI:** technology supports professional judgment instead of replacing it.
+- **Modular ecosystem design:** each product keeps a clear responsibility and integrates through controlled contracts.
 
-Together with GuideShop, it creates a bridge between guides and tourism partner businesses. GuideShop manages official visits, sales, reward points, and payouts; Guide OS gives the correctly linked guide secure access to that information.
+---
 
-The current product and integration foundation are already implemented and are being validated through controlled staging. Future development can expand Guide OS into knowledge management, AI assistance, partner discovery, operator tools, analytics, marketplace capabilities, external-sale workflows, and a wider Tourism OS ecosystem.
+## 11. Future Development
 
-The central idea is simple: **professional tourism should operate through better structure, trusted information, transparency, and intelligent tools—not through fragmented chats, memory, and disconnected spreadsheets.**
+Future work is separated into approval-based product streams. Planned direction should not be confused with released functionality.
 
-## Approved future daily tips roadmap
+### Completing Guide Operator
 
-A bot-first daily tips feature is approved but not implemented: one amount per user and calendar date, independent of tours, followed by shared API and Mini App parity. See [`TIPS_ROADMAP.md`](TIPS_ROADMAP.md).
+Potential next stages include reconciliation, Telegram assignment notifications, operator authentication, a live frontend, isolated staging E2E, and a controlled pilot.
 
-## Active GuideShop Mini App roadmap
+### Daily tips
 
-The owner activated GSMA0 for a scalable third Mini App module combining user-owned personal companies/commissions with the official read-only GuideShop catalog. See [`mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
+A planned Guide OS feature may allow one tip amount per guide and calendar date, independent of tours. Implementation has not started.
+
+### Google Calendar import
+
+A future read-only import may show external events and allow a guide to manually convert one into a native Guide OS tour. Implementation has not started.
+
+### External outcomes and points
+
+Personal places provide a foundation for future self-reported external outcomes. These must remain separate from official GuideShop data. Any official PTS claim will require explicit verification, anti-fraud, legal, tax, and redemption rules.
+
+### AI and knowledge
+
+Future AI may help structure tour information, summarize history, prepare briefs, find missing details, identify schedule patterns, organize professional knowledge, and reduce repetitive administration. AI will be added only where data quality and responsibility make it genuinely useful.
+
+### Analytics and trusted discovery
+
+Later modules may provide deeper workload, partner, assignment, and performance analytics. A future marketplace may combine discovery with verified identity, context, history, and professional standards rather than acting as a simple public directory.
+
+---
+
+## 12. Current Status at a Glance
+
+### Live or active
+
+- Guide OS Telegram bot;
+- Guide OS–GuideShop production linking and reads;
+- GuideShop event feed and Guide OS notifications;
+- personal calendar, income, reminders, profile, and personal places;
+- Guide OS Mini App public production pilot;
+- GuideShop production CRM;
+- monitored and reconcilable event processing.
+
+### Implemented but not fully deployed end to end
+
+- Guide Operator backend and responsive prototype;
+- Guide OS Guide Operator module and inbound integration;
+- assignment versions, cancellations, critical confirmations, consent, discovery, and availability foundations.
+
+### Planned or not yet activated
+
+- Guide Operator reconciliation, notifications, and production deployment;
+- Guide Operator Telegram notifications;
+- Google Calendar import;
+- daily tips;
+- official external-sale PTS claims;
+- broader AI, knowledge, analytics, and marketplace modules.
+
+---
+
+## 13. Long-Term Vision
+
+Guide OS aims to become the trusted operating system of professional tourism: a place where guides manage work, knowledge, identity, and opportunities; operators coordinate structured assignments; partner businesses manage official commercial activity; and verified information moves safely between products.
+
+The goal is not to replace human relationships or professional judgment. It is to support them with better structure, memory, clarity, accountability, and intelligent tools.
+
+---
+
+## 14. One-Sentence Description
+
+**Guide OS is a production digital workspace for tour guides that combines personal scheduling, income, records, and verified GuideShop activity while building the structured assignment connection to tour operators through Guide Operator.**
+
+---
+
+## 15. Short Shareable Summary
+
+Guide OS helps professional tour guides manage calendars, tours, availability, income, reminders, personal places, and integrated business information through Telegram and a responsive Mini App.
+
+It works in production with GuideShop, the partner-business CRM of Tourism OS. GuideShop manages official visits, sales, points, and payouts, while Guide OS securely presents the relevant information to the linked guide and delivers notifications.
+
+The ecosystem is also developing Guide Operator, a structured assignment platform for tour operators. Its backend, prototype, assignment lifecycle, versioning, Guide OS-side module, and local HTTP E2E are substantially implemented, while reconciliation, notifications, and production deployment remain future controlled stages.
+
+The broader vision is to replace fragmented chats and spreadsheets with structured workflows, clear ownership, professional identity, transparent information, and responsible intelligent tools.

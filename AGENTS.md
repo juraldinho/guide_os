@@ -54,6 +54,8 @@ Telegram update -> handlers/guide_shop.py
 |------|------------|
 | `bot.py` | Основной Telegram runtime (long polling), wiring routers, startup tasks |
 | `guide_shop_link_api.py` | API-only GuideShop link provider (без Telegram polling) |
+| `guide_operator_integration_api.py` | API-only Guide Operator inbound events + discovery/availability (GO8D1–GO8D2; без Telegram/Mini App) |
+| `guide_operator_outbound_worker.py` | CLI-only Guide Operator outbound delivery worker (GO8F2B; без bot/Mini App/GO8D) |
 
 ### Handlers / routers (`handlers/`)
 
@@ -80,7 +82,17 @@ Telegram update -> handlers/guide_shop.py
 
 Core calendar/tours:
 
-- `tour_service.py` — save/edit/delete tours, conflict detection
+- `tour_service.py` — save/edit/delete tours, conflict detection; operator-managed projections are protected
+- `guide_operator_assignment_service.py` — GO6A offer intake, accept/decline, calendar projection, outbox; GO7B1 cancellation apply + projection release; GO7D1 ordinary version apply; GO7D2 ordinary unread acknowledgement; GO7E1 critical version intake (pending only); GO7E2 critical confirm/reject + occupancy projection update; GO7E3 critical decision API/UX surfaces
+- `guide_operator_connection_service.py` — GO8C2 connection consent: invite/disconnect intake, guide confirm/decline + decided outbox; offer gate requires confirmed connection
+- `guide_operator_service_auth_settings.py` / `guide_operator_service_jwt.py` — GO8B Ed25519/EdDSA service JWT verify (Guide Operator → Guide OS) and sign (Guide OS → Guide Operator); feature-flagged, fail-closed; hashed JTI replay
+- `guide_operator_integration_settings.py` + `web_api/guide_operator_integration.py` — GO8D1 authenticated inbound event HTTP (connections/offers/versions/cancellations) + GO8D2 discovery/availability reads; API-only entrypoint `guide_operator_integration_api.py`
+- `guide_operator_discovery_service.py` — GO8D2 minimal guide discovery + range availability (`free|busy|partial|unavailable`) from calendar domain
+- `guide_operator_outbound_settings.py` / `guide_operator_outbound_delivery.py` — GO8F2A `deliver_one()` claim + frozen envelope + EdDSA-signed POST to GO8F1 routes; feature-flagged, fail-closed
+- `guide_operator_outbound_worker.py` — GO8F2B bounded batch worker (`--once` / poll loop); separate process only; default off; uses `deliver_one()` only
+- `guide_operator_notification_outbox.py` — GO10A1 durable guide-notification outbox rows written atomically with successful GO intake
+- `guide_operator_notification_delivery_settings.py` / `guide_operator_notification_delivery.py` — GO10A2A `deliver_one_notification()` Telegram send for one claimed pending notification; feature-flagged, fail-closed
+- `guide_operator_notification_worker.py` — GO10A2B bounded drain task inside `bot.py` only; reuses `deliver_one_notification()`; default off; isolated from update polling
 - `date_parser.py` — парсинг дат и multi-day intervals
 - `calendar_service.py`, `day_view_service.py`, `day_card_service.py`, `month_day_map.py`
 - `tour_card_formatter.py` — текст карточек тура
@@ -136,6 +148,37 @@ GuideShop (`services/guide_shop_*`):
 - Реализация **не начата** без нового явного запроса владельца.
 - Канонический план TIP0–TIP10: `docs/TIPS_ROADMAP.md`.
 
+### Active Guide Operator assignment roadmap (GO6)
+
+- Owner activated **GO6A**: Guide OS backend foundation for assignment offer intake, guide accept/decline, conflict validation, atomic calendar projection + transactional outbox, and protected operator-managed tours.
+- **GO6A complete** (local service/SQL). **GO6B1 complete**: authenticated Mini App API + typed frontend client for pending list, assignment+v1 working package read, accept, and decline (session → immutable `guide_os_id`; no body identity trust).
+- **GO6B2 complete**: fourth bottom-nav item `Guide Operator`, pending-offers UI, assignment detail with version 1 working package, Russian accept/decline with confirmation, conflict/error/loading/empty states, and realistic mock data.
+- **GO6B3 complete**: accepted Guide Operator projections appear in the normal Mini App calendar with stable assignment/version metadata, read-only labeling, deep-link into assignment detail (focused day), and Back restores calendar context. Direct accepted-detail load works without pending-list membership.
+- **GO6B4 complete**: Guide Operator projections count as occupancy/working days but contribute no income and are excluded from paid/unpaid filters/counts; API preserves null fee/payment; calendar UI does not show `$0` or paid/unpaid for them.
+- **GO6B5 complete**: guide-facing lifecycle lists (`Ожидают ответа` / `Предстоящие` / `В процессе` / `Завершённые`) derived server-side in Asia/Tashkent; pending endpoint kept; shared detail with accept/decline only for offered.
+- **GO7B1 complete**: local idempotent application of `assignment.cancelled.v1` (cancellation inbox, terminal `cancelled` status, protected projection release via allowlist, retained version/decision history, exactly-one `assignment.cancellation.ack.v1` outbox). No guide approval; duplicate-safe; conflicting event IDs fail closed.
+- **GO7B2 complete**: fifth lifecycle section `Отменённые` (server-side cancelled-only, newest `cancelled_at` first), retained working-package detail with `Тур отменён оператором` banner, no accept/decline/edit/restore/calendar actions, excluded from other sections and calendar.
+- **GO7D1 complete**: local idempotent application of ordinary `assignment.version.published.v1` (version inbox, next monotonic version, independent occupancy rejection, immutable snapshot, unread flag, metadata-only projection update, retained history, exactly-one `assignment.version.applied.ack.v1` outbox). Duplicate-safe; conflicting event IDs fail closed.
+- **GO7D2 complete**: ordinary unread UX + guide acknowledgement (`activeVersionUnread` on lists/calendar, structured `Что изменилось` / history, `Ознакомился` bound to session guide + active ordinary version, idempotent evidence + exactly-one `assignment.version.acknowledged.v1` outbox, clears unread without changing occupancy/package).
+- **GO7E1 complete**: local idempotent intake of critical `assignment.version.published.v1` without applying (accepted non-cancelled + next monotonic + matching previous active; reject if pending critical exists; validate snapshot/summary; reject no-op; immutable pending snapshot; `pending_critical_version_number`; active version/package/projection/dates/unread unchanged; inbox + exactly-one `assignment.version.received.ack.v1` outbox; cancellation terminal and clears pending without applying).
+- **GO7E2 complete**: guide-authored idempotent `confirm_critical` / `reject_critical` for one pending critical version (bind decision event ID + session guide + exact pending version; reject keeps prior active/projection and clears pending; confirm conflicts against proposed occupancy excluding current projection and retains pending on conflict; conflict-free confirm activates version, updates assignment scope + exactly one protected projection via occupancy allowlist, clears pending, sets seen/no ordinary unread ack, exactly-one `assignment.critical_version.decided.v1` outbox; duplicate-safe; cancel race remains terminal).
+- **GO7E3 complete**: authenticated Mini App API + typed client/mock for pending critical detail (`pendingCriticalVersion` with snapshot/summary/conflictDates), list/calendar `Требуется подтверждение изменений` indicators, Russian confirm/reject with explicit confirmation, conflict retention UX, refresh of lists/detail/calendar; reuses GO7E2 service (no React-side conflict rules).
+- **GO8B complete**: compatible service-auth foundation — verify inbound Guide Operator Ed25519/EdDSA JWTs; sign outbound Guide OS tokens; strict `iss`/`aud`/`sub`/`scope`/`iat`/`nbf`/`exp`/`jti` + allowlisted `kid`; TTL≤60s; skew 10s; separate env keys (never GuideShop); flag default off + fail-closed; hashed JTI SQLite replay + expiry cleanup; test clock/key DI.
+- **GO8C2 complete**: local connection-consent domain — idempotent `guide_connection.invited.v1` / `disconnected.v1` intake; guide confirm/decline with exactly-one `guide_connection.decided.v1` outbox; expired invitations non-confirmable; disconnect terminal for new offers while retaining historical assignments; `assignment.offered.v1` requires matching confirmed `guide_connection_id` + company + guide.
+- **GO8C3 complete**: authenticated Mini App connection API + Guide Operator tab UX — list connections/invitations (session `guide_os_id` only), `Подтвердить`/`Отклонить` with explicit confirmation, pending invitations above assignment lists, confirmed as `Подключено`, declined/expired/disconnected read-only, refresh after decision; reuses GO8C2 service.
+- **GO8D1 complete**: authenticated inbound HTTP event routes (API-only `guide_operator_integration_api.py`) for connection invited/disconnected, assignment offered, version published (ordinary vs critical dispatch), and assignment cancelled; EdDSA JWT + exact inbound scopes; frozen envelope; path/payload ID consistency; stable applied/replayed/error; feature off by default.
+- **GO8D2 complete**: authenticated read-only discovery (`guide-operator:connections:write`) and availability (`guide-operator:availability:read`) on the same API-only surface; canonical `guide_os_id` binding; minimum discovery (`canReceiveInvitation`); range status `free|busy|partial|unavailable` from calendar domain; bounded ranges; no Telegram/profile/calendar-entry leakage.
+- **GO8F2A complete**: reusable `deliver_one()` for authenticated single-event Guide OS → Guide Operator delivery of the seven decision/ack outbox types to exact GO8F1 routes/scopes; atomic claim; frozen envelope; EdDSA sign; retryable vs permanent failure classification; feature off by default.
+- **GO8F2B complete**: bounded outbound delivery worker (separate CLI process); batch size + poll interval; capped exponential backoff with injectable jitter; max attempts; expired-claim recovery; SQLite-safe concurrent claims; in-process cycle lock; SIGINT/SIGTERM after current event; `--once`; safe operational logs only; default off / fail-closed. Never started from bot, Mini App, or GO8D integration API.
+- **GO9A complete**: deterministic local two-service HTTP E2E harness (canonical pytest in sibling Guide Operator `tests/test_guide_os_shared_e2e.py`; Guide OS test-only servers in `tests/go9a_guide_os_servers.py` + skip-if-missing wrapper). Real loopback routes, ephemeral Ed25519 keys, isolated DBs, outbox workers, idempotent replay, privacy asserts, one queued-retry/unavailability scenario. Flags remain off outside the harness.
+- **GO10A1 complete**: durable guide-notification outbox foundation — one idempotent notification row per successful intake of connection invited/disconnected, assignment offered, ordinary/critical version published, and assignment cancelled; bound to `guide_os_id`; minimal safe rendering fields + deep-link target; pending/delivered/failed columns for later delivery; atomic with intake transaction; no Telegram send in this stage.
+- **GO10A2A complete**: reusable `deliver_one_notification()` claims one pending guide notification, resolves Telegram recipient from `guide_os_id`, sends concise Russian text + Mini App WebApp button (approved HTTPS `MINI_APP_PUBLIC_URL`; Guide Operator tab deep-link not invented), classifies retryable vs permanent Telegram failures, keeps failed rows inspectable; feature off by default. No getUpdates, webhook, or second bot instance.
+- **GO10A2B complete**: bounded notification-outbox drain as one background task inside the existing `bot.py` process; batch size + poll interval; capped exponential backoff with jitter; max attempts; expired-claim recovery; in-process cycle lock; graceful shutdown with bounded timeout; delivery failures never stop update polling; default off / fail-closed.
+- **GO11A complete**: authenticated read-only reconciliation snapshot endpoints on the API-only Guide Operator integration surface (`guide-operator:reconcile`); local connection/assignment/calendar-projection state only; no comparison/repair/UI.
+- **STOP before GO11B comparison/repair, operator-facing notifications UI, or deployment**.
+- Official GuideShop remains read-only / unchanged. Google Calendar and tips roadmaps remain inactive until explicitly activated.
+- Cross-project product contract (non-authoritative vs Guide OS code/tests): Guide Operator `docs/guide_os/GUIDE_OS_ASSIGNMENT_CONTRACT.md`.
+
 ### Active GuideShop Mini App roadmap
 
 - Владелец активировал добавление третьего раздела `GuideShop` в Mini App после `Календарь` и `Итоги`.
@@ -152,6 +195,7 @@ GuideShop (`services/guide_shop_*`):
 - `conftest.py` — isolated temp DB per test (`DATABASE_PATH`)
 - domain tests: `test_tour_service.py`, `test_stats_service.py`, `test_personal_*`, `test_guide_shop_*`, etc.
 - env/docs guard: `test_environment_documentation.py`
+- GO9A wrapper: `tests/test_guide_operator_shared_e2e.py` (skips unless sibling Guide Operator is present)
 
 ### Deployment / CI
 

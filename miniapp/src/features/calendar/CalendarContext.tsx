@@ -43,6 +43,19 @@ import { t } from '@/i18n/strings';
 import { applyThemeMode, loadStoredTheme, type ThemeMode } from '@/telegram/mockAdapter';
 import { copyText } from '@/utils/copyText';
 
+export type GuideOperatorCalendarFocus = {
+  assignmentId: string;
+  focusDate: string | null;
+  returnTo: {
+    calendarScreen: CalendarScreen;
+    selectedDate: string;
+    viewMonth: number;
+    viewYear: number;
+    monthExpanded: boolean;
+    feedScrollIso: string;
+  };
+};
+
 function defaultTourForm(selectedDate: string, prefill?: Partial<TourFormValues>): TourFormValues {
   const base: TourFormValues = {
     title: '',
@@ -72,6 +85,11 @@ interface CalendarContextValue {
   headerMonth: number;
   headerYear: number;
   scrollToTodaySignal: number;
+  feedRestoreIso: string | null;
+  clearFeedRestoreIso: () => void;
+  guideOperatorFocus: GuideOperatorCalendarFocus | null;
+  returnFromGuideOperatorCalendar: () => void;
+  refreshEntries: () => Promise<void>;
   overlay: OverlayKind | null;
   overlayData: OverlayData;
   overlayReturn: 'day' | null;
@@ -160,6 +178,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [visibleFeedMonth, setVisibleFeedMonth] = useState(todayMonthYear.month);
   const [visibleFeedYear, setVisibleFeedYear] = useState(todayMonthYear.year);
   const [scrollToTodaySignal, setScrollToTodaySignal] = useState(0);
+  const [feedRestoreIso, setFeedRestoreIso] = useState<string | null>(null);
+  const [guideOperatorFocus, setGuideOperatorFocus] =
+    useState<GuideOperatorCalendarFocus | null>(null);
   const [overlay, setOverlay] = useState<OverlayKind | null>(null);
   const [overlayData, setOverlayData] = useState<OverlayData>({});
   const [overlayReturn, setOverlayReturn] = useState<'day' | null>(null);
@@ -218,10 +239,35 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const setActiveTab = useCallback((tab: TabId) => {
     setActiveTabState(tab);
+    if (tab !== 'guide_operator') {
+      setGuideOperatorFocus(null);
+    }
     if (tab === 'calendar' && calendarScreen !== 'day') {
       setCalendarScreen('feed');
     }
   }, [calendarScreen]);
+
+  const clearFeedRestoreIso = useCallback(() => setFeedRestoreIso(null), []);
+
+  const returnFromGuideOperatorCalendar = useCallback(() => {
+    setGuideOperatorFocus((current) => {
+      if (!current) return null;
+      const { returnTo } = current;
+      setActiveTabState('calendar');
+      setCalendarScreen(returnTo.calendarScreen);
+      setSelectedDate(returnTo.selectedDate);
+      setViewMonth(returnTo.viewMonth);
+      setViewYear(returnTo.viewYear);
+      setMonthExpanded(returnTo.monthExpanded);
+      if (returnTo.calendarScreen === 'feed') {
+        setFeedRestoreIso(returnTo.feedScrollIso);
+        const d = parseDate(returnTo.feedScrollIso);
+        setVisibleFeedMonth(d.getMonth());
+        setVisibleFeedYear(d.getFullYear());
+      }
+      return null;
+    });
+  }, []);
 
   const closeOverlay = useCallback(() => {
     setOverlay(null);
@@ -437,11 +483,37 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const openDetail = useCallback(
     (id: string) => {
+      const entry = entries.find((row) => row.id === id);
+      if (entry?.guideOperatorAssignmentId) {
+        setGuideOperatorFocus({
+          assignmentId: entry.guideOperatorAssignmentId,
+          focusDate: selectedDate,
+          returnTo: {
+            calendarScreen,
+            selectedDate,
+            viewMonth,
+            viewYear,
+            monthExpanded,
+            feedScrollIso: selectedDate,
+          },
+        });
+        setOverlay(null);
+        setOverlayData({});
+        setActiveTabState('guide_operator');
+        return;
+      }
       setOverlay('detail');
       setOverlayData({ id } as DetailOverlayData);
       if (calendarScreen === 'day') setOverlayReturn('day');
     },
-    [calendarScreen],
+    [
+      entries,
+      selectedDate,
+      calendarScreen,
+      viewMonth,
+      viewYear,
+      monthExpanded,
+    ],
   );
 
   const editTour = useCallback(
@@ -461,7 +533,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
           endTime: e.endTime || '14:00',
           company: e.company || '',
           location: e.location || '',
-          income: e.income,
+          income: e.income ?? 0,
           status: e.status || 'reserved',
           payment: e.payment || 'unpaid',
           note: e.note || '',
@@ -487,7 +559,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
           endTime: e.endTime || '14:00',
           company: e.company || '',
           location: e.location || '',
-          income: e.income,
+          income: e.income ?? 0,
           status: e.status || 'reserved',
           payment: e.payment || 'unpaid',
           note: e.note || '',
@@ -700,6 +772,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       headerMonth,
       headerYear,
       scrollToTodaySignal,
+      feedRestoreIso,
+      clearFeedRestoreIso,
+      guideOperatorFocus,
+      returnFromGuideOperatorCalendar,
+      refreshEntries,
       overlay,
       overlayData,
       overlayReturn,
@@ -812,6 +889,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       headerMonth,
       headerYear,
       scrollToTodaySignal,
+      feedRestoreIso,
+      clearFeedRestoreIso,
+      guideOperatorFocus,
+      returnFromGuideOperatorCalendar,
+      refreshEntries,
       overlay,
       overlayData,
       overlayReturn,
