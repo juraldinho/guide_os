@@ -345,7 +345,7 @@ Future work is separated into approval-based product streams. Planned direction 
 
 ### Completing Guide Operator
 
-Potential next stages include reconciliation, Telegram assignment notifications, operator authentication, a live frontend, isolated staging E2E, and a controlled pilot.
+Potential next stages include operator-facing notifications UI, isolated staging E2E, and a controlled production deployment. Local reconciliation snapshots and safe calendar projection repair exist on the API-only Guide OS integration surface and are not a Mini App or deployment task.
 
 ### Daily tips
 
@@ -384,12 +384,12 @@ Later modules may provide deeper workload, partner, assignment, and performance 
 ### Implemented but not fully deployed end to end
 
 - Guide Operator backend and responsive prototype;
-- Guide OS Guide Operator module and inbound integration;
+- Guide OS Guide Operator module and inbound integration, including read-only reconciliation snapshots and safe local calendar projection repair (API-only; not deployed);
 - assignment versions, cancellations, critical confirmations, consent, discovery, and availability foundations.
 
 ### Planned or not yet activated
 
-- Guide Operator reconciliation, notifications, and production deployment;
+- Guide Operator operator-facing notifications UI and production deployment;
 - Guide Operator Telegram notifications;
 - Google Calendar import;
 - daily tips;
@@ -418,6 +418,6 @@ Guide OS helps professional tour guides manage calendars, tours, availability, i
 
 It works in production with GuideShop, the partner-business CRM of Tourism OS. GuideShop manages official visits, sales, points, and payouts, while Guide OS securely presents the relevant information to the linked guide and delivers notifications.
 
-The ecosystem is also developing Guide Operator, a structured assignment platform for tour operators. Its backend, prototype, assignment lifecycle, versioning, Guide OS-side module, and local HTTP E2E are substantially implemented, while reconciliation, notifications, and production deployment remain future controlled stages.
+The ecosystem is also developing Guide Operator, a structured assignment platform for tour operators. Its backend, prototype, assignment lifecycle, versioning, Guide OS-side module, local HTTP E2E, and API-only local projection reconciliation/repair are substantially implemented, while operator-facing notifications and production deployment remain future controlled stages.
 
 The broader vision is to replace fragmented chats and spreadsheets with structured workflows, clear ownership, professional identity, transparent information, and responsible intelligent tools.

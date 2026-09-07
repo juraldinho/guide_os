@@ -351,11 +351,37 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
             "ALTER TABLE users ADD COLUMN guide_languages_json TEXT NOT NULL DEFAULT '[]'"
         )
 
+    acquisition_source_added = "acquisition_source" not in user_columns
+    if acquisition_source_added:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN acquisition_source TEXT"
+        )
+
+    if "acquisition_recorded_at" not in user_columns:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN acquisition_recorded_at TEXT"
+        )
+
+    if acquisition_source_added:
+        cursor.execute(
+            """
+            UPDATE users
+            SET acquisition_source = 'legacy_unknown',
+                acquisition_recorded_at = CURRENT_TIMESTAMP
+            WHERE acquisition_source IS NULL
+            """
+        )
+
     _migrate_guide_os_identity(conn, cursor)
 
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_users_last_seen
     ON users(last_seen)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_users_acquisition_source_recorded_at
+    ON users(acquisition_source, acquisition_recorded_at)
     """)
 
     cursor.execute("""
@@ -809,6 +835,46 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     CREATE TABLE IF NOT EXISTS go_operator_projection_occupancy_update (
         tour_id INTEGER PRIMARY KEY
     )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_projection_repair_inbox (
+        repair_request_id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(
+            result_status IN ('applied', 'no-op', 'conflict')
+        ),
+        action TEXT NOT NULL CHECK(
+            action IN ('recreate', 'repair_mismatch', 'release_stray', 'none')
+        ),
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_projection_repair_inbox_assignment
+    ON guide_operator_projection_repair_inbox(assignment_id, created_at)
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_projection_repair_audits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repair_request_id TEXT NOT NULL,
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(
+            action IN ('recreate', 'repair_mismatch', 'release_stray')
+        ),
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied')),
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_projection_repair_audits_assignment
+    ON guide_operator_projection_repair_audits(assignment_id, created_at)
     """)
 
     cursor.execute("""

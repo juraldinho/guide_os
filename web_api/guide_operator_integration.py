@@ -1,7 +1,8 @@
-"""Authenticated Guide Operator → Guide OS inbound HTTP surface (GO8D1/GO8D2/GO11A).
+"""Authenticated Guide Operator → Guide OS inbound HTTP surface (GO8D1/GO8D2/GO11A/GO11B2B).
 
 API-only: no Telegram polling, no Mini App session routes.
-GO8D1 event intake + GO8D2 discovery/availability reads + GO11A read-only reconcile.
+GO8D1 event intake + GO8D2 discovery/availability reads + GO11A read-only
+reconcile + GO11B2B local projection repair.
 Delegates to GO8B JWT auth and existing GO domain services.
 """
 
@@ -56,6 +57,11 @@ from services.guide_operator_discovery_service import (
     discover_guide_for_operator,
     guide_availability_for_operator,
 )
+from services.guide_operator_reconcile_repair_service import (
+    ProjectionRepairNotFoundError,
+    ProjectionRepairValidationError,
+    repair_local_projection,
+)
 from services.guide_operator_reconcile_service import (
     GuideOperatorReconcileNotFoundError,
     GuideOperatorReconcileValidationError,
@@ -103,8 +109,17 @@ _MSG_VALIDATION = "Invalid event payload"
 _MSG_DISCOVERY = "Invalid discovery request"
 _MSG_AVAILABILITY = "Invalid availability request"
 _MSG_RECONCILE = "Invalid reconciliation request"
+_MSG_REPAIR = "Projection repair conflict"
 _DISCOVERY_BODY_KEYS = frozenset({"guide_os_id"})
 _AVAILABILITY_BODY_KEYS = frozenset({"start_date", "end_date"})
+_REPAIR_BODY_KEYS = frozenset(
+    {
+        "repair_request_id",
+        "expected_status",
+        "expected_active_version_number",
+        "expected_projection",
+    }
+)
 
 
 def _opaque_log(message: str) -> None:
@@ -676,6 +691,42 @@ def create_guide_operator_integration_app(
             return error_response("not_found", _MSG_NOT_FOUND, rid, 404)
         return success_response(payload, rid)
 
+    async def reconcile_assignment_repair_handler(request: web.Request) -> web.Response:
+        rid, failure = await _prepare(request, expected_scope=SCOPE_OPERATOR_RECONCILE)
+        if failure is not None:
+            return failure
+        guide_os_id = _parse_uuid4(request.match_info.get("guideOsId", ""))
+        assignment_id = _parse_path_id(request.match_info.get("assignmentId", ""))
+        if guide_os_id is None or assignment_id is None:
+            return error_response("validation_error", _MSG_RECONCILE, rid, 400)
+        try:
+            body = await _read_json_object(request, allowed_keys=_REPAIR_BODY_KEYS)
+        except (ValueError, UnicodeError, json.JSONDecodeError, web.HTTPRequestEntityTooLarge):
+            return error_response("invalid_request", _MSG_RECONCILE, rid, 400)
+        try:
+            result = repair_local_projection(
+                guide_os_id,
+                assignment_id,
+                repair_request_id=body.get("repair_request_id"),
+                expected_status=body.get("expected_status"),
+                expected_active_version_number=body.get(
+                    "expected_active_version_number"
+                ),
+                expected_projection=body.get("expected_projection"),
+            )
+        except ProjectionRepairValidationError:
+            return error_response("validation_error", _MSG_RECONCILE, rid, 400)
+        except ProjectionRepairNotFoundError:
+            return error_response("not_found", _MSG_NOT_FOUND, rid, 404)
+        payload = {
+            "status": result.status,
+            "repairRequestId": result.repair_request_id,
+            "replayed": result.replayed,
+        }
+        if result.status == "conflict":
+            return error_response("conflict", _MSG_REPAIR, rid, 409, details=payload)
+        return success_response(payload, rid)
+
     app.router.add_post(
         "/integration/v1/guide-connections/{connectionId}/invited",
         invited_handler,
@@ -716,5 +767,9 @@ def create_guide_operator_integration_app(
     app.router.add_get(
         "/integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}",
         reconcile_assignment_handler,
+    )
+    app.router.add_post(
+        "/integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}/repair",
+        reconcile_assignment_repair_handler,
     )
     return app

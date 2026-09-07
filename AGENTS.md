@@ -54,7 +54,7 @@ Telegram update -> handlers/guide_shop.py
 |------|------------|
 | `bot.py` | Основной Telegram runtime (long polling), wiring routers, startup tasks |
 | `guide_shop_link_api.py` | API-only GuideShop link provider (без Telegram polling) |
-| `guide_operator_integration_api.py` | API-only Guide Operator inbound events + discovery/availability (GO8D1–GO8D2; без Telegram/Mini App) |
+| `guide_operator_integration_api.py` | API-only Guide Operator inbound events + discovery/availability + reconcile snapshots/repair (GO8D1–GO8D2, GO11A, GO11B2B; без Telegram/Mini App) |
 | `guide_operator_outbound_worker.py` | CLI-only Guide Operator outbound delivery worker (GO8F2B; без bot/Mini App/GO8D) |
 
 ### Handlers / routers (`handlers/`)
@@ -86,7 +86,9 @@ Core calendar/tours:
 - `guide_operator_assignment_service.py` — GO6A offer intake, accept/decline, calendar projection, outbox; GO7B1 cancellation apply + projection release; GO7D1 ordinary version apply; GO7D2 ordinary unread acknowledgement; GO7E1 critical version intake (pending only); GO7E2 critical confirm/reject + occupancy projection update; GO7E3 critical decision API/UX surfaces
 - `guide_operator_connection_service.py` — GO8C2 connection consent: invite/disconnect intake, guide confirm/decline + decided outbox; offer gate requires confirmed connection
 - `guide_operator_service_auth_settings.py` / `guide_operator_service_jwt.py` — GO8B Ed25519/EdDSA service JWT verify (Guide Operator → Guide OS) and sign (Guide OS → Guide Operator); feature-flagged, fail-closed; hashed JTI replay
-- `guide_operator_integration_settings.py` + `web_api/guide_operator_integration.py` — GO8D1 authenticated inbound event HTTP (connections/offers/versions/cancellations) + GO8D2 discovery/availability reads; API-only entrypoint `guide_operator_integration_api.py`
+- `guide_operator_integration_settings.py` + `web_api/guide_operator_integration.py` — GO8D1 authenticated inbound event HTTP (connections/offers/versions/cancellations) + GO8D2 discovery/availability reads + GO11A reconcile snapshots + GO11B2B local projection repair; API-only entrypoint `guide_operator_integration_api.py`
+- `guide_operator_reconcile_service.py` — GO11A read-only local connection/assignment/calendar-projection snapshots
+- `guide_operator_reconcile_repair_service.py` — GO11B2B safe local protected-projection repair (accepted recreate/mismatch, cancelled stray release)
 - `guide_operator_discovery_service.py` — GO8D2 minimal guide discovery + range availability (`free|busy|partial|unavailable`) from calendar domain
 - `guide_operator_outbound_settings.py` / `guide_operator_outbound_delivery.py` — GO8F2A `deliver_one()` claim + frozen envelope + EdDSA-signed POST to GO8F1 routes; feature-flagged, fail-closed
 - `guide_operator_outbound_worker.py` — GO8F2B bounded batch worker (`--once` / poll loop); separate process only; default off; uses `deliver_one()` only
@@ -174,8 +176,9 @@ GuideShop (`services/guide_shop_*`):
 - **GO10A1 complete**: durable guide-notification outbox foundation — one idempotent notification row per successful intake of connection invited/disconnected, assignment offered, ordinary/critical version published, and assignment cancelled; bound to `guide_os_id`; minimal safe rendering fields + deep-link target; pending/delivered/failed columns for later delivery; atomic with intake transaction; no Telegram send in this stage.
 - **GO10A2A complete**: reusable `deliver_one_notification()` claims one pending guide notification, resolves Telegram recipient from `guide_os_id`, sends concise Russian text + Mini App WebApp button (approved HTTPS `MINI_APP_PUBLIC_URL`; Guide Operator tab deep-link not invented), classifies retryable vs permanent Telegram failures, keeps failed rows inspectable; feature off by default. No getUpdates, webhook, or second bot instance.
 - **GO10A2B complete**: bounded notification-outbox drain as one background task inside the existing `bot.py` process; batch size + poll interval; capped exponential backoff with jitter; max attempts; expired-claim recovery; in-process cycle lock; graceful shutdown with bounded timeout; delivery failures never stop update polling; default off / fail-closed.
-- **GO11A complete**: authenticated read-only reconciliation snapshot endpoints on the API-only Guide Operator integration surface (`guide-operator:reconcile`); local connection/assignment/calendar-projection state only; no comparison/repair/UI.
-- **STOP before GO11B comparison/repair, operator-facing notifications UI, or deployment**.
+- **GO11A complete**: authenticated read-only reconciliation snapshot endpoints on the API-only Guide Operator integration surface (`guide-operator:reconcile`); local connection/assignment/calendar-projection state only.
+- **GO11B2B complete**: authenticated API-only local calendar projection repair (`POST /integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}/repair`, scope `guide-operator:reconcile`). Derives the desired projection only from Guide OS local active version + retained guide-authored accept decision; recreates missing or repairs mismatched protected projections for accepted assignments (authoritative calendar conflict check excluding the current projection); removes stray protected projections for locally cancelled assignments. Never repairs offered/declined/pending-critical/malformed/version-gap/conflicting assignments; never accepts replacement calendar content; never creates consent, activates versions, clears pending critical, or mutates personal tours. Canonical repair request ID + expected fingerprint; atomic inbox/audit; identical replay; conflicting request reuse and stale evidence fail closed / no-op. Uses existing occupancy/release allowlists. Safe `applied` / `replayed` / `no-op` / `conflict` codes only.
+- **STOP before operator-facing notifications UI, staging, or deployment**.
 - Official GuideShop remains read-only / unchanged. Google Calendar and tips roadmaps remain inactive until explicitly activated.
 - Cross-project product contract (non-authoritative vs Guide OS code/tests): Guide Operator `docs/guide_os/GUIDE_OS_ASSIGNMENT_CONTRACT.md`.
 

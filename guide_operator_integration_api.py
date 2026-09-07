@@ -1,4 +1,4 @@
-"""API-only Guide Operator inbound event process (GO8D1).
+"""API-only Guide Operator inbound event process (GO8D1/GO8D2/GO11A/GO11B2B).
 
 Starts SQLite initialization and the Guide Operator integration HTTP surface only.
 Does not import Telegram bot configuration or start polling / Mini App user routes.

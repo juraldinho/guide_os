@@ -103,38 +103,54 @@ def _connection_snapshot(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def list_protected_projection_tours(conn, assignment_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT id, start_date, end_date, source, note, title, city,
+               day_locations_json, user_id, status, entry_type, income,
+               payment_status, tour_group_id
+        FROM tours
+        WHERE source = ? AND note = ?
+        ORDER BY id ASC
+        """,
+        (SOURCE_GUIDE_OPERATOR, f"go_assignment:{assignment_id}"),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def projection_fingerprint(
+    row: dict[str, Any], tours: list[dict[str, Any]]
+) -> dict[str, Any]:
+    chosen: dict[str, Any] | None = None
+    projection_tour_id = row.get("projection_tour_id")
+    if projection_tour_id is not None:
+        for tour in tours:
+            if tour.get("id") == projection_tour_id:
+                chosen = tour
+                break
+    if chosen is None and len(tours) == 1:
+        chosen = tours[0]
+    if chosen is None:
+        return {
+            "exists": False,
+            "start_date": None,
+            "end_date": None,
+            "version_number": None,
+        }
+    return {
+        "exists": True,
+        "start_date": chosen.get("start_date"),
+        "end_date": chosen.get("end_date"),
+        "version_number": row.get("active_version_number"),
+    }
+
+
 def _projection_snapshot(row: dict[str, Any]) -> dict[str, Any]:
     ensure_db_ready()
     conn = get_connection()
     try:
-        projection_tour_id = row.get("projection_tour_id")
-        exists = False
-        start_date = None
-        end_date = None
-        version_number = None
-        if projection_tour_id is not None:
-            tour = conn.execute(
-                """
-                SELECT id, start_date, end_date, source, note
-                FROM tours
-                WHERE id = ?
-                LIMIT 1
-                """,
-                (projection_tour_id,),
-            ).fetchone()
-            if tour is not None and dict(tour).get("source") == SOURCE_GUIDE_OPERATOR:
-                note = dict(tour).get("note") or ""
-                if note == f"go_assignment:{row['assignment_id']}":
-                    exists = True
-                    start_date = dict(tour).get("start_date")
-                    end_date = dict(tour).get("end_date")
-                    version_number = row.get("active_version_number")
-        return {
-            "exists": exists,
-            "start_date": start_date,
-            "end_date": end_date,
-            "version_number": version_number,
-        }
+        tours = list_protected_projection_tours(conn, row["assignment_id"])
+        return projection_fingerprint(row, tours)
     finally:
         conn.close()
 

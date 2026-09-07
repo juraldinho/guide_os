@@ -1,5 +1,14 @@
 # Guide OS — Development Log
 
+## 2026-09-06 — GO11B2B safe local calendar projection repair
+
+- Added authenticated `POST /integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}/repair` on the API-only Guide Operator integration surface with exact scope `guide-operator:reconcile`.
+- Request identifies the assignment and expected observed fingerprint only. Desired occupancy is derived from Guide OS local active version + retained accept decision. Accepted assignments can recreate a missing protected projection or repair a mismatch after an authoritative calendar conflict check (excluding the current projection). Locally cancelled assignments can release a stray protected projection.
+- Never repairs offered/declined/pending-critical/malformed/version-gap/conflicting assignments. Never accepts replacement dates/package/version/status. Never creates consent, activates versions, clears pending critical, or mutates personal tours. Uses existing occupancy/release allowlists.
+- Canonical repair request ID is persisted atomically with audit on apply. Identical replay returns the original result; conflicting request reuse and calendar overlap return `conflict`; stale evidence returns `no-op` without mutation.
+- Did not change calendar scrolling/colors/Today, personal tours, polling, reports, GuideShop, Mini App UI, assignment/version/decision state machines, or deployment.
+- STOP before operator-facing notifications UI, staging, or deployment.
+
 ## 2026-09-06 — GO11A read-only reconciliation local snapshots
 
 - Added authenticated GET reconcile routes on the API-only Guide Operator integration surface under `/integration/v1/reconcile/guides/{guideOsId}/…` with exact scope `guide-operator:reconcile`.

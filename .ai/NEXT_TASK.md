@@ -6,7 +6,7 @@
 
 Интеграционные Stages 0–18 и Stage 19 (личные места) завершены. GuideShop Mini App GSMA0–GSMA10 complete for the public production pilot (GSMA10 owner E2E PASS 2026-09-04). Formal general release was not separately declared.
 
-**GO6A–GO6B5, GO7B1–GO7B2, GO7D1–GO7D2, GO7E1–GO7E3, GO8B, GO8C2, GO8C3, GO8D1, GO8D2, GO8F2A, GO8F2B, GO9A, GO10A1, GO10A2A, GO10A2B, and GO11A complete**:
+**GO6A–GO6B5, GO7B1–GO7B2, GO7D1–GO7D2, GO7E1–GO7E3, GO8B, GO8C2, GO8C3, GO8D1, GO8D2, GO8F2A, GO8F2B, GO9A, GO10A1, GO10A2A, GO10A2B, GO11A, and GO11B2B complete**:
 - GO6A–GO6B5: intake through lifecycle lists / calendar / reports semantics
 - GO7B1–GO7B2: cancellation apply + cancelled list/detail
 - GO7D1–GO7D2: ordinary version apply + unread acknowledgement UX
@@ -23,10 +23,11 @@
 - GO10A2A: reusable `deliver_one_notification()` Telegram send (default off)
 - GO10A2B: bounded notification drain task inside existing `bot.py` (default off)
 - GO11A: read-only reconciliation local-projection snapshots (`GET /integration/v1/reconcile/guides/{guideOsId}/…`, scope `guide-operator:reconcile`)
+- GO11B2B: safe local calendar projection repair (`POST …/assignments/{assignmentId}/repair`, same reconcile scope; derived only from local active version + retained accept decision)
 
 ## Единственная следующая задача
 
-**STOP before GO11B comparison/repair, operator-facing notifications UI, or deployment.** Do not add automatic drift repair, Mini App notification UI, production keys, or staging/production rollout without a new explicit owner request.
+**STOP before operator-facing notifications UI, staging, or deployment.** Do not add Mini App notification UI, production keys, or staging/production rollout without a new explicit owner request.
 
 ## Local notification delivery (disabled by default)
 
@@ -41,7 +42,7 @@ Env (documented in `.env.example`, defaults off / safe):
 
 ## Out of scope until activated
 
-- GO11B comparison / automatic repair
+- GO11B comparison / automatic repair of assignment/version/decision state
 - Operator-facing / Mini App notification UI
 - End-to-end Guide OS ↔ Guide Operator deployment
 - Google Calendar roadmap (`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`)
@@ -54,8 +55,9 @@ Env (documented in `.env.example`, defaults off / safe):
 - Outbound `deliver_one()` + worker exist (GO8F2A–GO8F2B) and are proven by the GO9A local HTTP harness; they remain feature-flagged off
 - Guide-notification rows + single-send + in-bot drain exist (GO10A1–GO10A2B) but remain feature-flagged off
 - GO11A reconcile reads exist on the API-only surface and remain behind service-auth fail-closed defaults
+- GO11B2B local projection repair exists on the same API-only surface (same scope/auth; default-off service auth). It does not change assignment/version/decision machines, UI, notifications, or personal tours
 - Mini App WebApp button opens the approved Mini App URL (Guide Operator tab deep-link not invented yet)
-- Comparison/repair, notifications UI, and deployment are not started
+- Operator-facing notifications UI and deployment are not started
 - Operator projection has no guide fee (income NULL; excluded from paid/unpaid)
 - Withdrawal/expiration are not implemented
 - Guide-initiated disconnect is not implemented
