@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 import database.db as db_module
+import handlers.admin_report as admin_report_module
 from database.db import get_connection
 from database.queries import (
     get_new_user_acquisition_counts_today,
@@ -279,3 +280,26 @@ def test_admin_report_shows_stable_acquisition_labels_and_counts():
     ):
         assert expected_line in text
     assert "legacy_unknown" not in text
+
+
+def test_daily_admin_report_log_does_not_expose_telegram_id(monkeypatch, caplog):
+    admin_id = 987654321
+    bot = SimpleNamespace(send_message=AsyncMock())
+    sleep_calls = 0
+
+    async def stop_after_delivery(_seconds):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(admin_report_module, "ADMIN_ID", admin_id)
+    monkeypatch.setattr(admin_report_module, "seconds_until_next_midnight", lambda: 0)
+    monkeypatch.setattr(admin_report_module.asyncio, "sleep", stop_after_delivery)
+
+    with caplog.at_level(logging.INFO), pytest.raises(asyncio.CancelledError):
+        run(admin_report_module.send_daily_admin_report(bot))
+
+    bot.send_message.assert_awaited_once()
+    assert "Daily admin report sent" in caplog.text
+    assert str(admin_id) not in caplog.text

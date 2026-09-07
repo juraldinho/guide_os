@@ -141,7 +141,7 @@ async def send_daily_admin_report(bot: Bot) -> None:
                 text=report_text,
                 parse_mode="HTML",
             )
-            logger.info("Daily admin report sent to admin_id=%s", ADMIN_ID)
+            logger.info("Daily admin report sent")
 
             await asyncio.sleep(1)
 
