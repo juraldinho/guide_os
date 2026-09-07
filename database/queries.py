@@ -702,6 +702,82 @@ def register_user(user_id: int) -> None:
     run_write_with_retry(operation)
 
 
+PUBLIC_ACQUISITION_SOURCES = (
+    "instagram_guide_os",
+    "instagram_personal",
+    "threads",
+    "telegram_personal_channel",
+    "guide_os_website",
+    "articles",
+    "organic",
+)
+
+TAGGED_ACQUISITION_START_EVENTS = (
+    "start_source_instagram_guide_os",
+    "start_source_instagram_personal",
+    "start_source_threads",
+    "start_source_telegram_personal_channel",
+    "start_source_guide_os_website",
+    "start_source_articles",
+)
+
+
+def set_user_acquisition_source_if_unset(user_id: int, source: str) -> bool:
+    if source not in PUBLIC_ACQUISITION_SOURCES:
+        raise ValueError("Unsupported acquisition source")
+
+    def operation(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE users
+            SET acquisition_source = ?,
+                acquisition_recorded_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND acquisition_source IS NULL
+            """,
+            (source, user_id),
+        )
+        return cursor.rowcount == 1
+
+    return run_write_with_retry(operation)
+
+
+def get_new_user_acquisition_counts_today() -> dict[str, int]:
+    counts = {source: 0 for source in PUBLIC_ACQUISITION_SOURCES}
+    placeholders = ", ".join("?" for _ in PUBLIC_ACQUISITION_SOURCES)
+    conn = get_connection()
+    rows = conn.execute(
+        f"""
+        SELECT acquisition_source, COUNT(*) AS total_count
+        FROM users
+        WHERE acquisition_source IN ({placeholders})
+          AND date(acquisition_recorded_at) = date('now')
+        GROUP BY acquisition_source
+        """,
+        PUBLIC_ACQUISITION_SOURCES,
+    ).fetchall()
+    conn.close()
+    for row in rows:
+        counts[row["acquisition_source"]] = int(row["total_count"])
+    return counts
+
+
+def get_recognized_acquisition_link_starts_today() -> int:
+    placeholders = ", ".join("?" for _ in TAGGED_ACQUISITION_START_EVENTS)
+    conn = get_connection()
+    row = conn.execute(
+        f"""
+        SELECT COUNT(*) AS total_count
+        FROM events
+        WHERE event_name IN ({placeholders})
+          AND date(created_at) = date('now')
+        """,
+        TAGGED_ACQUISITION_START_EVENTS,
+    ).fetchone()
+    conn.close()
+    return int(row["total_count"]) if row else 0
+
+
 def get_user_id_by_guide_os_id(guide_os_id: str) -> int | None:
     identity = validate_guide_os_id(guide_os_id)
     conn = get_connection()

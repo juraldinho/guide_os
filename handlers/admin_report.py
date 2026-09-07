@@ -19,6 +19,8 @@ from database.queries import (
     get_new_users_today_count,
     get_active_users_last_days,
     get_event_count_today,
+    get_new_user_acquisition_counts_today,
+    get_recognized_acquisition_link_starts_today,
     get_unique_event_users_today,
     get_repeat_active_users_last_days,
 )
@@ -30,6 +32,16 @@ router = Router()
 
 logger = logging.getLogger(__name__)
 REPORT_TZ = ZoneInfo(TIMEZONE)
+
+ACQUISITION_REPORT_LABELS = (
+    ("instagram_guide_os", "Instagram Guide OS"),
+    ("instagram_personal", "Личный Instagram"),
+    ("threads", "Threads"),
+    ("telegram_personal_channel", "Личный Telegram-канал"),
+    ("guide_os_website", "Сайт Guide OS"),
+    ("articles", "Статьи"),
+    ("organic", "Органика"),
+)
 
 def percent(part: int, whole: int) -> int:
     if whole <= 0:
@@ -58,6 +70,12 @@ def build_admin_report_text() -> str:
     unique_tours_saved_today = get_unique_event_users_today("tour_saved")
 
     repeat_active_7d = get_repeat_active_users_last_days(7)
+    acquisition_counts = get_new_user_acquisition_counts_today()
+    tagged_link_starts = get_recognized_acquisition_link_starts_today()
+    acquisition_lines = "\n".join(
+        f"• {label}: {acquisition_counts[source]}"
+        for source, label in ACQUISITION_REPORT_LABELS
+    )
 
     calendar_open_rate = percent(unique_calendar_users_today, unique_start_users_today)
     month_open_rate = percent(unique_month_open_users_today, unique_calendar_users_today)
@@ -70,6 +88,10 @@ def build_admin_report_text() -> str:
         f"🔥 Активных за 7 дней: {active_7d}\n"
         f"📆 Активных за 30 дней: {active_30d}\n"
         f"🔁 Повторно активных за 7 дней: {repeat_active_7d}\n\n"
+
+        "📣 Источники новых пользователей сегодня:\n"
+        f"{acquisition_lines}\n"
+        f"🔗 Переходов по отслеживаемым ссылкам сегодня: {tagged_link_starts}\n\n"
 
         f"▶️ /start сегодня: {starts_today}\n"
         f"👤 Уникальных /start сегодня: {unique_start_users_today}\n"
