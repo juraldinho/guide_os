@@ -1779,17 +1779,40 @@ def test_profile_link_conflicting_associations_fail_closed(signing_key, componen
         )
         assert other_guide.status == 409
         assert (await other_guide.json())["code"] == "link_conflict"
-        # The same guide must not bind to a second membership.
-        other_membership = await client.post(
-            PROFILE_LINK_PATH,
-            json=profile_link_body(guide_membership_ref="cgm_other001"),
-            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-conf-jti3"),
-        )
-        assert other_membership.status == 409
-        assert (await other_membership.json())["code"] == "link_conflict"
 
     run(with_client(components, exercise))
     assert len(_active_exchange_rows()) == 1
+
+
+def test_profile_link_same_guide_can_bind_two_memberships(signing_key, components):
+    register_user(101)
+
+    async def exercise(client):
+        first = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-multi-jti1"),
+        )
+        second = await client.post(
+            PROFILE_LINK_PATH,
+            json=profile_link_body(guide_membership_ref="cgm_other001"),
+            headers=bearer(signing_key, PROFILE_LINK_SCOPE, "profile-link-multi-jti2"),
+        )
+        first_body = await first.json()
+        second_body = await second.json()
+        assert first.status == 201
+        assert second.status == 201
+        assert first_body["status"] == second_body["status"] == "active"
+        assert first_body["link_exchange_id"] != second_body["link_exchange_id"]
+
+    run(with_client(components, exercise))
+    active = _active_exchange_rows()
+    assert len(active) == 2
+    assert {row["guide_membership_ref"] for row in active} == {
+        MEMBERSHIP,
+        "cgm_other001",
+    }
+    assert len({row["guide_os_id"] for row in active}) == 1
 
 
 def test_profile_link_partial_failure_rolls_back_without_false_evidence(components):

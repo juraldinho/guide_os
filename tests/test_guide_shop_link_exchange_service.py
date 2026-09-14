@@ -195,6 +195,29 @@ def test_lifecycle_evidence_timestamps_and_immutability():
         service.transition(exchange.link_exchange_id, MEMBERSHIP, "revoked")
 
 
+def test_revoking_one_of_two_active_profile_links_preserves_the_other():
+    register_user(101)
+    guide_os_id = get_guide_os_id(101)
+    service = GuideShopLinkExchangeService(
+        clock=Clock(datetime(2026, 8, 12, 9, 0, tzinfo=timezone.utc))
+    )
+    first, first_created = service.create_active_for_verified_profile(
+        guide_os_id, AUDIENCE, MEMBERSHIP
+    )
+    second, second_created = service.create_active_for_verified_profile(
+        guide_os_id, AUDIENCE, "cgm_other001"
+    )
+
+    revoked = service.revoke_for_guide(first.link_exchange_id, guide_os_id)
+
+    assert first_created is True
+    assert second_created is True
+    assert revoked.status == "revoked"
+    exchanges = {row["link_exchange_id"]: row for row in rows("guide_shop_link_exchanges")}
+    assert exchanges[first.link_exchange_id]["status"] == "revoked"
+    assert exchanges[second.link_exchange_id]["status"] == "active"
+
+
 def test_evidence_ref_is_contract_valid_for_long_decimal_random_bytes():
     random_value = bytes.fromhex("12345678901234567890123456789012")
     assert re.search(r"[0-9]{10,}", random_value.hex())

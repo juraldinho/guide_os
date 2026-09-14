@@ -1327,9 +1327,9 @@ def create_or_activate_guide_profile_link_exchange(
             SELECT * FROM guide_shop_link_exchanges
             WHERE service_subject = ?
               AND status = 'active'
-              AND (guide_membership_ref = ? OR guide_os_id = ?)
+              AND guide_membership_ref = ?
             """,
-            (service_subject, guide_membership_ref, identity),
+            (service_subject, guide_membership_ref),
         ).fetchall()
         for row in active_rows:
             if (

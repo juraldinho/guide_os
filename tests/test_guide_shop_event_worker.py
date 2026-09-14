@@ -186,7 +186,7 @@ def add_exchange(identity, request_id, exchange_id, status):
             exchange_id,
             request_id,
             identity,
-            f"subject-{request_id}",
+            "guideshop:link-service",
             f"membership-{request_id}",
             status,
             NOW.replace(year=2027).isoformat(),
