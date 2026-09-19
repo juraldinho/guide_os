@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 import json
 from uuid import uuid4
 
@@ -183,7 +184,13 @@ def _seed_pending_critical(guide_os_id: str, *, expand_end: str = "2026-09-14"):
     return assignment_id, accepted.projection_tour_id
 
 
-def test_detail_exposes_pending_critical_and_lists_indicator(seeded_guide):
+def test_detail_exposes_pending_critical_and_lists_indicator(
+    seeded_guide, monkeypatch
+):
+    monkeypatch.setattr(
+        "services.guide_operator_assignment_service.today_tz",
+        lambda: date(2026, 9, 1),
+    )
     assignment_id, _tour_id = _seed_pending_critical(seeded_guide)
     detail = api_request(
         "GET",
