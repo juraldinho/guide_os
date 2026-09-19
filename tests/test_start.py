@@ -17,7 +17,7 @@ from database.queries import (
 )
 from handlers.admin_report import build_admin_report_text
 from handlers.start import ACQUISITION_PAYLOADS, cmd_start
-from keyboards.main_menu import configure_guide_shop_menu
+from keyboards.main_menu import configure_guide_shop_menu, get_main_menu
 
 
 def run(awaitable):
@@ -80,13 +80,32 @@ def test_start_sends_single_welcome_with_reply_keyboard():
     msg.answer.assert_awaited_once()
     call = msg.answer.await_args
     assert call.kwargs["parse_mode"] == "HTML"
-    assert "Добро пожаловать" in call.args[0]
-    assert call.kwargs["reply_markup"].keyboard is not None
+    assert call.args[0] == (
+        "👋 <b>Добро пожаловать в Guide OS</b>\n\n"
+        "Guide OS помогает гиду вести свою работу в одном месте:\n\n"
+        "📅 добавлять туры и выходные\n"
+        "🗓 видеть занятые и свободные даты\n"
+        "💰 учитывать доход и комиссии\n"
+        "📊 смотреть итоги работы\n"
+        "🔔 получать напоминания о предстоящих турах\n\n"
+        "📱 <b>Все основные возможности доступны в Mini App.</b>\n"
+        "Чтобы открыть приложение, нажмите синюю кнопку "
+        "<b>Guide OS Mini App</b> рядом с полем сообщения.\n\n"
+        "Если вы используете бот впервые — просто добавьте свой первый тур.\n\n"
+        "⚠️ Бот находится в ранней версии.\n"
+        "Если есть идеи или ошибки — напишите мне:\n"
+        "@juraldinho\n\n"
+        "Для помощи — /help"
+    )
+    assert call.kwargs["reply_markup"] == get_main_menu()
     assert not any(
         button.web_app is not None
         for row in call.kwargs["reply_markup"].keyboard
         for button in row
     )
+    assert "http://" not in call.args[0]
+    assert "https://" not in call.args[0]
+    assert "railway" not in call.args[0].lower()
     msg.edit_reply_markup.assert_not_awaited()
 
 
