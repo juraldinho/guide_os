@@ -89,7 +89,9 @@ def test_start_sends_single_welcome_with_reply_keyboard():
         "📊 смотреть итоги работы\n"
         "🔔 получать напоминания о предстоящих турах\n\n"
         "📱 <b>Все основные возможности доступны в Mini App.</b>\n"
-        "Чтобы открыть приложение, нажмите синюю кнопку "
+        "👉 <a href=\"https://t.me/Guide_os_bot?startapp\">"
+        "Открыть Guide OS Mini App</a>\n\n"
+        "Также приложение можно открыть синей кнопкой "
         "<b>Guide OS Mini App</b> рядом с полем сообщения.\n\n"
         "Если вы используете бот впервые — просто добавьте свой первый тур.\n\n"
         "⚠️ Бот находится в ранней версии.\n"
@@ -103,9 +105,11 @@ def test_start_sends_single_welcome_with_reply_keyboard():
         for row in call.kwargs["reply_markup"].keyboard
         for button in row
     )
-    assert "http://" not in call.args[0]
-    assert "https://" not in call.args[0]
-    assert "railway" not in call.args[0].lower()
+    assert (
+        '<a href="https://t.me/Guide_os_bot?startapp">'
+        "Открыть Guide OS Mini App</a>"
+    ) in call.args[0]
+    assert "guide-os-miniapp-production.up.railway.app" not in call.args[0]
     msg.edit_reply_markup.assert_not_awaited()
 
 
