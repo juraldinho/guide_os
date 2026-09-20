@@ -18,6 +18,7 @@ from services.tour_service import (
     update_day_locations,
     update_tour_entry,
 )
+from services.miniapp_analytics import track_miniapp_event_safely
 from web_api.auth import idempotency_lookup, idempotency_store, read_json_body
 from web_api.dto import (
     conflict_to_error,
@@ -146,6 +147,7 @@ def register_entries_routes(app: web.Application) -> None:
                 created = create_tour_entry(user_id, draft)
             except ValueError as exc:
                 return error_response("validation_error", str(exc), rid, 400)
+            track_miniapp_event_safely(user_id, "miniapp_tour_created")
             return success_response(entry_to_api(created), rid, status=201)
 
         return await _idempotent(request, user_id, "POST /app/v1/tours", body_bytes, build)
@@ -186,6 +188,7 @@ def register_entries_routes(app: web.Application) -> None:
                 return error_response("validation_error", str(exc), rid, 400)
             if updated is None:
                 return _entry_id_not_found_response(rid)
+            track_miniapp_event_safely(user_id, "miniapp_tour_updated")
             return success_response(entry_to_api(updated), rid)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)
@@ -229,6 +232,7 @@ def register_entries_routes(app: web.Application) -> None:
                 return error_response(code, message, rid, 409, details)
 
             created = create_day_off_entry(user_id, start_date, end_date)
+            track_miniapp_event_safely(user_id, "miniapp_day_off_created")
             return success_response(entry_to_api(created), rid, status=201)
 
         return await _idempotent(request, user_id, "POST /app/v1/day-offs", body_bytes, build)
@@ -250,6 +254,7 @@ def register_entries_routes(app: web.Application) -> None:
             deleted = delete_tour(user_id, int(entry_id))
             if not deleted:
                 return _entry_id_not_found_response(rid)
+            track_miniapp_event_safely(user_id, "miniapp_entry_deleted")
             return success_response({}, rid)
 
         return await _idempotent(request, user_id, endpoint, body_bytes, build)

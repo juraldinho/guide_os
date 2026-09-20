@@ -13,6 +13,7 @@ import type {
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
   ListOfficialHistoryOptions,
+  MiniAppAnalyticsEventName,
   OfficialCompany,
   OfficialHistoryItem,
   OfficialPointsSummary,
@@ -55,6 +56,7 @@ const CONNECTION_CONFIRMED = 'gocon_confirmed_01';
 const CONNECTION_EXPIRED = 'gocon_expired_01';
 const CONNECTION_DECLINED = 'gocon_declined_01';
 const CONNECTION_DISCONNECTED = 'gocon_disconnected_01';
+const analyticsEvents: MiniAppAnalyticsEventName[] = [];
 
 function packageDateRange(assignmentId: string): { start: string; end: string } {
   if (assignmentId === ACCEPTED_A) return { start: '2026-09-15', end: '2026-09-17' };
@@ -1101,6 +1103,10 @@ function calcCommissionReportsSummary(
 }
 
 export const mockClient: GuideOsClient = {
+  async trackAnalyticsEvent(name: MiniAppAnalyticsEventName) {
+    analyticsEvents.push(name);
+  },
+
   async listEntries() {
     return entries.map((e) => ({ ...e }));
   },
@@ -1885,7 +1891,13 @@ export function __testOfficialHistory(): OfficialHistoryItem[] {
   return officialHistory;
 }
 
+/** Test-only access to anonymous interaction event names. */
+export function __testAnalyticsEvents(): MiniAppAnalyticsEventName[] {
+  return [...analyticsEvents];
+}
+
 export function __resetMockStore() {
+  analyticsEvents.length = 0;
   entries.length = 0;
   entries.push(...INITIAL_ENTRIES.map((e) => ({ ...e })));
   nextId = 10;

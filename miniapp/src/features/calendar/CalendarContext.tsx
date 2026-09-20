@@ -4,10 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { ApiConflictError } from '@/api/httpClient';
+import { trackMiniAppEvent } from '@/api/analytics';
 import { guideOsClient } from '@/api/createClient';
 import type {
   CalendarEntry,
@@ -202,6 +204,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState(false);
   const [demoOffline, setDemoOffline] = useState(false);
+  const initialCalendarTrackedRef = useRef(false);
+  const activeTabRef = useRef<TabId>('calendar');
+  const monthExpandedRef = useRef(false);
+  const settingsOpenRef = useRef(false);
+  const unsavedNewTourRef = useRef(false);
+  const tourSaveInFlightRef = useRef(false);
+  const deleteInFlightRef = useRef(false);
 
   const refreshEntries = useCallback(async () => {
     const list = await guideOsClient.listEntries();
@@ -212,6 +221,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     refreshEntries();
     guideOsClient.getProfile().then(setProfile);
   }, [refreshEntries]);
+
+  useEffect(() => {
+    if (initialCalendarTrackedRef.current) return;
+    initialCalendarTrackedRef.current = true;
+    trackMiniAppEvent('miniapp_calendar_opened');
+  }, []);
 
   const headerYear = monthExpanded ? viewYear : visibleFeedYear;
 
@@ -228,16 +243,28 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const headerMonth = monthExpanded ? viewMonth : visibleFeedMonth;
 
   const toggleMonthPicker = useCallback(() => {
-    setMonthExpanded((expanded) => {
-      if (!expanded) {
-        setViewMonth(visibleFeedMonth);
-        setViewYear(visibleFeedYear);
-      }
-      return !expanded;
-    });
+    const nextExpanded = !monthExpandedRef.current;
+    monthExpandedRef.current = nextExpanded;
+    if (nextExpanded) {
+      setViewMonth(visibleFeedMonth);
+      setViewYear(visibleFeedYear);
+      trackMiniAppEvent('miniapp_month_picker_opened');
+    }
+    setMonthExpanded(nextExpanded);
   }, [visibleFeedMonth, visibleFeedYear]);
 
   const setActiveTab = useCallback((tab: TabId) => {
+    if (activeTabRef.current === tab) return;
+    activeTabRef.current = tab;
+    trackMiniAppEvent(
+      tab === 'calendar'
+        ? 'miniapp_calendar_opened'
+        : tab === 'reports'
+          ? 'miniapp_reports_opened'
+          : tab === 'guideshop'
+            ? 'miniapp_guideshop_opened'
+            : 'miniapp_guide_operator_opened',
+    );
     setActiveTabState(tab);
     if (tab !== 'guide_operator') {
       setGuideOperatorFocus(null);
@@ -253,11 +280,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     setGuideOperatorFocus((current) => {
       if (!current) return null;
       const { returnTo } = current;
+      if (activeTabRef.current !== 'calendar') {
+        activeTabRef.current = 'calendar';
+        trackMiniAppEvent('miniapp_calendar_opened');
+      }
       setActiveTabState('calendar');
       setCalendarScreen(returnTo.calendarScreen);
       setSelectedDate(returnTo.selectedDate);
       setViewMonth(returnTo.viewMonth);
       setViewYear(returnTo.viewYear);
+      monthExpandedRef.current = returnTo.monthExpanded;
       setMonthExpanded(returnTo.monthExpanded);
       if (returnTo.calendarScreen === 'feed') {
         setFeedRestoreIso(returnTo.feedScrollIso);
@@ -270,6 +302,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeOverlay = useCallback(() => {
+    if (unsavedNewTourRef.current) {
+      unsavedNewTourRef.current = false;
+      trackMiniAppEvent('miniapp_tour_create_cancelled');
+    }
     setOverlay(null);
     setOverlayData({});
     setDeleteId(null);
@@ -303,6 +339,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         copy: (overlayData as TourFormOverlayData).copy,
         editId: (overlayData as TourFormOverlayData).editId,
       };
+      if (!data.edit && !data.copy) {
+        unsavedNewTourRef.current = true;
+        trackMiniAppEvent('miniapp_tour_create_started');
+      }
       setOverlay('tour-form');
       setOverlayData(data);
     },
@@ -388,6 +428,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (tourSaveInFlightRef.current) return;
+      tourSaveInFlightRef.current = true;
+      if (!editId) {
+        trackMiniAppEvent('miniapp_tour_save_clicked');
+      }
+
       setDateWarningAck(false);
 
       const writeOpts = dateWarningAck ? { ackDateWarning: true } : undefined;
@@ -398,6 +444,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
           showToast(t.toastUpdated);
         } else {
           const created = await guideOsClient.createTour(form, writeOpts);
+          unsavedNewTourRef.current = false;
           showToast(t.toastSaved);
           if (created.startDate !== created.endDate) {
             const days = daysInRange(created.startDate, created.endDate);
@@ -436,6 +483,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
           return;
         }
         throw e;
+      } finally {
+        tourSaveInFlightRef.current = false;
       }
 
       await refreshEntries();
@@ -499,6 +548,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         });
         setOverlay(null);
         setOverlayData({});
+        if (activeTabRef.current !== 'guide_operator') {
+          activeTabRef.current = 'guide_operator';
+          trackMiniAppEvent('miniapp_guide_operator_opened');
+        }
         setActiveTabState('guide_operator');
         return;
       }
@@ -520,6 +573,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const e = await guideOsClient.getEntry(id);
       if (!e || e.type !== 'tour') return;
+      trackMiniAppEvent('miniapp_tour_edit_started');
       setOverlay('tour-form');
       setOverlayData({
         edit: true,
@@ -576,11 +630,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteId) return;
-    await guideOsClient.deleteEntry(deleteId);
-    showToast(t.toastDeleted);
-    closeOverlay();
-    await refreshEntries();
+    if (!deleteId || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    trackMiniAppEvent('miniapp_tour_delete_started');
+    try {
+      await guideOsClient.deleteEntry(deleteId);
+      showToast(t.toastDeleted);
+      closeOverlay();
+      await refreshEntries();
+    } finally {
+      deleteInFlightRef.current = false;
+    }
   }, [deleteId, closeOverlay, refreshEntries, showToast]);
 
   const saveDayLocations = useCallback(
@@ -616,8 +676,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     [availUseCustom, availCustomFrom, availCustomTo],
   );
 
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openSettings = useCallback(() => {
+    if (settingsOpenRef.current) return;
+    settingsOpenRef.current = true;
+    trackMiniAppEvent('miniapp_profile_opened');
+    setSettingsOpen(true);
+  }, []);
+  const closeSettings = useCallback(() => {
+    settingsOpenRef.current = false;
+    setSettingsOpen(false);
+  }, []);
 
   const setReportsPeriod = useCallback((period: ReportsPeriod) => setReportsPeriodState(period), []);
 
@@ -800,17 +868,25 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         }
       },
       openDayDetail: (iso: string) => {
+        trackMiniAppEvent('miniapp_day_opened');
         setSelectedDate(iso);
         setCalendarScreen('day');
+        monthExpandedRef.current = false;
         setMonthExpanded(false);
       },
       selectDateFromMonth: (iso: string) => {
+        trackMiniAppEvent('miniapp_day_opened');
         setSelectedDate(iso);
         setCalendarScreen('day');
+        monthExpandedRef.current = false;
         setMonthExpanded(false);
       },
       openFeed: () => setCalendarScreen('feed'),
       goToday: () => {
+        if (activeTabRef.current !== 'calendar') {
+          activeTabRef.current = 'calendar';
+          trackMiniAppEvent('miniapp_calendar_opened');
+        }
         setActiveTabState('calendar');
         setSelectedDate(MOCK_TODAY);
         setViewMonth(todayMonthYear.month);
@@ -818,6 +894,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         setVisibleFeedMonth(todayMonthYear.month);
         setVisibleFeedYear(todayMonthYear.year);
         setCalendarScreen('feed');
+        monthExpandedRef.current = false;
         setMonthExpanded(false);
         setScrollToTodaySignal((s) => s + 1);
       },

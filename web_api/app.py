@@ -5,6 +5,7 @@ import logging
 from aiohttp import web
 
 from services.miniapp_api_settings import MiniAppApiSettings
+from web_api.routes.analytics import register_analytics_routes
 from web_api.routes.availability import register_availability_routes
 from web_api.routes.entries import register_entries_routes
 from web_api.routes.guide_operator_assignments import (
@@ -106,6 +107,7 @@ def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettin
     _ensure_miniapp_cors_middleware(app)
 
     register_session_routes(app)
+    register_analytics_routes(app)
     register_entries_routes(app)
     register_profile_routes(app)
     register_personal_places_routes(app)

@@ -81,6 +81,20 @@ export interface ConflictWarn {
 export type ConflictResult = ConflictBlock | ConflictWarn | null;
 
 export type TabId = 'calendar' | 'reports' | 'guideshop' | 'guide_operator';
+
+export type MiniAppAnalyticsEventName =
+  | 'miniapp_calendar_opened'
+  | 'miniapp_month_picker_opened'
+  | 'miniapp_day_opened'
+  | 'miniapp_tour_create_started'
+  | 'miniapp_tour_save_clicked'
+  | 'miniapp_tour_create_cancelled'
+  | 'miniapp_tour_edit_started'
+  | 'miniapp_tour_delete_started'
+  | 'miniapp_reports_opened'
+  | 'miniapp_profile_opened'
+  | 'miniapp_guideshop_opened'
+  | 'miniapp_guide_operator_opened';
 export type CalendarScreen = 'feed' | 'day';
 
 export interface TourFormOverlayData {

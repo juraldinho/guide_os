@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiohttp import web
 
 from database.queries import get_user_profile, register_user, update_user_display_name
+from services.miniapp_analytics import track_miniapp_event_safely
 from services.miniapp_api_settings import MiniAppApiSettings
 from web_api.auth import (
     MiniAppAuthError,
@@ -58,6 +59,7 @@ def register_session_routes(app: web.Application) -> None:
             profile = get_user_profile(user_id)
             display_name = profile.get("display_name") if profile else ""
             token = dev_session_token(user_id)
+            track_miniapp_event_safely(user_id, "miniapp_opened")
             return success_response(
                 {
                     "session_token": token,
@@ -118,6 +120,7 @@ def register_session_routes(app: web.Application) -> None:
         )
         profile = get_user_profile(user_id)
         display_name = profile.get("display_name") if profile else init_display_name
+        track_miniapp_event_safely(user_id, "miniapp_opened")
         return success_response(
             {
                 "session_token": session_token,

@@ -11,6 +11,7 @@ import type {
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
   ListOfficialHistoryOptions,
+  MiniAppAnalyticsEventName,
   OfficialCompaniesResult,
   OfficialCompany,
   OfficialHistoryResult,
@@ -48,6 +49,7 @@ export interface GuideShopReadOptions {
 }
 
 export interface GuideOsClient {
+  trackAnalyticsEvent(name: MiniAppAnalyticsEventName): Promise<void>;
   listEntries(): Promise<CalendarEntry[]>;
   getEntry(id: string): Promise<CalendarEntry | null>;
   createTour(form: TourFormValues, options?: WriteOptions): Promise<CalendarEntry>;

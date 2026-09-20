@@ -18,6 +18,7 @@ import type {
   ListPersonalPlacesOptions,
   ListOfficialVisitsOptions,
   ListOfficialHistoryOptions,
+  MiniAppAnalyticsEventName,
   OfficialCompaniesResult,
   OfficialCompany,
   OfficialHistoryResult,
@@ -387,6 +388,14 @@ async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T
 
 export function createHttpClient(): GuideOsClient {
   return {
+    async trackAnalyticsEvent(name: MiniAppAnalyticsEventName) {
+      await apiRequest<Record<string, never>>('/app/v1/analytics/events', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': newIdempotencyKey() },
+        body: JSON.stringify({ name }),
+      });
+    },
+
     async listEntries() {
       const data = await apiRequest<{ entries: CalendarEntry[] }>(
         `/app/v1/entries?from=${ENTRIES_RANGE_FROM}&to=${ENTRIES_RANGE_TO}`,

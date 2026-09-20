@@ -125,6 +125,43 @@ describe('httpClient', () => {
     expect(headers.get('Authorization')).toBe('Bearer stored_tok');
   });
 
+  it('posts an authenticated analytics event with only its name and a fresh idempotency key', async () => {
+    __testSetSessionToken('stored_tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async () => jsonResponse({ data: {} }));
+    const client = createHttpClient();
+
+    await client.trackAnalyticsEvent('miniapp_calendar_opened');
+    await client.trackAnalyticsEvent('miniapp_calendar_opened');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      expect(call[0]).toBe('/app/v1/analytics/events');
+      expect(call[1]?.method).toBe('POST');
+      expect(JSON.parse(String(call[1]?.body))).toEqual({ name: 'miniapp_calendar_opened' });
+      const headers = call[1]?.headers as Headers;
+      expect(headers.get('Authorization')).toBe('Bearer stored_tok');
+      expect(headers.get('Idempotency-Key')).toBeTruthy();
+    }
+    const firstHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    const secondHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Headers;
+    expect(firstHeaders.get('Idempotency-Key')).not.toBe(
+      secondHeaders.get('Idempotency-Key'),
+    );
+  });
+
+  it('does not automatically retry analytics requests', async () => {
+    __testSetSessionToken('stored_tok');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockRejectedValueOnce(new TypeError('network unavailable'));
+
+    await expect(
+      createHttpClient().trackAnalyticsEvent('miniapp_reports_opened'),
+    ).rejects.toThrow(TypeError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('bootstraps with initData instead of trusting a stored session token', async () => {
     window.Telegram = { WebApp: { initData: 'query_id=1&user=%7B%7D&hash=abc' } };
     __testSetSessionToken('stale_tok');
