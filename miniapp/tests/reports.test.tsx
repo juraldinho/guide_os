@@ -27,6 +27,11 @@ const GLOBAL_CSS = readFileSync(
   'utf8',
 );
 
+const CALENDAR_CONTEXT_SOURCE = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../src/features/calendar/CalendarContext.tsx'),
+  'utf8',
+);
+
 function wrap(ui: ReactElement) {
   return render(
     <ToastProvider>
@@ -70,6 +75,23 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   __resetMockStore();
+});
+
+describe('Reports initial period', () => {
+  it('derives the initial reports month and year from the business today date', () => {
+    expect(CALENDAR_CONTEXT_SOURCE).toContain(
+      'useState(todayMonthYear.month)',
+    );
+    expect(CALENDAR_CONTEXT_SOURCE).toContain(
+      'useState(todayMonthYear.year)',
+    );
+    expect(CALENDAR_CONTEXT_SOURCE).not.toContain(
+      'const [reportsMonth, setReportsMonth] = useState(7)',
+    );
+    expect(CALENDAR_CONTEXT_SOURCE).not.toContain(
+      'const [reportsYear, setReportsYear] = useState(2026)',
+    );
+  });
 });
 
 describe('getCommissionReportRange', () => {

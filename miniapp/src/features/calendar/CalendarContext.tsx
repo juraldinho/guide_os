@@ -192,8 +192,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<GuideProfile | null>(null);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(loadStoredTheme());
   const [reportsPeriod, setReportsPeriodState] = useState<ReportsPeriod>('month');
-  const [reportsMonth, setReportsMonth] = useState(7);
-  const [reportsYear, setReportsYear] = useState(2026);
+  const [reportsMonth, setReportsMonth] = useState(todayMonthYear.month);
+  const [reportsYear, setReportsYear] = useState(todayMonthYear.year);
   const [filterStatus, setFilterStatusState] = useState<FilterStatus>('all');
   const [filterPayment, setFilterPaymentState] = useState<FilterPayment>('all');
   const [availOpenFrom, setAvailOpenFrom] = useState<AvailOpenFrom>('calendar');
