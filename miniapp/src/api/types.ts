@@ -94,7 +94,12 @@ export type MiniAppAnalyticsEventName =
   | 'miniapp_reports_opened'
   | 'miniapp_profile_opened'
   | 'miniapp_guideshop_opened'
-  | 'miniapp_guide_operator_opened';
+  | 'miniapp_guide_operator_opened'
+  | 'next_day_schedule_viewed'
+  | 'availability_date_checked'
+  | 'calendar_month_viewed'
+  | 'expected_income_viewed'
+  | 'tour_detail_viewed';
 export type CalendarScreen = 'feed' | 'day';
 
 export interface TourFormOverlayData {

@@ -19,6 +19,11 @@ from web_api.dto import (
 )
 from web_api.errors import error_response, success_response
 from web_api.routes.session import _auth_or_error
+from services.miniapp_analytics import track_miniapp_event_safely
+
+
+def _profile_cities(types: list[dict]) -> tuple[str, ...]:
+    return tuple(sorted(city for item in types for city in item.get("geo", [])))
 
 
 def _profile_response_data(user_id: int) -> dict:
@@ -98,6 +103,11 @@ def register_profile_routes(app: web.Application) -> None:
                 400,
             )
 
+        previous_cities = _profile_cities(
+            decode_guide_types_json(
+                (get_user_profile(user_id) or {}).get("guide_types_json")
+            )
+        )
         apply_user_profile_patch(
             user_id,
             display_name=patch.display_name,
@@ -106,6 +116,14 @@ def register_profile_routes(app: web.Application) -> None:
             notifications_enabled=patch.notifications_enabled,
             notification_time=patch.notification_time,
         )
+        if patch.guide_types is not None:
+            saved_cities = _profile_cities(
+                decode_guide_types_json(
+                    (get_user_profile(user_id) or {}).get("guide_types_json")
+                )
+            )
+            if saved_cities and saved_cities != previous_cities:
+                track_miniapp_event_safely(user_id, "profile_city_submitted")
 
         response = success_response(_profile_response_data(user_id), rid)
         if key and response.body:

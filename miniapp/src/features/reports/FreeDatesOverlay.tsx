@@ -10,6 +10,7 @@ import { useCalendar } from '@/features/calendar/CalendarContext';
 import { buildFreeDatesText, describeAvailContext } from './lib/availability';
 import { getAvailContextRange } from './lib/periods';
 import { copyText } from '@/utils/copyText';
+import { trackMiniAppEvent } from '@/api/analytics';
 
 function initialCustomRange(
   availOpenFrom: 'calendar' | 'reports',
@@ -110,6 +111,7 @@ export function FreeDatesOverlay() {
 
   const handleCopy = async () => {
     if (!freeText) return;
+    trackMiniAppEvent('availability_date_checked');
     const ok = await copyText(freeText);
     showToast(ok ? t.toastCopied : t.toastCopyFailed);
   };

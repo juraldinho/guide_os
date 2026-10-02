@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import time
@@ -10,11 +11,12 @@ from aiohttp.test_utils import TestClient, TestServer
 import pytest
 
 from database.db import get_connection
-from database.queries import register_user
+from database.queries import create_tour, register_user, track_event
 from services.miniapp_analytics import (
     CLIENT_MINIAPP_EVENTS,
     SERVER_MINIAPP_EVENTS,
     track_miniapp_event_safely,
+    build_third_future_tour_retention_report,
 )
 from services.miniapp_api_settings import MiniAppApiSettings
 from web_api.app import create_miniapp_api_app, register_miniapp_api_on_app
@@ -143,6 +145,11 @@ def test_client_and_server_event_allowlists_are_disjoint_and_fixed():
             "miniapp_profile_opened",
             "miniapp_guideshop_opened",
             "miniapp_guide_operator_opened",
+            "next_day_schedule_viewed",
+            "availability_date_checked",
+            "calendar_month_viewed",
+            "expected_income_viewed",
+            "tour_detail_viewed",
         }
     )
     assert SERVER_MINIAPP_EVENTS == frozenset(
@@ -152,6 +159,7 @@ def test_client_and_server_event_allowlists_are_disjoint_and_fixed():
             "miniapp_day_off_created",
             "miniapp_tour_updated",
             "miniapp_entry_deleted",
+            "profile_city_submitted",
         }
     )
     assert CLIENT_MINIAPP_EVENTS.isdisjoint(SERVER_MINIAPP_EVENTS)
@@ -166,6 +174,110 @@ def test_valid_authenticated_event_is_stored_for_session_user():
         (USER_A, "miniapp_calendar_opened")
     ]
     assert rows[0]["created_at"] is not None
+
+
+def test_profile_city_event_requires_successful_changed_geography():
+    payload = {
+        "types": [{"type": "local", "geo": ["Ташкент"], "allUzbekistan": False}]
+    }
+    first = _request(
+        "PATCH", "/app/v1/profile", headers=_headers(key="profile-1"), json=payload
+    )
+    same = _request(
+        "PATCH", "/app/v1/profile", headers=_headers(key="profile-2"), json=payload
+    )
+    invalid = _request(
+        "PATCH",
+        "/app/v1/profile",
+        headers=_headers(key="profile-3"),
+        json={"types": [{"type": "local", "geo": [], "allUzbekistan": False}]},
+    )
+
+    assert first.status == 200
+    assert same.status == 200
+    assert invalid.status == 400
+    assert len(_event_rows("profile_city_submitted")) == 1
+
+
+def test_third_future_tour_retention_is_aggregate_and_counts_groups_once():
+    for user_id in (USER_A, USER_B):
+        register_user(user_id)
+    create_tour(USER_A, "A", "X", "2030-01-10", "2030-01-10", "confirmed")
+    create_tour(
+        USER_A,
+        "B",
+        "X",
+        "2030-01-11",
+        "2030-01-12",
+        "confirmed",
+        tour_group_id="group-b",
+    )
+    create_tour(
+        USER_A,
+        "B",
+        "X",
+        "2030-01-12",
+        "2030-01-12",
+        "confirmed",
+        tour_group_id="group-b",
+    )
+    create_tour(USER_A, "C", "X", "2030-01-13", "2030-01-13", "confirmed")
+    track_event(USER_A, "miniapp_opened")
+    create_tour(USER_B, "Only", "X", "2030-01-10", "2030-01-10", "confirmed")
+    create_tour(
+        USER_B,
+        "Day off",
+        "X",
+        "2030-01-11",
+        "2030-01-11",
+        "confirmed",
+        entry_type="day_off",
+    )
+    create_tour(
+        USER_B,
+        "Operator",
+        "X",
+        "2030-01-12",
+        "2030-01-12",
+        "confirmed",
+        source="guide_operator",
+    )
+    create_tour(
+        USER_B,
+        "Already started",
+        "X",
+        "2029-01-01",
+        "2029-01-02",
+        "confirmed",
+        tour_group_id="started-group",
+    )
+    create_tour(
+        USER_B,
+        "Already started",
+        "X",
+        "2029-01-02",
+        "2029-01-02",
+        "confirmed",
+        tour_group_id="started-group",
+    )
+    conn = get_connection()
+    conn.execute(
+        "UPDATE tours SET created_at = '2029-01-01 09:00:00' WHERE user_id = ?",
+        (USER_A,),
+    )
+    conn.execute(
+        "UPDATE events SET created_at = '2029-01-02 09:00:00' WHERE user_id = ?",
+        (USER_A,),
+    )
+    conn.commit()
+    conn.close()
+
+    report = build_third_future_tour_retention_report(now=datetime(2029, 1, 1))
+
+    assert set(report) == {"cohortUsers", "w1Users", "w1Rate", "w4Users", "w4Rate"}
+    assert report["cohortUsers"] == 1
+    assert report["w1Users"] == 1
+    assert report["w4Users"] == 1
 
 
 @pytest.mark.parametrize(

@@ -109,13 +109,44 @@ describe('Mini App product analytics', () => {
 
     expect(eventNames(track)).toEqual([
       'miniapp_calendar_opened',
-      'miniapp_month_picker_opened',
-      'miniapp_month_picker_opened',
+      'calendar_month_viewed',
+      'calendar_month_viewed',
       'miniapp_day_opened',
+      'calendar_month_viewed',
       'miniapp_day_opened',
     ]);
     expect(track.mock.calls.every((call) => call.length === 1)).toBe(true);
     expect(JSON.stringify(track.mock.calls)).not.toContain('2026-09');
+    expect(eventNames(track)).not.toContain('miniapp_month_picker_opened');
+  });
+
+  it('records tomorrow schedule viewing without carrying the date', async () => {
+    const track = vi.spyOn(guideOsClient, 'trackAnalyticsEvent').mockResolvedValue(undefined);
+    mount();
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(1));
+
+    act(() => calendar.openDayDetail('2026-08-29'));
+    act(() => calendar.openDayDetail('2026-08-30'));
+
+    expect(eventNames(track).filter((name) => name === 'next_day_schedule_viewed')).toHaveLength(1);
+    expect(JSON.stringify(track.mock.calls)).not.toContain('2026-08-29');
+  });
+
+  it('records ordinary tour detail but not Guide Operator detail', async () => {
+    const track = vi.spyOn(guideOsClient, 'trackAnalyticsEvent').mockResolvedValue(undefined);
+    mount();
+    await waitFor(() => expect(calendar.entries.length).toBeGreaterThan(0));
+    const ordinary = calendar.entries.find(
+      (entry) => entry.type === 'tour' && !entry.guideOperatorAssignmentId,
+    );
+    const operator = calendar.entries.find((entry) => entry.guideOperatorAssignmentId);
+    expect(ordinary).toBeTruthy();
+    expect(operator).toBeTruthy();
+
+    act(() => calendar.openDetail(ordinary!.id));
+    act(() => calendar.openDetail(operator!.id));
+
+    expect(eventNames(track).filter((name) => name === 'tour_detail_viewed')).toHaveLength(1);
   });
 
   it('records create start and one explicit unsaved cancellation', async () => {

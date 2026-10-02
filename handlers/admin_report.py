@@ -40,6 +40,9 @@ ACQUISITION_REPORT_LABELS = (
     ("telegram_personal_channel", "Личный Telegram-канал"),
     ("guide_os_website", "Сайт Guide OS"),
     ("articles", "Статьи"),
+    ("nfc_card", "NFC-карточка"),
+    ("qr_card", "QR-карточка"),
+    ("instagram_asal", "Instagram Асаль"),
     ("organic", "Органика"),
 )
 

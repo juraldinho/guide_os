@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { trackMiniAppEvent } from '@/api/analytics';
 import { Chip } from '@/components/ui/Chip';
 import { IconChevronLeft, IconChevronRight } from '@/components/ui/Icons';
 import { guideOsClient } from '@/api/createClient';
@@ -55,14 +56,18 @@ export function ReportsPage() {
   );
 
   const [apiSummary, setApiSummary] = useState<ReportsSummary | null>(null);
+  const expectedIncomeTrackedRef = useRef(false);
+  const [summaryLoaded, setSummaryLoaded] = useState(USE_MOCK_API);
 
   useEffect(() => {
     if (USE_MOCK_API) {
       setApiSummary(null);
+      setSummaryLoaded(true);
       return;
     }
 
     let cancelled = false;
+    setSummaryLoaded(false);
     guideOsClient
       .getReportsSummary({
         from: range.from,
@@ -71,7 +76,10 @@ export function ReportsPage() {
         payment: filterPayment,
       })
       .then((data) => {
-        if (!cancelled) setApiSummary(data);
+        if (!cancelled) {
+          setApiSummary(data);
+          setSummaryLoaded(true);
+        }
       })
       .catch(() => {
         if (!cancelled) setApiSummary(EMPTY_SUMMARY);
@@ -81,6 +89,12 @@ export function ReportsPage() {
       cancelled = true;
     };
   }, [range.from, range.to, filterStatus, filterPayment]);
+
+  useEffect(() => {
+    if (!summaryLoaded || expectedIncomeTrackedRef.current) return;
+    expectedIncomeTrackedRef.current = true;
+    trackMiniAppEvent('expected_income_viewed');
+  }, [summaryLoaded]);
 
   const summary = USE_MOCK_API ? mockSummary : (apiSummary ?? EMPTY_SUMMARY);
 

@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 
 from datetime import datetime
 
-from database.queries import get_tours_by_group_id
+from database.queries import get_tours_by_group_id, track_event
 
 from states.add_tour_state import AddTourState
 from handlers.add_tour import get_company_keyboard
@@ -220,6 +220,8 @@ async def open_day_card(callback: CallbackQuery):
             month,
         )
     else:
+        if entry.get("source") != "guide_operator":
+            track_event(user_id, "tour_detail_viewed")
         reply_markup = get_single_day_entry_keyboard(
             tour_id,
             date_str,
@@ -242,6 +244,9 @@ async def open_multiple_day_entry(callback: CallbackQuery):
     if not tour:
         await callback.answer("Запись не найдена", show_alert=True)
         return
+
+    if tour.get("entry_type") == "tour" and tour.get("source") != "guide_operator":
+        track_event(user_id, "tour_detail_viewed")
 
     await callback.message.edit_text(
         build_selected_day_entry_text(date_str, tour),

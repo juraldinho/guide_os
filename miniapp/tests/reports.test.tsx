@@ -497,6 +497,7 @@ describe('ReportsPage', () => {
   });
 
   it('renders share free dates button and it is clickable', async () => {
+    const track = vi.spyOn(guideOsClient, 'trackAnalyticsEvent').mockResolvedValue(undefined);
     wrap(
       <>
         <ReportsPage />
@@ -510,6 +511,15 @@ describe('ReportsPage', () => {
     expect(button).toBeTruthy();
     fireEvent.click(button);
     expect(screen.getByText(t.freeDatesTitle)).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([name]) => name === 'expected_income_viewed'),
+      ).toHaveLength(1);
+    });
+    fireEvent.click(screen.getByRole('button', { name: t.copyClipboard }));
+    expect(
+      track.mock.calls.filter(([name]) => name === 'availability_date_checked'),
+    ).toHaveLength(1);
   });
 });
 

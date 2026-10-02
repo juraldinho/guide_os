@@ -5,6 +5,7 @@ import json
 from aiohttp import web
 
 from services.miniapp_analytics import (
+    build_third_future_tour_retention_report,
     is_valid_client_miniapp_event,
     track_miniapp_event_safely,
 )
@@ -83,3 +84,11 @@ def register_analytics_routes(app: web.Application) -> None:
         return response
 
     app.router.add_post("/app/v1/analytics/events", create_analytics_event)
+
+    async def retention_report(request: web.Request) -> web.Response:
+        rid, _user_id, failure = _auth_or_error(request)
+        if failure is not None:
+            return failure
+        return success_response(build_third_future_tour_retention_report(), rid)
+
+    app.router.add_get("/app/v1/analytics/retention", retention_report)

@@ -34,6 +34,9 @@ ACQUISITION_PAYLOADS = {
         "start_source_guide_os_website",
     ),
     "src_articles": ("articles", "start_source_articles"),
+    "src_nfc_card": ("nfc_card", "start_source_nfc_card"),
+    "src_qr_card": ("qr_card", "start_source_qr_card"),
+    "src_ig_asal": ("instagram_asal", "start_source_instagram_asal"),
 }
 
 

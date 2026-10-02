@@ -13,6 +13,9 @@ from keyboards.tour_management import (
     get_single_day_entry_keyboard,
 )
 from datetime import datetime
+from datetime import timedelta
+from database.queries import track_event
+from utils.date_utils import today_tz
 
 router = Router()
 
@@ -97,6 +100,9 @@ async def check_date_result(message: Message, state: FSMContext):
     month = dt.month
 
     user_id = message.from_user.id
+    track_event(user_id, "availability_date_checked")
+    if date_str == (today_tz() + timedelta(days=1)).isoformat():
+        track_event(user_id, "next_day_schedule_viewed")
 
     card_data = get_day_card_data(user_id, date_str)
 

@@ -33,6 +33,7 @@ import { checkConflicts } from '@/features/calendar/lib/conflicts';
 import {
   daysInRange,
   parseDate,
+  shiftIso,
 } from '@/features/calendar/lib/dates';
 import type {
   AvailOpenFrom,
@@ -248,7 +249,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     if (nextExpanded) {
       setViewMonth(visibleFeedMonth);
       setViewYear(visibleFeedYear);
-      trackMiniAppEvent('miniapp_month_picker_opened');
+      trackMiniAppEvent('calendar_month_viewed');
     }
     setMonthExpanded(nextExpanded);
   }, [visibleFeedMonth, visibleFeedYear]);
@@ -555,6 +556,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         setActiveTabState('guide_operator');
         return;
       }
+      if (entry?.type === 'tour') {
+        trackMiniAppEvent('tour_detail_viewed');
+      }
       setOverlay('detail');
       setOverlayData({ id } as DetailOverlayData);
       if (calendarScreen === 'day') setOverlayReturn('day');
@@ -852,6 +856,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       toggleMonthPicker,
       setVisibleFeedFromIso,
       prevMonth: () => {
+        trackMiniAppEvent('calendar_month_viewed');
         if (viewMonth <= 0) {
           setViewMonth(11);
           setViewYear((y) => y - 1);
@@ -860,6 +865,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         }
       },
       nextMonth: () => {
+        trackMiniAppEvent('calendar_month_viewed');
         if (viewMonth >= 11) {
           setViewMonth(0);
           setViewYear((y) => y + 1);
@@ -869,6 +875,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       },
       openDayDetail: (iso: string) => {
         trackMiniAppEvent('miniapp_day_opened');
+        if (iso === shiftIso(MOCK_TODAY, 1)) {
+          trackMiniAppEvent('next_day_schedule_viewed');
+        }
         setSelectedDate(iso);
         setCalendarScreen('day');
         monthExpandedRef.current = false;
@@ -876,6 +885,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       },
       selectDateFromMonth: (iso: string) => {
         trackMiniAppEvent('miniapp_day_opened');
+        if (iso === shiftIso(MOCK_TODAY, 1)) {
+          trackMiniAppEvent('next_day_schedule_viewed');
+        }
+        const selected = parseDate(iso);
+        if (selected.getMonth() !== viewMonth || selected.getFullYear() !== viewYear) {
+          trackMiniAppEvent('calendar_month_viewed');
+        }
         setSelectedDate(iso);
         setCalendarScreen('day');
         monthExpandedRef.current = false;

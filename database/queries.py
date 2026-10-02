@@ -709,6 +709,9 @@ PUBLIC_ACQUISITION_SOURCES = (
     "telegram_personal_channel",
     "guide_os_website",
     "articles",
+    "nfc_card",
+    "qr_card",
+    "instagram_asal",
     "organic",
 )
 
@@ -719,6 +722,9 @@ TAGGED_ACQUISITION_START_EVENTS = (
     "start_source_telegram_personal_channel",
     "start_source_guide_os_website",
     "start_source_articles",
+    "start_source_nfc_card",
+    "start_source_qr_card",
+    "start_source_instagram_asal",
 )
 
 
@@ -1801,6 +1807,72 @@ def track_event(user_id: int | None, event_name: str) -> None:
         )
 
     run_write_with_retry(operation)
+
+
+def get_third_future_tour_retention_evidence(
+    business_date: str,
+) -> tuple[list[sqlite3.Row], list[sqlite3.Row], list[sqlite3.Row]]:
+    """Return privacy-scoped evidence for aggregate retention calculation."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN")
+        cohorts = conn.execute(
+            """
+            WITH distinct_tours AS (
+                SELECT
+                    user_id,
+                    COALESCE(NULLIF(tour_group_id, ''), 'entry:' || id) AS tour_key,
+                    MIN(created_at) AS created_at
+                FROM tours
+                WHERE entry_type = 'tour'
+                  AND source != ?
+                GROUP BY user_id, tour_key
+                HAVING MIN(start_date) > ?
+            ), ranked AS (
+                SELECT
+                    user_id,
+                    created_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY user_id
+                        ORDER BY datetime(created_at), tour_key
+                    ) AS tour_number
+                FROM distinct_tours
+            )
+            SELECT user_id, created_at AS cohort_at
+            FROM ranked
+            WHERE tour_number = 3
+            ORDER BY user_id
+            """,
+            (SOURCE_GUIDE_OPERATOR, business_date),
+        ).fetchall()
+        activities = conn.execute(
+            """
+            SELECT user_id, created_at
+            FROM events
+            WHERE user_id IS NOT NULL
+              AND event_name IN (
+                'miniapp_opened', 'calendar_opened', 'calendar_month_opened',
+                'miniapp_calendar_opened', 'miniapp_day_opened',
+                'next_day_schedule_viewed', 'availability_date_checked',
+                'calendar_month_viewed', 'expected_income_viewed',
+                'tour_detail_viewed', 'tour_saved', 'day_off_saved',
+                'miniapp_tour_created', 'miniapp_tour_updated',
+                'miniapp_entry_deleted'
+              )
+            ORDER BY user_id, datetime(created_at)
+            """
+        ).fetchall()
+        sessions = conn.execute(
+            """
+            SELECT user_id, created_at
+            FROM miniapp_sessions
+            ORDER BY user_id, datetime(created_at)
+            """
+        ).fetchall()
+        conn.commit()
+        return cohorts, activities, sessions
+    finally:
+        conn.close()
 
 
 def get_total_users_count() -> int:

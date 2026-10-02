@@ -161,6 +161,9 @@ def test_public_payloads_are_telegram_safe_and_bounded():
         "src_tg_personal",
         "src_web_guideos",
         "src_articles",
+        "src_nfc_card",
+        "src_qr_card",
+        "src_ig_asal",
     }
     for payload in ACQUISITION_PAYLOADS:
         assert len(payload) <= 64
@@ -280,6 +283,9 @@ def test_daily_counts_are_zero_filled_and_tagged_total_excludes_organic():
         "telegram_personal_channel": 0,
         "guide_os_website": 0,
         "articles": 0,
+        "nfc_card": 0,
+        "qr_card": 0,
+        "instagram_asal": 0,
         "organic": 1,
     }
     assert get_recognized_acquisition_link_starts_today() == 2
@@ -298,6 +304,9 @@ def test_admin_report_shows_stable_acquisition_labels_and_counts():
         "• Личный Telegram-канал: 0",
         "• Сайт Guide OS: 1",
         "• Статьи: 0",
+        "• NFC-карточка: 0",
+        "• QR-карточка: 0",
+        "• Instagram Асаль: 0",
         "• Органика: 1",
         "🔗 Переходов по отслеживаемым ссылкам сегодня: 1",
     ):
