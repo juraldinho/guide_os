@@ -163,6 +163,7 @@ def test_public_payloads_are_telegram_safe_and_bounded():
         "src_articles",
         "src_nfc_card",
         "src_qr_card",
+        "src_qr_flyer",
         "src_ig_asal",
     }
     for payload in ACQUISITION_PAYLOADS:
@@ -285,6 +286,7 @@ def test_daily_counts_are_zero_filled_and_tagged_total_excludes_organic():
         "articles": 0,
         "nfc_card": 0,
         "qr_card": 0,
+        "qr_flyer": 0,
         "instagram_asal": 0,
         "organic": 1,
     }
@@ -306,6 +308,7 @@ def test_admin_report_shows_stable_acquisition_labels_and_counts():
         "• Статьи: 0",
         "• NFC-карточка: 0",
         "• QR-карточка: 0",
+        "• QR-флаер: 0",
         "• Instagram Асаль: 0",
         "• Органика: 1",
         "🔗 Переходов по отслеживаемым ссылкам сегодня: 1",

@@ -711,6 +711,7 @@ PUBLIC_ACQUISITION_SOURCES = (
     "articles",
     "nfc_card",
     "qr_card",
+    "qr_flyer",
     "instagram_asal",
     "organic",
 )
@@ -724,6 +725,7 @@ TAGGED_ACQUISITION_START_EVENTS = (
     "start_source_articles",
     "start_source_nfc_card",
     "start_source_qr_card",
+    "start_source_qr_flyer",
     "start_source_instagram_asal",
 )
 

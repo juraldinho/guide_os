@@ -4,4 +4,5 @@
 
 - NFC-карточка: `https://t.me/Guide_os_bot?start=src_nfc_card`
 - QR-карточка: `https://t.me/Guide_os_bot?start=src_qr_card`
+- QR-флаер: `https://t.me/Guide_os_bot?start=src_qr_flyer`
 - Instagram Асаль: `https://t.me/Guide_os_bot?start=src_ig_asal`

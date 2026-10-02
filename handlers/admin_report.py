@@ -42,6 +42,7 @@ ACQUISITION_REPORT_LABELS = (
     ("articles", "Статьи"),
     ("nfc_card", "NFC-карточка"),
     ("qr_card", "QR-карточка"),
+    ("qr_flyer", "QR-флаер"),
     ("instagram_asal", "Instagram Асаль"),
     ("organic", "Органика"),
 )
