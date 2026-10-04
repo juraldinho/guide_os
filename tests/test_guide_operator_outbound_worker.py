@@ -678,9 +678,10 @@ def test_operational_log_contains_only_safe_fields() -> None:
         worker_logger.disabled = previous_disabled
         worker_logger.setLevel(previous_level)
     assert records == [
-        "outbound delivery event_id=evt-1 event_type=guide_connection.decided.v1 "
-        "attempt=2 outcome=retrying error_code=unavailable elapsed_ms=7"
+        "outbound delivery attempt=2 outcome=retrying "
+        "error_code=unavailable elapsed_ms=7"
     ]
+    assert "evt-1" not in records[0]
     assert SECRET_CONTACT not in records[0]
     assert JWT_MARKER not in records[0]
     assert "working_package" not in records[0]

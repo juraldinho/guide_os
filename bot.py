@@ -200,7 +200,7 @@ async def setup_bot_commands(bot: Bot) -> None:
         )
 
 
-async def main() -> None:
+async def main(*, polling_handle_signals: bool = True) -> None:
     setup_logging()
     logger = logging.getLogger(__name__)
 
@@ -218,6 +218,7 @@ async def main() -> None:
     event_worker_task = None
     notification_worker_task = None
     notification_worker = None
+    background_tasks = []
     try:
         event_worker_task = await start_guide_shop_event_worker(bot)
         notification_worker_task, notification_worker = (
@@ -229,8 +230,8 @@ async def main() -> None:
         logger.info("Bot started")
         logger.info("BUILD_MARKER: reminder-fix-2026-03-17-v2")
 
-        asyncio.create_task(send_daily_admin_report(bot))
-        asyncio.create_task(send_tour_reminders(bot))
+        background_tasks.append(asyncio.create_task(send_daily_admin_report(bot)))
+        background_tasks.append(asyncio.create_task(send_tour_reminders(bot)))
 
         dp = Dispatcher()
         dp.include_router(personal_place_entries_router)
@@ -251,8 +252,16 @@ async def main() -> None:
         dp.include_router(notifications_router)
         dp.include_router(broadcast_router)
 
-        await dp.start_polling(bot, skip_updates=True)
+        polling_options = {} if polling_handle_signals else {"handle_signals": False}
+        await dp.start_polling(bot, skip_updates=True, **polling_options)
     finally:
+        real_background_tasks = [
+            task for task in background_tasks if isinstance(task, asyncio.Task)
+        ]
+        for task in real_background_tasks:
+            task.cancel()
+        if real_background_tasks:
+            await asyncio.gather(*real_background_tasks, return_exceptions=True)
         try:
             await stop_guide_operator_notification_worker(
                 notification_worker_task, notification_worker

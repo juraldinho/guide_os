@@ -26,7 +26,9 @@ from web_api.guide_operator_integration import create_guide_operator_integration
 logger = logging.getLogger(__name__)
 
 
-async def run_guide_operator_integration_api(values=None, *, clock=None, stop_event=None):
+async def run_guide_operator_integration_api(
+    values=None, *, clock=None, stop_event=None, install_signal_handlers=True
+):
     try:
         runtime = GuideOperatorIntegrationSettings.from_env(values)
     except GuideOperatorIntegrationConfigurationError:
@@ -62,12 +64,13 @@ async def run_guide_operator_integration_api(values=None, *, clock=None, stop_ev
     stop = stop_event if stop_event is not None else asyncio.Event()
     loop = asyncio.get_running_loop()
     installed_signals = []
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, stop.set)
-        except (NotImplementedError, RuntimeError):
-            continue
-        installed_signals.append(sig)
+    if install_signal_handlers:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, stop.set)
+            except (NotImplementedError, RuntimeError):
+                continue
+            installed_signals.append(sig)
 
     try:
         await stop.wait()

@@ -323,16 +323,8 @@ class GuideOperatorNotificationWorker:
 
 def _log_result(result: NotificationDeliveryResult, elapsed_ms: int) -> None:
     error_code = result.error_code if result.error_code is not None else "-"
-    notification_id = (
-        result.notification_id
-        if result.notification_id is not None
-        else result.source_event_id
-    )
     logger.info(
-        "notification delivery notification_id=%s event_type=%s attempt=%s "
-        "outcome=%s error_code=%s elapsed_ms=%s",
-        notification_id,
-        result.notification_type,
+        "notification delivery attempt=%s outcome=%s error_code=%s elapsed_ms=%s",
         result.attempt_count,
         result.outcome,
         error_code,

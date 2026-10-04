@@ -1,6 +1,6 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-09-06
+> Обновлено: 2026-10-05
 
 ## Завершённое состояние
 
@@ -27,7 +27,7 @@
 
 ## Единственная следующая задача
 
-**STOP before operator-facing notifications UI, staging, or deployment.** Do not add Mini App notification UI, production keys, or staging/production rollout without a new explicit owner request.
+**GO13C3 — controlled Railway staging deployment gate.** GO13C2 consolidated single-replica staging runtime is implemented locally. Stop before deployment, staging bot creation, service keys or integration enablement without a new explicit owner request. Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP.
 
 ## Local notification delivery (disabled by default)
 

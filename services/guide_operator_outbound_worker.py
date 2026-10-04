@@ -310,10 +310,7 @@ class GuideOperatorOutboundDeliveryWorker:
 def _log_result(result: OutboundDeliveryResult, elapsed_ms: int) -> None:
     error_code = result.error_code if result.error_code is not None else "-"
     logger.info(
-        "outbound delivery event_id=%s event_type=%s attempt=%s "
-        "outcome=%s error_code=%s elapsed_ms=%s",
-        result.event_id,
-        result.event_type,
+        "outbound delivery attempt=%s outcome=%s error_code=%s elapsed_ms=%s",
         result.attempt_count,
         result.outcome,
         error_code,

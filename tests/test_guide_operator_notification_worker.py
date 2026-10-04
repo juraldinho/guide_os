@@ -475,9 +475,11 @@ def test_operational_log_contains_only_safe_fields() -> None:
         worker_logger.removeHandler(handler)
         worker_logger.setLevel(previous_level)
     assert records == [
-        "notification delivery notification_id=42 event_type=assignment_offer "
-        "attempt=2 outcome=retrying error_code=unavailable elapsed_ms=7"
+        "notification delivery attempt=2 outcome=retrying "
+        "error_code=unavailable elapsed_ms=7"
     ]
+    assert "evt-1" not in records[0]
+    assert "42" not in records[0]
     assert BOT_TOKEN not in records[0]
     assert "Operator Co" not in records[0]
     assert "chat_id" not in records[0]
