@@ -110,7 +110,10 @@ _MSG_DISCOVERY = "Invalid discovery request"
 _MSG_AVAILABILITY = "Invalid availability request"
 _MSG_RECONCILE = "Invalid reconciliation request"
 _MSG_REPAIR = "Projection repair conflict"
-_DISCOVERY_BODY_KEYS = frozenset({"guide_os_id"})
+_DISCOVERY_BODY_KEYS = (
+    frozenset({"guide_os_id"}),
+    frozenset({"telegram_id"}),
+)
 _AVAILABILITY_BODY_KEYS = frozenset({"start_date", "end_date"})
 _REPAIR_BODY_KEYS = frozenset(
     {
@@ -197,7 +200,9 @@ async def _read_envelope(request: web.Request) -> dict[str, Any]:
 
 
 async def _read_json_object(
-    request: web.Request, *, allowed_keys: frozenset[str]
+    request: web.Request,
+    *,
+    allowed_keys: frozenset[str] | tuple[frozenset[str], ...],
 ) -> dict[str, Any]:
     if request.content_type != "application/json":
         raise ValueError("content type")
@@ -205,7 +210,8 @@ async def _read_json_object(
     if len(body) > MAX_REQUEST_BODY_BYTES:
         raise ValueError("body too large")
     data = json.loads(body, object_pairs_hook=_unique_object)
-    if not isinstance(data, dict) or set(data) != allowed_keys:
+    allowed = (allowed_keys,) if isinstance(allowed_keys, frozenset) else allowed_keys
+    if not isinstance(data, dict) or set(data) not in allowed:
         raise ValueError("json keys")
     return data
 
@@ -573,7 +579,10 @@ def create_guide_operator_integration_app(
         except (ValueError, UnicodeError, json.JSONDecodeError, web.HTTPRequestEntityTooLarge):
             return error_response("invalid_request", _MSG_DISCOVERY, rid, 400)
         try:
-            result = discover_guide_for_operator(body.get("guide_os_id"))
+            result = discover_guide_for_operator(
+                guide_os_id=body.get("guide_os_id"),
+                telegram_id=body.get("telegram_id"),
+            )
         except GuideOperatorDiscoveryValidationError:
             return error_response("validation_error", _MSG_DISCOVERY, rid, 400)
         except GuideOperatorDiscoveryNotFoundError:

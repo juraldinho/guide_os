@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from database.queries import get_user_id_by_guide_os_id
+from database.queries import get_guide_os_id, get_user_id_by_guide_os_id
 from services.availability_service import day_status
 from services.tour_service import days_in_range, list_entries
 from utils.constants import ENTRY_TYPE_DAY_OFF
@@ -19,6 +19,7 @@ DayAvailability = Literal["free", "busy", "partial"]
 
 # Inclusive bound for operator assignment window checks (~3 months).
 MAX_AVAILABILITY_RANGE_DAYS = 93
+MAX_TELEGRAM_USER_ID = 2**63 - 1
 
 _DATE_FMT = "%Y-%m-%d"
 
@@ -102,14 +103,42 @@ def aggregate_range_availability(
     return "partial"
 
 
-def discover_guide_for_operator(guide_os_id: object) -> dict[str, Any]:
-    """Return minimum discovery payload if the guide can receive invitations."""
-    try:
-        identity = validate_guide_os_id(guide_os_id)
-    except GuideOsIdentityError as exc:
+def _parse_telegram_user_id(value: object) -> int:
+    if not isinstance(value, str) or not value or not value.isascii() or not value.isdecimal():
         raise GuideOperatorDiscoveryValidationError(
-            "guide_os_id must be a canonical UUIDv4."
-        ) from exc
+            "telegram_id must be a canonical positive decimal string."
+        )
+    if value.startswith("0"):
+        raise GuideOperatorDiscoveryValidationError(
+            "telegram_id must be a canonical positive decimal string."
+        )
+    parsed = int(value)
+    if parsed > MAX_TELEGRAM_USER_ID:
+        raise GuideOperatorDiscoveryValidationError(
+            "telegram_id is outside the supported range."
+        )
+    return parsed
+
+
+def discover_guide_for_operator(
+    *, guide_os_id: object = None, telegram_id: object = None
+) -> dict[str, Any]:
+    """Return minimum discovery payload if the guide can receive invitations."""
+    if (guide_os_id is None) == (telegram_id is None):
+        raise GuideOperatorDiscoveryValidationError(
+            "Exactly one discovery identity is required."
+        )
+    if telegram_id is not None:
+        identity = get_guide_os_id(_parse_telegram_user_id(telegram_id))
+        if identity is None:
+            raise GuideOperatorDiscoveryNotFoundError("Guide was not found.")
+    else:
+        try:
+            identity = validate_guide_os_id(guide_os_id)
+        except GuideOsIdentityError as exc:
+            raise GuideOperatorDiscoveryValidationError(
+                "guide_os_id must be a canonical UUIDv4."
+            ) from exc
     if get_user_id_by_guide_os_id(identity) is None:
         raise GuideOperatorDiscoveryNotFoundError("Guide was not found.")
     return {

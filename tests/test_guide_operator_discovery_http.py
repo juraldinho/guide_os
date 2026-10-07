@@ -201,6 +201,66 @@ def test_discovery_valid_guide(auth_settings, clock, keys):
     assert "telegram" not in text.lower()
 
 
+def test_discovery_resolves_canonical_telegram_id_without_disclosing_it(
+    auth_settings, clock, keys, caplog
+):
+    guide_os_id = _seed_guide()
+    telegram_id = str(API_USER)
+    response = api_post(
+        auth_settings,
+        clock,
+        "/integration/v1/guides/discovery",
+        token=mint_token(keys[0], scope=SCOPE_CONNECTIONS_WRITE),
+        body={"telegram_id": telegram_id},
+    )
+    assert response.status == 200
+    assert response_json(response)["data"] == {
+        "guideOsId": guide_os_id,
+        "canReceiveInvitation": True,
+    }
+    assert telegram_id not in response._body_text
+    assert telegram_id not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"telegram_id": "0"},
+        {"telegram_id": "-1"},
+        {"telegram_id": "01"},
+        {"telegram_id": str(2**63)},
+        {"telegram_id": 101},
+        {"telegram_id": "101", "guide_os_id": "00000000-0000-4000-8000-000000000001"},
+        {"telegram_id": "101", "extra": True},
+    ],
+)
+def test_discovery_rejects_noncanonical_or_ambiguous_identity(
+    auth_settings, clock, keys, body
+):
+    response = api_post(
+        auth_settings,
+        clock,
+        "/integration/v1/guides/discovery",
+        token=mint_token(keys[0], scope=SCOPE_CONNECTIONS_WRITE),
+        body=body,
+    )
+    assert response.status == 400
+
+
+def test_discovery_unknown_telegram_id_is_non_disclosing(auth_settings, clock, keys):
+    response = api_post(
+        auth_settings,
+        clock,
+        "/integration/v1/guides/discovery",
+        token=mint_token(keys[0], scope=SCOPE_CONNECTIONS_WRITE),
+        body={"telegram_id": "999999999"},
+    )
+    assert response.status == 404
+    assert response_json(response)["error"]["code"] == "not_found"
+    assert "telegram" not in response._body_text.lower()
+
+
 def test_discovery_unknown_guide_404(auth_settings, clock, keys):
     response = api_post(
         auth_settings,
