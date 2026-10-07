@@ -24,9 +24,12 @@ def run(awaitable):
     return asyncio.run(awaitable)
 
 
-def _message(user_id=101):
+def _message(user_id=101, bot_username="Guide_os_bot"):
     return SimpleNamespace(
         from_user=SimpleNamespace(id=user_id),
+        bot=SimpleNamespace(
+            me=AsyncMock(return_value=SimpleNamespace(username=bot_username))
+        ),
         answer=AsyncMock(),
         edit_reply_markup=AsyncMock(),
     )
@@ -111,6 +114,42 @@ def test_start_sends_single_welcome_with_reply_keyboard():
     ) in call.args[0]
     assert "guide-os-miniapp-production.up.railway.app" not in call.args[0]
     msg.edit_reply_markup.assert_not_awaited()
+
+
+def test_start_uses_current_staging_bot_username():
+    msg = _message(bot_username="Guideosbot")
+
+    run(cmd_start(msg))
+
+    text = msg.answer.await_args.args[0]
+    assert 'href="https://t.me/Guideosbot?startapp"' in text
+    assert "https://t.me/Guide_os_bot?startapp" not in text
+
+
+def test_start_missing_bot_username_omits_direct_link_and_keeps_menu_guidance():
+    msg = _message(bot_username=None)
+
+    run(cmd_start(msg))
+
+    text = msg.answer.await_args.args[0]
+    assert "https://t.me/" not in text
+    assert "Открыть Guide OS Mini App</a>" not in text
+    assert "Также приложение можно открыть синей кнопкой" in text
+    assert "<b>Guide OS Mini App</b> рядом с полем сообщения" in text
+    assert msg.answer.await_args.kwargs["reply_markup"] == get_main_menu()
+
+
+def test_start_bot_identity_failure_never_falls_back_or_logs_exception(caplog):
+    msg = _message()
+    msg.bot.me.side_effect = RuntimeError("sensitive-bot-identity-error")
+
+    with caplog.at_level(logging.INFO):
+        run(cmd_start(msg))
+
+    text = msg.answer.await_args.args[0]
+    assert "https://t.me/Guide_os_bot?startapp" not in text
+    assert "https://t.me/Guideosbot?startapp" not in text
+    assert "sensitive-bot-identity-error" not in caplog.text
 
 
 def test_start_single_message_for_existing_user():

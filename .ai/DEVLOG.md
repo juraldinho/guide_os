@@ -1,5 +1,13 @@
 # Guide OS — Development Log
 
+## 2026-10-07 — GO13C5 bot-specific `/start` Mini App link
+
+- `/start` resolves the authoritative username from the current Aiogram bot instance through cached `Bot.me()` and builds that bot's `startapp` link.
+- Missing, invalid, or unavailable bot identity omits the clickable direct link and preserves the safe blue Menu-button guidance; there is no production fallback.
+- Acquisition mapping, first-touch attribution, analytics, privacy behavior, welcome copy, and reply keyboard remain unchanged.
+- Added a sanitized, non-executed GO13D staging E2E checklist covering connection through cancellation, idempotency, reconciliation, isolation, and production equality evidence.
+- No commit, push, deployment, Railway, BotFather, Telegram, database, or production mutation was performed.
+
 ## 2026-09-06 — GO11B2B safe local calendar projection repair
 
 - Added authenticated `POST /integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}/repair` on the API-only Guide Operator integration surface with exact scope `guide-operator:reconcile`.

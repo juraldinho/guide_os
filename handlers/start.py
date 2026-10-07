@@ -1,4 +1,5 @@
 import logging
+import re
 
 from database.queries import (
     register_user,
@@ -14,6 +15,8 @@ from keyboards.main_menu import get_main_menu
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+_TELEGRAM_BOT_USERNAME = re.compile(r"[A-Za-z0-9_]{5,32}\Z")
 
 ACQUISITION_PAYLOADS = {
     "src_ig_guideos": (
@@ -41,6 +44,18 @@ ACQUISITION_PAYLOADS = {
 }
 
 
+async def _current_bot_startapp_url(message: Message) -> str | None:
+    try:
+        username = (await message.bot.me()).username
+    except Exception:
+        return None
+    if (
+        not isinstance(username, str)
+        or _TELEGRAM_BOT_USERNAME.fullmatch(username) is None
+    ):
+        return None
+    return f"https://t.me/{username}?startapp"
+
 
 @router.message(CommandStart())
 async def cmd_start(
@@ -64,7 +79,14 @@ async def cmd_start(
     track_event(user_id, "start_used")
     if acquisition is not None:
         track_event(user_id, source_event)
-    
+
+    startapp_url = await _current_bot_startapp_url(message)
+    startapp_link = (
+        f'👉 <a href="{startapp_url}">Открыть Guide OS Mini App</a>\n\n'
+        if startapp_url is not None
+        else ""
+    )
+
     text = (
         "👋 <b>Добро пожаловать в Guide OS</b>\n\n"
         "Guide OS помогает гиду вести свою работу в одном месте:\n\n"
@@ -74,8 +96,7 @@ async def cmd_start(
         "📊 смотреть итоги работы\n"
         "🔔 получать напоминания о предстоящих турах\n\n"
         "📱 <b>Все основные возможности доступны в Mini App.</b>\n"
-        "👉 <a href=\"https://t.me/Guide_os_bot?startapp\">"
-        "Открыть Guide OS Mini App</a>\n\n"
+        f"{startapp_link}"
         "Также приложение можно открыть синей кнопкой "
         "<b>Guide OS Mini App</b> рядом с полем сообщения.\n\n"
         "Если вы используете бот впервые — просто добавьте свой первый тур.\n\n"

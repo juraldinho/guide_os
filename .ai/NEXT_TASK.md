@@ -1,6 +1,6 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-10-05
+> Обновлено: 2026-10-07
 
 ## Завершённое состояние
 
@@ -27,7 +27,7 @@
 
 ## Единственная следующая задача
 
-**GO13C3 — controlled Railway staging deployment gate.** GO13C2 consolidated single-replica staging runtime is implemented locally. Stop before deployment, staging bot creation, service keys or integration enablement without a new explicit owner request. Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP.
+**GO13D — owner-authorized full Guide Operator ↔ Guide OS staging E2E.** The staging runtime, Mini App frontend/API, authenticated cross-service connectivity, and owner Mini App smoke are complete. The sanitized checklist is `docs/GUIDE_OPERATOR_STAGING_E2E_GO13D.md`. Do not execute the live E2E without a separate explicit owner authorization. Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP.
 
 ## Local notification delivery (disabled by default)
 
@@ -44,7 +44,7 @@ Env (documented in `.env.example`, defaults off / safe):
 
 - GO11B comparison / automatic repair of assignment/version/decision state
 - Operator-facing / Mini App notification UI
-- End-to-end Guide OS ↔ Guide Operator deployment
+- Production rollout or production cross-service activation
 - Google Calendar roadmap (`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`)
 - Tips roadmap (`docs/TIPS_ROADMAP.md`)
 - GuideShop Mini App new coding (pilot remains enabled; no active GSMA task)
