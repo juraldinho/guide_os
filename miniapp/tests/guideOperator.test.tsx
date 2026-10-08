@@ -496,8 +496,8 @@ describe('Guide Operator UI (GO6B2)', () => {
     expect(screen.getByTestId('go-critical-pending')).toBeTruthy();
     expect(screen.getAllByTestId('go-critical-change-item').length).toBeGreaterThan(0);
     expect(screen.getAllByText(t.guideOperatorCriticalPendingBadge).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('2026-08-29').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('2026-08-31').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('29.08.2026').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('31.08.2026').length).toBeGreaterThan(0);
     // Active package overview remains the previous dates.
     expect(
       screen.getAllByText(formatDateRangeLike('2026-08-27', '2026-08-29')).length,
@@ -518,6 +518,136 @@ describe('Guide Operator UI (GO6B2)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
     await waitFor(() => screen.getByTestId('go-list-in_progress'));
     expect(screen.queryByTestId('go-list-critical-goasg_in_progress_01')).toBeNull();
+  });
+
+  it('renders mixed change summaries as safe Russian guide-facing fields', async () => {
+    const existing = await guideOsClient.getGuideOperatorAssignment('goasg_in_progress_01');
+    expect(existing?.pendingCriticalVersion).toBeTruthy();
+    const detail = structuredClone(existing!);
+    detail.pendingCriticalVersion!.changeSummary = [
+      {
+        code: 'occupancy_envelope',
+        severity: 'critical',
+        path: 'days.2026-10-20.occupancy',
+        change: 'updated',
+        before: { start: '09:00', end: '09:00' },
+        after: { start: '09:00', end: '12:30' },
+      },
+      {
+        code: 'uncertain',
+        severity: 'uncertain',
+        path: 'days.2026-10-20.events',
+        change: 'updated',
+        before: [{ title: 'Встреча группы', start_time: '09:00', place: 'Отель' }],
+        after: [{
+          title: 'Экскурсия',
+          start_time: '09:00',
+          end_time: '12:30',
+          place: 'Регистан',
+          internal_comment: 'NEVER_SHOW_EVENT_INTERNAL',
+          event_id: 'event-secret',
+        }],
+      },
+      {
+        code: 'working_conditions',
+        severity: 'ordinary',
+        path: 'working_conditions',
+        change: 'updated',
+        before: { meals_text: 'Обед' },
+        after: { meals_text: 'Обед и ужин', additional_instructions: 'Встреча у входа' },
+      },
+      {
+        code: 'assignment_role',
+        severity: 'critical',
+        path: 'assignment.role',
+        change: 'updated',
+        before: 'main_guide',
+        after: 'assistant_guide',
+      },
+      {
+        code: 'contact',
+        severity: 'ordinary',
+        path: 'contacts',
+        change: 'updated',
+        before: [],
+        after: [
+          { name: 'Видимый контакт', phone: '+998 00 000 00 00', visible_to_guide: true },
+          { name: 'HIDDEN_CONTACT_VALUE', phone: 'HIDDEN_PHONE', visible_to_guide: false },
+        ],
+      },
+      {
+        code: 'uncertain',
+        severity: 'uncertain',
+        path: 'tour.title',
+        change: 'updated',
+        before: 'Старое название',
+        after: 'Новое название',
+      },
+      {
+        code: 'future_private_shape',
+        severity: 'uncertain',
+        path: 'private.future.payload',
+        change: 'updated',
+        before: { source_event_id: 'SOURCE_EVENT_SECRET', internal_comment: 'INTERNAL_SECRET' },
+        after: { guide_os_id: '2d8f1eba-696c-4b3c-8d66-3d839fc8eeb2' },
+      },
+    ];
+    vi.spyOn(guideOsClient, 'getGuideOperatorAssignment').mockResolvedValue(detail);
+
+    renderPage();
+    await waitFor(() => screen.getByTestId('go-list-awaiting'));
+    fireEvent.click(screen.getByRole('button', { name: t.guideOperatorInProgressTitle }));
+    fireEvent.click(
+      screen.getByRole('button', { name: t.guideOperatorOpenAssignment('Ташкент сегодня') }),
+    );
+    const pending = await screen.findByTestId('go-critical-pending');
+
+    expect(screen.getByText(t.guideOperatorChangeOccupancy)).toBeTruthy();
+    expect(screen.getByText(t.guideOperatorChangeConditions)).toBeTruthy();
+    expect(screen.getByText(t.guideOperatorChangeProgramEvents)).toBeTruthy();
+    expect(screen.getByText(t.guideOperatorChangeAssignmentRole)).toBeTruthy();
+    expect(screen.getByText(t.guideOperatorChangeTourTitle)).toBeTruthy();
+    expect(screen.getByText(t.guideOperatorChangeFallback)).toBeTruthy();
+    expect(screen.getAllByText(t.guideOperatorChangeBefore).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(t.guideOperatorChangeAfter).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(t.guideOperatorChangeDateContext('20.10.2026')).length).toBeGreaterThan(0);
+    expect(screen.getByText('09:00–12:30')).toBeTruthy();
+    expect(screen.getByText(/09:00–12:30 · Экскурсия · Регистан/)).toBeTruthy();
+    expect(screen.getAllByText(t.guideOperatorRoleMain).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(t.guideOperatorRoleAssistant).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Имя: Видимый контакт/)).toBeTruthy();
+
+    const text = pending.textContent ?? '';
+    for (const forbidden of [
+      'days.2026-10-20.occupancy',
+      'working_conditions',
+      'future_private_shape',
+      'private.future.payload',
+      'HIDDEN_CONTACT_VALUE',
+      'HIDDEN_PHONE',
+      'NEVER_SHOW_EVENT_INTERNAL',
+      'SOURCE_EVENT_SECRET',
+      'INTERNAL_SECRET',
+      '2d8f1eba-696c-4b3c-8d66-3d839fc8eeb2',
+      '[object Object]',
+      '{"',
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
+  });
+
+  it('keeps critical confirmation wired to the existing client action', async () => {
+    const confirmSpy = vi.spyOn(guideOsClient, 'confirmGuideOperatorCriticalVersion');
+    renderPage();
+    await waitFor(() => screen.getByTestId('go-list-awaiting'));
+    fireEvent.click(screen.getByRole('button', { name: t.guideOperatorInProgressTitle }));
+    fireEvent.click(
+      screen.getByRole('button', { name: t.guideOperatorOpenAssignment('Ташкент сегодня') }),
+    );
+    await screen.findByTestId('go-confirm-critical');
+    fireEvent.click(screen.getByTestId('go-confirm-critical'));
+    fireEvent.click(screen.getByTestId('go-critical-confirm-yes'));
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
   });
 });
 

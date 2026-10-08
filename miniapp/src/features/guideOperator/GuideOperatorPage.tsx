@@ -155,23 +155,271 @@ function connectionStatusLabel(connection: GuideOperatorConnection): string {
   return connection.status;
 }
 
-function formatChangeValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string') return value.trim() || '—';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const PATH_DATE_PATTERN = /^days\.(\d{4}-\d{2}-\d{2})(?:\.|$)/;
+
+const CHANGE_CODE_LABELS: Record<string, string> = {
+  assignment_role: t.guideOperatorChangeAssignmentRole,
+  assignment_dates: t.guideOperatorChangeAssignmentDates,
+  city_or_route: t.guideOperatorChangeCityOrRoute,
+  day_removed: t.guideOperatorChangeDayRemoved,
+  day_added: t.guideOperatorChangeDayAdded,
+  occupancy_envelope: t.guideOperatorChangeOccupancy,
+  event_reordered: t.guideOperatorChangeEventOrder,
+  event_time_inside_envelope: t.guideOperatorChangeEventTime,
+  driver: t.guideOperatorChangeDrivers,
+  contact: t.guideOperatorChangeContacts,
+  group_summary: t.guideOperatorChangeGroup,
+  working_conditions: t.guideOperatorChangeConditions,
+};
+
+const CHANGE_PATH_LABELS: Record<string, string> = {
+  'assignment.role': t.guideOperatorChangeAssignmentRole,
+  'assignment.dates': t.guideOperatorChangeAssignmentDates,
+  'assignment.start_date': t.guideOperatorChangeAssignmentDates,
+  'assignment.end_date': t.guideOperatorChangeAssignmentDates,
+  'tour.city_or_route': t.guideOperatorChangeCityOrRoute,
+  'tour.reference': t.guideOperatorChangeTourReference,
+  'tour.title': t.guideOperatorChangeTourTitle,
+  'tour.start_date': t.guideOperatorChangeTourDates,
+  'tour.end_date': t.guideOperatorChangeTourDates,
+  'tour.timezone': t.guideOperatorChangeTimezone,
+  'tour.language': t.guideOperatorChangeLanguage,
+  'tour.tourist_count': t.guideOperatorChangeTourists,
+  'tour.customer_or_agency': t.guideOperatorChangeCustomer,
+  drivers: t.guideOperatorChangeDrivers,
+  contacts: t.guideOperatorChangeContacts,
+  group_summary: t.guideOperatorChangeGroup,
+  working_conditions: t.guideOperatorChangeConditions,
+};
+
+function formatGuideDate(value: string): string {
+  if (!DATE_PATTERN.test(value)) return value;
+  const [year, month, day] = value.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+function safeScalar(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') {
+    return t.guideOperatorChangeNotSpecified;
   }
+  if (typeof value === 'boolean') {
+    return value ? t.guideOperatorChangeYes : t.guideOperatorChangeNo;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  if (!text) return t.guideOperatorChangeNotSpecified;
+  if (UUID_PATTERN.test(text)) return t.guideOperatorChangeChanged;
+  return DATE_PATTERN.test(text) ? formatGuideDate(text) : text;
+}
+
+function valueAt(record: Record<string, unknown>, snake: string, camel: string): unknown {
+  return record[snake] ?? record[camel];
+}
+
+function visibleContactRecords(value: unknown): Record<string, unknown>[] {
+  return asArray(value).flatMap((raw) => {
+    const contact = asRecord(raw);
+    if (!contact) return [];
+    if (contact.visible_to_guide === false || contact.visibleToGuide === false) return [];
+    return [contact];
+  });
+}
+
+function formatTimeRange(value: unknown): string | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const start = safeScalar(valueAt(record, 'start', 'start'));
+  const end = safeScalar(valueAt(record, 'end', 'end'));
+  if (!start && !end) return null;
+  if (start === t.guideOperatorChangeNotSpecified && end === t.guideOperatorChangeNotSpecified) {
+    return t.guideOperatorChangeNotSpecified;
+  }
+  return t.guideOperatorChangeTimeRange(
+    start === t.guideOperatorChangeNotSpecified || !start ? '…' : start,
+    end === t.guideOperatorChangeNotSpecified || !end ? '…' : end,
+  );
+}
+
+function formatAssignmentDates(value: unknown): string | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const start = safeScalar(valueAt(record, 'start_date', 'startDate'));
+  const end = safeScalar(valueAt(record, 'end_date', 'endDate'));
+  if (!start && !end) return null;
+  if (!start || start === t.guideOperatorChangeNotSpecified) return end;
+  if (!end || end === t.guideOperatorChangeNotSpecified) return start;
+  return start === end ? start : `${start} — ${end}`;
+}
+
+function safeDetailParts(
+  record: Record<string, unknown>,
+  fields: Array<[string, string, string]>,
+): string[] {
+  return fields.flatMap(([label, snake, camel]) => {
+    const formatted = safeScalar(valueAt(record, snake, camel));
+    return formatted && formatted !== t.guideOperatorChangeNotSpecified
+      ? [`${label}: ${formatted}`]
+      : [];
+  });
+}
+
+function eventRows(value: unknown): string[] {
+  return asArray(value).flatMap((raw) => {
+    const event = asRecord(raw);
+    if (!event) return [];
+    const title = safeScalar(event.title) || t.guideOperatorEventLabel;
+    const start = safeScalar(valueAt(event, 'start_time', 'startTime'));
+    const end = safeScalar(valueAt(event, 'end_time', 'endTime'));
+    const place = safeScalar(event.place);
+    const time =
+      start && start !== t.guideOperatorChangeNotSpecified
+        ? end && end !== t.guideOperatorChangeNotSpecified
+          ? t.guideOperatorChangeTimeRange(start, end)
+          : start
+        : null;
+    return [[time, title, place && place !== t.guideOperatorChangeNotSpecified ? place : null]
+      .filter(Boolean)
+      .join(' · ')];
+  });
+}
+
+function driverRows(value: unknown): string[] {
+  return asArray(value).flatMap((raw) => {
+    const driver = asRecord(raw);
+    if (!driver) return [];
+    const parts = safeDetailParts(driver, [
+      [t.guideOperatorFieldDriverName, 'name', 'name'],
+      [t.guideOperatorFieldPhone, 'phone', 'phone'],
+      [t.guideOperatorFieldCity, 'city_or_route', 'cityOrRoute'],
+      [t.guideOperatorFieldComment, 'comment', 'comment'],
+    ]);
+    const start = safeScalar(valueAt(driver, 'start_date', 'startDate'));
+    const end = safeScalar(valueAt(driver, 'end_date', 'endDate'));
+    if (start && end && start !== t.guideOperatorChangeNotSpecified && end !== t.guideOperatorChangeNotSpecified) {
+      parts.push(`${t.guideOperatorFieldDates}: ${start === end ? start : `${start} — ${end}`}`);
+    }
+    return parts.length ? [parts.join(' · ')] : [];
+  });
+}
+
+function contactRows(value: unknown): string[] {
+  return visibleContactRecords(value).flatMap((contact) => {
+    const parts = safeDetailParts(contact, [
+      [t.guideOperatorFieldContactName, 'name', 'name'],
+      [t.guideOperatorFieldContactRole, 'role', 'role'],
+      [t.guideOperatorFieldPhone, 'phone', 'phone'],
+      [t.guideOperatorFieldComment, 'comment', 'comment'],
+    ]);
+    return parts.length ? [parts.join(' · ')] : [];
+  });
+}
+
+function recordRows(
+  value: unknown,
+  fields: Array<[string, string, string]>,
+): string[] {
+  const record = asRecord(value);
+  return record ? safeDetailParts(record, fields) : [];
+}
+
+function dayRows(value: unknown): string[] {
+  const day = asRecord(value);
+  if (!day) return [];
+  const rows = safeDetailParts(day, [
+    [t.guideOperatorChangeDateLabel, 'date', 'date'],
+    [t.guideOperatorChangeDayTitle, 'title', 'title'],
+    [t.guideOperatorChangeCityOrRoute, 'city_or_route', 'cityOrRoute'],
+    [t.guideOperatorChangeDayComment, 'comment', 'comment'],
+  ]);
+  return [...rows, ...eventRows(day.events)];
+}
+
+function changeRows(item: GuideOperatorChangeSummaryItem, value: unknown): string[] {
+  const code = asString(item.code);
+  const path = asString(item.path);
+  if (code === 'occupancy_envelope') {
+    const range = formatTimeRange(value);
+    return range ? [range] : [];
+  }
+  if (code === 'assignment_dates') {
+    const range = formatAssignmentDates(value);
+    return range ? [range] : [];
+  }
+  if (code === 'assignment_role') {
+    const role = safeScalar(value);
+    return role ? [role === 'main_guide' || role === 'assistant_guide' ? roleLabel(role) : t.guideOperatorChangeChanged] : [];
+  }
+  if (code === 'event_reordered' || code === 'event_time_inside_envelope' || path?.endsWith('.events')) {
+    return eventRows(value);
+  }
+  if (code === 'driver') return driverRows(value);
+  if (code === 'contact') return contactRows(value);
+  if (code === 'group_summary') {
+    return recordRows(value, [
+      [t.guideOperatorFieldGroupCode, 'name_or_code', 'nameOrCode'],
+      [t.guideOperatorFieldTourists, 'tourist_count', 'touristCount'],
+      [t.guideOperatorFieldInformation, 'information', 'information'],
+      [t.guideOperatorFieldComment, 'comment', 'comment'],
+    ]);
+  }
+  if (code === 'working_conditions') {
+    return recordRows(value, [
+      [t.guideOperatorFieldAllowance, 'allowance_text', 'allowanceText'],
+      [t.guideOperatorFieldMeals, 'meals_text', 'mealsText'],
+      [t.guideOperatorFieldTickets, 'entrance_tickets_text', 'entranceTicketsText'],
+      [t.guideOperatorFieldTransport, 'transport_text', 'transportText'],
+      [t.guideOperatorFieldExtra, 'additional_instructions', 'additionalInstructions'],
+    ]);
+  }
+  if (code === 'day_added' || code === 'day_removed') return dayRows(value);
+  const knownPath = path ? CHANGE_PATH_LABELS[path] || knownDayPathLabel(path) : null;
+  if (knownPath) {
+    const scalar = safeScalar(value);
+    return scalar ? [scalar] : [];
+  }
+  if (code && CHANGE_CODE_LABELS[code]) {
+    const scalar = safeScalar(value);
+    return scalar ? [scalar] : [];
+  }
+  return [];
+}
+
+function knownDayPathLabel(path: string): string | null {
+  if (/^days\.\d{4}-\d{2}-\d{2}\.title$/.test(path)) return t.guideOperatorChangeDayTitle;
+  if (/^days\.\d{4}-\d{2}-\d{2}\.comment$/.test(path)) return t.guideOperatorChangeDayComment;
+  if (/^days\.\d{4}-\d{2}-\d{2}\.events$/.test(path)) return t.guideOperatorChangeProgramEvents;
+  if (/^days\.\d{4}-\d{2}-\d{2}\.city_or_route$/.test(path)) return t.guideOperatorChangeCityOrRoute;
+  return null;
 }
 
 function changeItemLabel(item: GuideOperatorChangeSummaryItem): string {
+  const code = asString(item.code);
+  const path = asString(item.path);
+  if (code && CHANGE_CODE_LABELS[code]) return CHANGE_CODE_LABELS[code];
+  if (path) return CHANGE_PATH_LABELS[path] || knownDayPathLabel(path) || t.guideOperatorChangeFallback;
+  return t.guideOperatorChangeFallback;
+}
+
+function changeDateContext(path: unknown): string | null {
+  const value = asString(path);
+  const match = value ? PATH_DATE_PATTERN.exec(value) : null;
+  return match?.[1] ? t.guideOperatorChangeDateContext(formatGuideDate(match[1])) : null;
+}
+
+function ChangeValue({ item, value }: { item: GuideOperatorChangeSummaryItem; value: unknown }) {
+  const rows = changeRows(item, value);
+  if (rows.length === 0) {
+    const isEmpty = value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+    return <span className="guide-operator-wrap">{isEmpty ? t.guideOperatorChangeNotSpecified : t.guideOperatorChangeChanged}</span>;
+  }
+  if (rows.length === 1) return <span className="guide-operator-wrap">{rows[0]}</span>;
   return (
-    asString(item.path) ||
-    asString(item.code) ||
-    asString(item.change) ||
-    t.guideOperatorChangesTitle
+    <ul className="guide-operator-event-list">
+      {rows.map((row, index) => <li key={`${index}-${row}`} className="guide-operator-wrap">{row}</li>)}
+    </ul>
   );
 }
 
@@ -218,18 +466,21 @@ function ChangeSummaryList({
           data-testid={`${testIdPrefix}-item`}
         >
           <span className="guide-operator-change-path">{changeItemLabel(item)}</span>
+          {changeDateContext(item.path) ? (
+            <span className="text-muted">{changeDateContext(item.path)}</span>
+          ) : null}
           <div className="guide-operator-change-pair">
             <div className="guide-operator-change-side">
               <span className="guide-operator-change-side-label">
                 {t.guideOperatorChangeBefore}
               </span>
-              <span className="guide-operator-wrap">{formatChangeValue(item.before)}</span>
+              <ChangeValue item={item} value={item.before} />
             </div>
             <div className="guide-operator-change-side">
               <span className="guide-operator-change-side-label">
                 {t.guideOperatorChangeAfter}
               </span>
-              <span className="guide-operator-wrap">{formatChangeValue(item.after)}</span>
+              <ChangeValue item={item} value={item.after} />
             </div>
           </div>
         </li>
