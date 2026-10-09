@@ -4,7 +4,7 @@ Status: `GO13D_PASS` (owner-authorized staging execution completed 2026-10-08).
 
 Sanitized closure: one confirmed connection; one cancelled assignment; immutable v1/v2 retained; zero active protected projections; cancellation and acknowledgement applied exactly once; GO11B1 discrepancy count zero; eligible integration-outbox rows zero in both systems; SQLite quick check `ok`. GO13D3A changed only the cancelled-tour assignment-cancellation frontend guard.
 
-Post-run GO13E findings: production rollout remains unauthorized; both Guide OS production services follow GitHub `main` and require a separate remediation gate. Guide OS staging notification delivery remains off with four eligible pending rows (three stale lifecycle messages and one current cancellation message). `staging.guideos.uz` is absent; the healthy Railway Mini App domain remains the configured staging URL.
+Post-run closure: GO13E recorded the operational audit. The fail-closed notification policy sends only when relevance is explicitly `True`; `False` becomes `superseded`, while unprovable `None` becomes `local_state`, both without Telegram HTTP. `STAGING_NOTIFICATION_DRAIN_PASS` suppressed three obsolete notifications without Telegram requests and delivered the current cancellation exactly once; staging delivery and its single in-runtime worker are enabled. `GO13F_ALREADY_COMPLETE`: both Guide OS production services are pinned to `f3c3806d328332fb0ff0a40987d582a4f0d09316` and no longer follow new `main` pushes. Production rollout remains unauthorized. `staging.guideos.uz` is absent and optional; the healthy Railway Mini App domain remains the configured staging URL.
 
 ## Staging boundaries
 

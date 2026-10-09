@@ -4,9 +4,9 @@
 
 ## Текущий фокус
 
-GO13C consolidated staging runtime and GO13D full staging E2E are complete with `GO13D_PASS`. The next operational gate is separate owner-approved production auto-deploy remediation. No production rollout of Guide Operator integration is authorized.
+GO13C consolidated staging runtime and GO13D full staging E2E are complete with `GO13D_PASS`. GO13D3A fixed only the cancelled-tour assignment-cancellation UI guard. GO13E operational audit is closed. No production rollout of Guide Operator integration is authorized.
 
-Read-only GO13E found four eligible pending staging Guide Operator Telegram notifications with zero attempts/errors: three stale lifecycle messages and one current cancellation message. Delivery and worker flags are off. The staging Mini App uses its healthy Railway service domain; `staging.guideos.uz` is not configured.
+The fail-closed notification-obsolescence policy is deployed in staging: relevance `True` sends, `False` records `superseded`, and `None` records `local_state` without Telegram HTTP. `STAGING_NOTIFICATION_DRAIN_PASS` suppressed three obsolete notifications and delivered the current cancellation once; delivery and one in-runtime worker remain enabled in staging. Guide OS production runtime and Mini App are pinned to `f3c3806d328332fb0ff0a40987d582a4f0d09316` and do not follow new `main` pushes. The staging Mini App uses its healthy Railway service domain; `staging.guideos.uz` is not configured and is optional follow-up work.
 
 Stages 0–18 завершены и работают в production. Текущий product workstream — Stage 19: личные места и личные записи гида внутри Guide OS. Эти записи не являются GuideShop companies/sales и не меняют GuideShop.
 

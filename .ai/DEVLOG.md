@@ -1,5 +1,14 @@
 # Guide OS — Development Log
 
+## 2026-10-09 — GO13G staging closure and production-readiness audit
+
+- Recorded `GO13D_PASS`, the narrow GO13D3A cancellation guard, and the GO13E operational audit without rewriting historical evidence.
+- Recorded the fail-closed notification policy: relevance `True` sends; `False` becomes `superseded`; `None` becomes `local_state`; the latter two perform no Telegram HTTP.
+- Recorded `STAGING_NOTIFICATION_DRAIN_PASS`: three obsolete notifications were suppressed without Telegram requests and the current cancellation was delivered exactly once. Staging delivery and its single in-runtime worker remain enabled.
+- Recorded `GO13F_ALREADY_COMPLETE`: Guide OS production runtime and Mini App remain pinned to `f3c3806d328332fb0ff0a40987d582a4f0d09316`; new `main` pushes do not deploy them.
+- The Railway staging Mini App domain remains the configured healthy URL; `staging.guideos.uz` is optional follow-up work. Operator Telegram Mini App remains deferred and production rollout remains unauthorized.
+- Documentation and read-only audit only. No deployment, infrastructure, environment, data, queue, notification, GUI, commit, or push action.
+
 ## 2026-10-09 — GO13E post-GO13D operational audit
 
 - Recorded `GO13D_PASS`: discovery, confirmed connection, offer/acceptance, immutable v1, critical v2 confirmation, cancellation/acknowledgement, protected projection release, idempotency, and zero-discrepancy reconciliation passed.

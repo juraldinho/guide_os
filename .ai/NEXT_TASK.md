@@ -25,15 +25,21 @@
 - GO11A: read-only reconciliation local-projection snapshots (`GET /integration/v1/reconcile/guides/{guideOsId}/…`, scope `guide-operator:reconcile`)
 - GO11B2B: safe local calendar projection repair (`POST …/assignments/{assignmentId}/repair`, same reconcile scope; derived only from local active version + retained accept decision)
 
+## Закрыто после GO13D
+
+- GO13E зафиксировал operational-аудит после полного staging E2E.
+- Notification relevance работает fail-closed: `True` отправляется, `False` завершается как `superseded`, `None` — как `local_state`; последние два исхода не вызывают Telegram HTTP.
+- `STAGING_NOTIFICATION_DRAIN_PASS`: три устаревших уведомления подавлены без Telegram-запросов, актуальная отмена доставлена ровно один раз. Delivery и один встроенный worker теперь включены только в staging.
+- `GO13F_ALREADY_COMPLETE`: production runtime и Mini App закреплены на `f3c3806d328332fb0ff0a40987d582a4f0d09316`; новые push в `main` их не разворачивают.
+- Рабочий staging Mini App URL — Railway service domain. `staging.guideos.uz` остаётся необязательным follow-up.
+
 ## Единственная следующая задача
 
-**Production auto-deploy remediation under separate owner authorization.** GO13C and GO13D are complete; the sanitized result is `GO13D_PASS`. Both Guide OS production services currently follow GitHub `main` and automatically received the staging-oriented SHA. Preserve the current healthy deployments and prepare an environment-scoped, rollback-safe removal of branch-following triggers; do not apply it without exact owner approval.
+Только после отдельной точной авторизации участвовать в Phase 0 production-подготовки Guide Operator: зафиксировать SHA, backup/restore и rollback evidence и подтвердить изоляцию production. Не создавать Guide Operator production services и не включать production integration по этому документу.
 
-Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP. Separately, staging has four eligible pending Guide Operator Telegram notifications: three stale lifecycle messages and the current cancellation message. Delivery and worker flags remain off. Do not enable, retry, or clean them until an explicit backlog policy is approved. `staging.guideos.uz` remains absent; the configured and healthy Mini App URL is the Railway service domain.
+## Local notification delivery
 
-## Local notification delivery (disabled by default)
-
-Runs only inside the existing bot process (`python bot.py`) as one background task. Does not create a second bot, getUpdates loop, or webhook.
+Runs only inside the existing bot process (`python bot.py`) as one background task. Does not create a second bot, getUpdates loop, or webhook. Defaults remain off in source; the existing staging runtime has both delivery and worker explicitly enabled after the controlled drain. Production activation is not authorized.
 
 Env (documented in `.env.example`, defaults off / safe):
 - `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_DELIVERY_ENABLED` — requires `BOT_TOKEN` + HTTPS `MINI_APP_PUBLIC_URL`
@@ -55,7 +61,7 @@ Env (documented in `.env.example`, defaults off / safe):
 
 - Inbound HTTP + discovery/availability are implemented (GO8D1–GO8D2) but remain feature-flagged off by default
 - Outbound `deliver_one()` + worker exist (GO8F2A–GO8F2B) and are proven by the GO9A local HTTP harness; they remain feature-flagged off
-- Guide-notification rows + single-send + in-bot drain exist (GO10A1–GO10A2B) but remain feature-flagged off
+- Guide-notification rows + single-send + in-bot drain exist (GO10A1–GO10A2B); staging is enabled after the controlled drain, while source defaults and production remain off/unapproved
 - GO11A reconcile reads exist on the API-only surface and remain behind service-auth fail-closed defaults
 - GO11B2B local projection repair exists on the same API-only surface (same scope/auth; default-off service auth). It does not change assignment/version/decision machines, UI, notifications, or personal tours
 - Mini App WebApp button opens the approved Mini App URL (Guide Operator tab deep-link not invented yet)
