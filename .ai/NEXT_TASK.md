@@ -1,6 +1,6 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-10-07
+> Обновлено: 2026-10-09
 
 ## Завершённое состояние
 
@@ -27,7 +27,9 @@
 
 ## Единственная следующая задача
 
-**GO13D — owner-authorized full Guide Operator ↔ Guide OS staging E2E.** The staging runtime, Mini App frontend/API, authenticated cross-service connectivity, and owner Mini App smoke are complete. The sanitized checklist is `docs/GUIDE_OPERATOR_STAGING_E2E_GO13D.md`. Do not execute the live E2E without a separate explicit owner authorization. Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP.
+**Production auto-deploy remediation under separate owner authorization.** GO13C and GO13D are complete; the sanitized result is `GO13D_PASS`. Both Guide OS production services currently follow GitHub `main` and automatically received the staging-oriented SHA. Preserve the current healthy deployments and prepare an environment-scoped, rollback-safe removal of branch-following triggers; do not apply it without exact owner approval.
+
+Operator-facing Telegram Mini App remains deferred; Guide Operator is browser-web-only for the MVP. Separately, staging has four eligible pending Guide Operator Telegram notifications: three stale lifecycle messages and the current cancellation message. Delivery and worker flags remain off. Do not enable, retry, or clean them until an explicit backlog policy is approved. `staging.guideos.uz` remains absent; the configured and healthy Mini App URL is the Railway service domain.
 
 ## Local notification delivery (disabled by default)
 

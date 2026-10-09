@@ -1,10 +1,12 @@
 # Guide OS — Current Development Session
 
-> Обновлено: 2026-10-05
+> Обновлено: 2026-10-09
 
 ## Текущий фокус
 
-GO13C2 локально реализует staging-only consolidated runtime: один Railway service/replica, одна `/data` SQLite database, один Telegram poller, guide Mini App API, отдельный Guide Operator integration API, outbound worker и notification drain только внутри bot lifecycle. Production `python bot.py` не заменён. Текущая работа заканчивается локальной проверкой; GO13C3 deployment, staging bot и keys не авторизованы.
+GO13C consolidated staging runtime and GO13D full staging E2E are complete with `GO13D_PASS`. The next operational gate is separate owner-approved production auto-deploy remediation. No production rollout of Guide Operator integration is authorized.
+
+Read-only GO13E found four eligible pending staging Guide Operator Telegram notifications with zero attempts/errors: three stale lifecycle messages and one current cancellation message. Delivery and worker flags are off. The staging Mini App uses its healthy Railway service domain; `staging.guideos.uz` is not configured.
 
 Stages 0–18 завершены и работают в production. Текущий product workstream — Stage 19: личные места и личные записи гида внутри Guide OS. Эти записи не являются GuideShop companies/sales и не меняют GuideShop.
 

@@ -8,6 +8,8 @@
 
 ## Цель и приоритет
 
+**Operational status 2026-10-09:** GO13C consolidated staging runtime/integration and GO13D full Guide Operator ↔ Guide OS staging E2E are complete. GO13D passed discovery, connection consent, offer/acceptance, immutable v1, critical v2 confirmation, cancellation/acknowledgement, calendar release, idempotency, and zero-discrepancy reconciliation. Guide Operator remains browser-web-only for the MVP. Production rollout is not authorized. The next gate is remediation of Guide OS production services that currently follow GitHub `main`; notification backlog and `staging.guideos.uz` require separate owner decisions.
+
 Guide OS — Telegram-бот для гидов: календарь туров, доход, статистика, профиль, напоминания, личные места/записи и опциональный read-only GuideShop.
 
 **Главная цель:** рабочий MVP.

@@ -1,6 +1,10 @@
 # GO13D Guide Operator ↔ Guide OS staging E2E runbook
 
-Status: prepared only. Do not execute without a separate owner authorization.
+Status: `GO13D_PASS` (owner-authorized staging execution completed 2026-10-08).
+
+Sanitized closure: one confirmed connection; one cancelled assignment; immutable v1/v2 retained; zero active protected projections; cancellation and acknowledgement applied exactly once; GO11B1 discrepancy count zero; eligible integration-outbox rows zero in both systems; SQLite quick check `ok`. GO13D3A changed only the cancelled-tour assignment-cancellation frontend guard.
+
+Post-run GO13E findings: production rollout remains unauthorized; both Guide OS production services follow GitHub `main` and require a separate remediation gate. Guide OS staging notification delivery remains off with four eligible pending rows (three stale lifecycle messages and one current cancellation message). `staging.guideos.uz` is absent; the healthy Railway Mini App domain remains the configured staging URL.
 
 ## Staging boundaries
 
@@ -61,4 +65,3 @@ Status: prepared only. Do not execute without a separate owner authorization.
 - [ ] Production bots, databases, domains, variables, and deployment IDs equal the preflight baseline.
 - [ ] Remove only the staging business objects created for this scenario if an approved cleanup procedure exists; otherwise retain them as labelled staging evidence.
 - [ ] Publish a sanitized PASS/FAIL report without identities or credentials.
-
