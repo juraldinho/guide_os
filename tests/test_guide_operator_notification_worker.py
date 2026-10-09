@@ -115,6 +115,31 @@ def _insert_offer_notification(
     assignment_id = str(uuid4())
 
     def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO guide_operator_assignments (
+                assignment_id, guide_os_id, company_id, company_name,
+                guide_connection_id, role, start_date, end_date,
+                response_deadline, operator_message, status,
+                active_version_number, projection_tour_id, offer_event_id,
+                offered_at, decided_at, cancelled_at, cancellation_event_id,
+                created_at, updated_at, active_version_unread,
+                pending_critical_version_number
+            ) VALUES (?, ?, ?, 'Operator Co', ?, 'guide', '2026-10-20',
+                      '2026-10-21', NULL, NULL, 'offered', 1, NULL, ?, ?,
+                      NULL, NULL, NULL, ?, ?, 0, NULL)
+            """,
+            (
+                assignment_id,
+                guide_os_id,
+                str(uuid4()),
+                str(uuid4()),
+                str(uuid4()),
+                FIXED_NOW.isoformat(),
+                FIXED_NOW.isoformat(),
+                FIXED_NOW.isoformat(),
+            ),
+        )
         insert_guide_operator_guide_notification(
             conn,
             source_event_id=eid,

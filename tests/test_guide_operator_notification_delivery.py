@@ -23,7 +23,9 @@ from database.queries import (
 from services.guide_operator_notification_delivery import (
     BUTTON_TEXT,
     ERROR_AUTHENTICATION,
+    ERROR_LOCAL_STATE,
     ERROR_RECIPIENT,
+    ERROR_SUPERSEDED,
     ERROR_TIMEOUT,
     ERROR_UNAVAILABLE,
     ERROR_VALIDATION,
@@ -123,6 +125,7 @@ def _insert_notification(
     assignment_id: str | None = None,
     version_number: int | None = None,
     created_at: str = "2026-09-06T10:00:00+00:00",
+    seed_lifecycle: bool = True,
 ) -> str:
     eid = source_event_id or str(uuid4())
 
@@ -140,7 +143,109 @@ def _insert_notification(
         )
 
     run_write_with_retry(operation)
+    if seed_lifecycle and connection_id is not None:
+        _seed_connection_state(
+            guide_os_id=guide_os_id,
+            connection_id=connection_id,
+            status=(
+                "disconnected"
+                if notification_type == "connection_disconnection"
+                else "invited"
+            ),
+            expires_at="2099-01-01T00:00:00+00:00",
+        )
+    elif seed_lifecycle and assignment_id is not None and version_number is not None:
+        status = "offered" if notification_type == "assignment_offer" else "accepted"
+        active_version = version_number
+        active_unread = 0
+        pending_critical = None
+        if notification_type == "ordinary_version_change":
+            active_unread = 1
+        elif notification_type == "critical_confirmation_required":
+            active_version = max(1, version_number - 1)
+            pending_critical = version_number
+        elif notification_type == "assignment_cancellation":
+            status = "cancelled"
+        _seed_assignment_state(
+            guide_os_id=guide_os_id,
+            assignment_id=assignment_id,
+            status=status,
+            active_version=active_version,
+            active_version_unread=active_unread,
+            pending_critical_version=pending_critical,
+        )
     return eid
+
+
+def _seed_connection_state(
+    *, guide_os_id: str, connection_id: str, status: str, expires_at: str
+) -> None:
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO guide_operator_connections (
+                connection_id, guide_os_id, company_id, company_name, status,
+                invitation_expires_at, invited_at, decided_at, disconnected_at,
+                invite_event_id, disconnect_event_id, created_at, updated_at
+            ) VALUES (?, ?, ?, 'Operator Co', ?, ?, ?, NULL, NULL, ?, NULL, ?, ?)
+            """,
+            (
+                connection_id,
+                guide_os_id,
+                str(uuid4()),
+                status,
+                expires_at,
+                FIXED_NOW.isoformat(),
+                str(uuid4()),
+                FIXED_NOW.isoformat(),
+                FIXED_NOW.isoformat(),
+            ),
+        )
+
+    run_write_with_retry(operation)
+
+
+def _seed_assignment_state(
+    *,
+    guide_os_id: str,
+    assignment_id: str,
+    status: str,
+    active_version: int,
+    active_version_unread: int = 0,
+    pending_critical_version: int | None = None,
+) -> None:
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO guide_operator_assignments (
+                assignment_id, guide_os_id, company_id, company_name,
+                guide_connection_id, role, start_date, end_date,
+                response_deadline, operator_message, status,
+                active_version_number, projection_tour_id, offer_event_id,
+                offered_at, decided_at, cancelled_at, cancellation_event_id,
+                created_at, updated_at, active_version_unread,
+                pending_critical_version_number
+            ) VALUES (?, ?, ?, 'Operator Co', ?, 'guide', '2026-10-20',
+                      '2026-10-21', NULL, NULL, ?, ?, NULL, ?, ?, NULL,
+                      NULL, NULL, ?, ?, ?, ?)
+            """,
+            (
+                assignment_id,
+                guide_os_id,
+                str(uuid4()),
+                str(uuid4()),
+                status,
+                active_version,
+                str(uuid4()),
+                FIXED_NOW.isoformat(),
+                FIXED_NOW.isoformat(),
+                FIXED_NOW.isoformat(),
+                active_version_unread,
+                pending_critical_version,
+            ),
+        )
+
+    run_write_with_retry(operation)
 
 
 def test_settings_default_disabled() -> None:
@@ -322,6 +427,224 @@ def test_duplicate_delivery_does_not_resend() -> None:
     assert first is not None and first.outcome == "delivered"
     assert second is None
     assert len(http.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("notification_type", "version_number"),
+    [
+        ("assignment_offer", 1),
+        ("ordinary_version_change", 2),
+        ("critical_confirmation_required", 2),
+    ],
+)
+def test_cancelled_assignment_supersedes_older_lifecycle_notifications(
+    notification_type: str, version_number: int
+) -> None:
+    guide_os_id, _ = _seed_guide(1220 + version_number)
+    assignment_id = str(uuid4())
+    _seed_assignment_state(
+        guide_os_id=guide_os_id,
+        assignment_id=assignment_id,
+        status="cancelled",
+        active_version=2,
+    )
+    event_id = _insert_notification(
+        guide_os_id=guide_os_id,
+        notification_type=notification_type,
+        assignment_id=assignment_id,
+        version_number=version_number,
+        seed_lifecycle=False,
+    )
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None
+    assert result.outcome == "failed"
+    assert result.error_code == ERROR_SUPERSEDED
+    assert http.calls == []
+    row = get_guide_operator_guide_notification_by_source_event_id(event_id)
+    assert row is not None
+    assert row["delivery_status"] == "failed"
+    assert row["last_error_code"] == ERROR_SUPERSEDED
+    assert deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    ) is None
+
+
+def test_current_cancellation_notification_is_delivered() -> None:
+    guide_os_id, _ = _seed_guide(1225)
+    assignment_id = str(uuid4())
+    _seed_assignment_state(
+        guide_os_id=guide_os_id,
+        assignment_id=assignment_id,
+        status="cancelled",
+        active_version=2,
+    )
+    event_id = _insert_notification(
+        guide_os_id=guide_os_id,
+        notification_type="assignment_cancellation",
+        assignment_id=assignment_id,
+        version_number=2,
+        seed_lifecycle=False,
+    )
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None and result.outcome == "delivered"
+    assert len(http.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "expires_at"),
+    [
+        ("confirmed", "2099-01-01T00:00:00+00:00"),
+        ("invited", "2026-09-06T11:59:59+00:00"),
+    ],
+)
+def test_non_actionable_connection_invitation_is_superseded(
+    status: str, expires_at: str
+) -> None:
+    guide_os_id, _ = _seed_guide(1226)
+    connection_id = str(uuid4())
+    _seed_connection_state(
+        guide_os_id=guide_os_id,
+        connection_id=connection_id,
+        status=status,
+        expires_at=expires_at,
+    )
+    event_id = _insert_notification(
+        guide_os_id=guide_os_id,
+        notification_type="connection_invitation",
+        connection_id=connection_id,
+        seed_lifecycle=False,
+    )
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None
+    assert result.error_code == ERROR_SUPERSEDED
+    assert http.calls == []
+
+
+def test_missing_lifecycle_aggregate_fails_closed_without_send() -> None:
+    guide_os_id, _ = _seed_guide(1227)
+    event_id = _insert_notification(
+        guide_os_id=guide_os_id,
+        notification_type="assignment_offer",
+        assignment_id=str(uuid4()),
+        version_number=1,
+        seed_lifecycle=False,
+    )
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None
+    assert result.outcome == "failed"
+    assert result.error_code == ERROR_LOCAL_STATE
+    assert http.calls == []
+
+
+def test_nullable_version_evidence_fails_closed_without_exception() -> None:
+    guide_os_id, _ = _seed_guide(1228)
+    assignment_id = str(uuid4())
+    _seed_assignment_state(
+        guide_os_id=guide_os_id,
+        assignment_id=assignment_id,
+        status="offered",
+        active_version=1,
+    )
+    event_id = str(uuid4())
+
+    def operation(conn):
+        conn.execute("PRAGMA ignore_check_constraints = ON")
+        conn.execute(
+            """
+            INSERT INTO guide_operator_guide_notifications (
+                source_event_id, guide_os_id, notification_type, company_name,
+                connection_id, assignment_id, version_number, deep_link_target,
+                created_at, delivery_status, delivered_at, failed_at,
+                attempt_count, last_error_code, next_attempt_at
+            ) VALUES (?, ?, 'assignment_offer', 'Operator Co', NULL, ?, NULL, ?, ?,
+                      'pending', NULL, NULL, 0, NULL, NULL)
+            """,
+            (
+                event_id,
+                guide_os_id,
+                assignment_id,
+                deep_link_target_for_assignment(assignment_id),
+                FIXED_NOW.isoformat(),
+            ),
+        )
+
+    run_write_with_retry(operation)
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None
+    assert result.error_code == ERROR_LOCAL_STATE
+    assert http.calls == []
+
+
+def test_malformed_invitation_expiry_fails_closed_without_exception() -> None:
+    guide_os_id, _ = _seed_guide(1229)
+    connection_id = str(uuid4())
+    _seed_connection_state(
+        guide_os_id=guide_os_id,
+        connection_id=connection_id,
+        status="invited",
+        expires_at="not-a-date",
+    )
+    event_id = _insert_notification(
+        guide_os_id=guide_os_id,
+        notification_type="connection_invitation",
+        connection_id=connection_id,
+        seed_lifecycle=False,
+    )
+    http = FakeTelegram()
+
+    result = deliver_one_notification(
+        settings=_settings(),
+        clock=FrozenClock(),
+        http_client=http,
+        source_event_id=event_id,
+    )
+
+    assert result is not None
+    assert result.error_code == ERROR_LOCAL_STATE
+    assert http.calls == []
 
 
 def test_retryable_telegram_errors_keep_pending() -> None:

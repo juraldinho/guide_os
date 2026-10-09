@@ -2858,6 +2858,104 @@ def count_guide_operator_guide_notifications(
     return int(row["cnt"]) if row else 0
 
 
+def is_guide_operator_guide_notification_current(
+    *, notification_id: int, now_iso: str
+) -> bool | None:
+    """Return current lifecycle relevance, or None when evidence is incomplete."""
+    ensure_db_ready()
+    conn = get_connection()
+    try:
+        notification = conn.execute(
+            """
+            SELECT guide_os_id, notification_type, connection_id,
+                   assignment_id, version_number
+            FROM guide_operator_guide_notifications
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (notification_id,),
+        ).fetchone()
+        if notification is None:
+            return None
+
+        notification_type = str(notification["notification_type"])
+        guide_os_id = str(notification["guide_os_id"])
+        if notification_type in {
+            "connection_invitation",
+            "connection_disconnection",
+        }:
+            connection = conn.execute(
+                """
+                SELECT status,
+                       julianday(invitation_expires_at) > julianday(?) AS unexpired
+                FROM guide_operator_connections
+                WHERE connection_id = ? AND guide_os_id = ?
+                LIMIT 1
+                """,
+                (now_iso, notification["connection_id"], guide_os_id),
+            ).fetchone()
+            if connection is None:
+                return None
+            if notification_type == "connection_invitation":
+                if connection["unexpired"] is None:
+                    return None
+                return (
+                    connection["status"] == "invited"
+                    and connection["unexpired"] == 1
+                )
+            return connection["status"] == "disconnected"
+
+        assignment = conn.execute(
+            """
+            SELECT status, active_version_number, active_version_unread,
+                   pending_critical_version_number
+            FROM guide_operator_assignments
+            WHERE assignment_id = ? AND guide_os_id = ?
+            LIMIT 1
+            """,
+            (notification["assignment_id"], guide_os_id),
+        ).fetchone()
+        if assignment is None:
+            return None
+        try:
+            version_number = int(notification["version_number"])
+        except (TypeError, ValueError):
+            return None
+        if notification_type == "assignment_offer":
+            try:
+                active_version = int(assignment["active_version_number"])
+            except (TypeError, ValueError):
+                return None
+            return assignment["status"] == "offered" and active_version == version_number
+        if notification_type == "ordinary_version_change":
+            try:
+                active_version = int(assignment["active_version_number"])
+                active_unread = int(assignment["active_version_unread"])
+            except (TypeError, ValueError):
+                return None
+            return (
+                assignment["status"] == "accepted"
+                and active_version == version_number
+                and active_unread == 1
+            )
+        if notification_type == "critical_confirmation_required":
+            pending = assignment["pending_critical_version_number"]
+            return (
+                assignment["status"] == "accepted"
+                and pending is not None
+                and int(pending) == version_number
+            )
+        if notification_type == "assignment_cancellation":
+            try:
+                active_version = int(assignment["active_version_number"])
+            except (TypeError, ValueError):
+                return None
+            return assignment["status"] == "cancelled" and active_version == version_number
+        return None
+    finally:
+        conn.close()
+
+
 def claim_guide_operator_guide_notification_for_delivery(
     *,
     now_iso: str,

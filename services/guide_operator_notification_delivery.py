@@ -22,6 +22,7 @@ from database.queries import (
     claim_guide_operator_guide_notification_for_delivery,
     finish_guide_operator_guide_notification_delivery,
     get_user_id_by_guide_os_id,
+    is_guide_operator_guide_notification_current,
 )
 from services.guide_operator_notification_delivery_settings import (
     GuideOperatorNotificationDeliveryConfigurationError,
@@ -40,6 +41,8 @@ ERROR_RECIPIENT = "recipient"
 ERROR_VALIDATION = "validation"
 ERROR_CONTRACT = "contract"
 ERROR_RETRY_EXHAUSTED = "retry_exhausted"
+ERROR_SUPERSEDED = "superseded"
+ERROR_LOCAL_STATE = "local_state"
 
 PERMANENT_ERROR_CODES = frozenset(
     {
@@ -48,6 +51,8 @@ PERMANENT_ERROR_CODES = frozenset(
         ERROR_VALIDATION,
         ERROR_CONTRACT,
         ERROR_RETRY_EXHAUSTED,
+        ERROR_SUPERSEDED,
+        ERROR_LOCAL_STATE,
     }
 )
 
@@ -312,6 +317,37 @@ def _deliver_claimed(
             attempt_count=attempt_count,
             outcome="failed",
             error_code=ERROR_VALIDATION,
+            now=now,
+            mini_app_button_url=settings.mini_app_public_url,
+            jitter_unit=jitter_unit,
+        )
+
+    is_current = is_guide_operator_guide_notification_current(
+        notification_id=notification_id,
+        now_iso=now.isoformat(),
+    )
+    if is_current is False:
+        _opaque_log("Guide Operator notification delivery skipped superseded record")
+        return _finish(
+            notification_id=notification_id,
+            source_event_id=source_event_id,
+            notification_type=notification_type,
+            attempt_count=attempt_count,
+            outcome="failed",
+            error_code=ERROR_SUPERSEDED,
+            now=now,
+            mini_app_button_url=settings.mini_app_public_url,
+            jitter_unit=jitter_unit,
+        )
+    if is_current is not True:
+        _opaque_log("Guide Operator notification delivery skipped unverified local state")
+        return _finish(
+            notification_id=notification_id,
+            source_event_id=source_event_id,
+            notification_type=notification_type,
+            attempt_count=attempt_count,
+            outcome="failed",
+            error_code=ERROR_LOCAL_STATE,
             now=now,
             mini_app_button_url=settings.mini_app_public_url,
             jitter_unit=jitter_unit,
