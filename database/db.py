@@ -820,6 +820,25 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guide_operator_assignment_lifecycle_inbox (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL CHECK(
+            event_type IN ('assignment.withdrawn.v1', 'assignment.expired.v1')
+        ),
+        assignment_id TEXT NOT NULL,
+        guide_os_id TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        result_status TEXT NOT NULL CHECK(result_status IN ('applied', 'duplicate'))
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_go_assignment_lifecycle_inbox_assignment
+    ON guide_operator_assignment_lifecycle_inbox(assignment_id, received_at)
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS go_operator_projection_release (
         tour_id INTEGER PRIMARY KEY
     )
@@ -906,7 +925,9 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
         end_date TEXT NOT NULL,
         response_deadline TEXT,
         operator_message TEXT,
-        status TEXT NOT NULL CHECK(status IN ('offered', 'accepted', 'declined', 'cancelled')),
+        status TEXT NOT NULL CHECK(
+            status IN ('offered', 'accepted', 'declined', 'cancelled', 'withdrawn', 'expired')
+        ),
         active_version_number INTEGER NOT NULL DEFAULT 1 CHECK(active_version_number >= 1),
         projection_tour_id INTEGER UNIQUE,
         offer_event_id TEXT NOT NULL UNIQUE,
@@ -1423,6 +1444,120 @@ def _migrate_guide_operator_assignments_cancellation(
         cursor.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrate_guide_operator_assignments_lifecycle(
+    conn: sqlite3.Connection,
+) -> None:
+    """Extend the assignment status CHECK for authoritative offer termination."""
+    cursor = conn.cursor()
+    row = cursor.execute(
+        """
+        SELECT sql FROM sqlite_master
+        WHERE type = 'table' AND name = 'guide_operator_assignments'
+        """
+    ).fetchone()
+    if row is None or all(status in (row["sql"] or "") for status in ("'withdrawn'", "'expired'")):
+        return
+
+    cursor.execute("PRAGMA foreign_keys = OFF")
+    try:
+        columns = {
+            info["name"]
+            for info in cursor.execute(
+                "PRAGMA table_info(guide_operator_assignments)"
+            ).fetchall()
+        }
+        guide_connection_expr = (
+            "guide_connection_id" if "guide_connection_id" in columns else "NULL"
+        )
+        active_unread_expr = (
+            "active_version_unread" if "active_version_unread" in columns else "0"
+        )
+        pending_critical_expr = (
+            "pending_critical_version_number"
+            if "pending_critical_version_number" in columns
+            else "NULL"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE guide_operator_assignments__go13i1 (
+                assignment_id TEXT PRIMARY KEY,
+                guide_os_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                company_name TEXT NOT NULL,
+                guide_connection_id TEXT,
+                role TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                response_deadline TEXT,
+                operator_message TEXT,
+                status TEXT NOT NULL CHECK(
+                    status IN (
+                        'offered', 'accepted', 'declined', 'cancelled',
+                        'withdrawn', 'expired'
+                    )
+                ),
+                active_version_number INTEGER NOT NULL DEFAULT 1
+                    CHECK(active_version_number >= 1),
+                projection_tour_id INTEGER UNIQUE,
+                offer_event_id TEXT NOT NULL UNIQUE,
+                offered_at TEXT NOT NULL,
+                decided_at TEXT,
+                cancelled_at TEXT,
+                cancellation_event_id TEXT UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                active_version_unread INTEGER NOT NULL DEFAULT 0
+                    CHECK(active_version_unread IN (0, 1)),
+                pending_critical_version_number INTEGER CHECK(
+                    pending_critical_version_number IS NULL
+                    OR pending_critical_version_number >= 2
+                ),
+                CHECK(start_date <= end_date),
+                FOREIGN KEY(projection_tour_id) REFERENCES tours(id)
+            )
+            """
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO guide_operator_assignments__go13i1 (
+                assignment_id, guide_os_id, company_id, company_name,
+                guide_connection_id, role, start_date, end_date,
+                response_deadline, operator_message, status,
+                active_version_number, projection_tour_id, offer_event_id,
+                offered_at, decided_at, cancelled_at, cancellation_event_id,
+                created_at, updated_at, active_version_unread,
+                pending_critical_version_number
+            )
+            SELECT
+                assignment_id, guide_os_id, company_id, company_name,
+                {guide_connection_expr}, role, start_date, end_date,
+                response_deadline, operator_message, status,
+                active_version_number, projection_tour_id, offer_event_id,
+                offered_at, decided_at, cancelled_at, cancellation_event_id,
+                created_at, updated_at, {active_unread_expr},
+                {pending_critical_expr}
+            FROM guide_operator_assignments
+            """
+        )
+        cursor.execute("DROP TABLE guide_operator_assignments")
+        cursor.execute(
+            """
+            ALTER TABLE guide_operator_assignments__go13i1
+            RENAME TO guide_operator_assignments
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_go_assignments_guide_status
+            ON guide_operator_assignments(guide_os_id, status, start_date)
+            """
+        )
+        conn.commit()
+        logger.info("Guide Operator assignments schema migrated for offer lifecycle")
+    finally:
+        cursor.execute("PRAGMA foreign_keys = ON")
+
+
 def init_db() -> None:
     """Initialize schema under an exclusive SQLite write lock.
 
@@ -1445,6 +1580,7 @@ def init_db() -> None:
                         conn.execute("PRAGMA journal_mode = WAL")
                     # Autocommit: CHECK rebuild requires toggling foreign_keys.
                     _migrate_guide_operator_assignments_cancellation(conn)
+                    _migrate_guide_operator_assignments_lifecycle(conn)
                     conn.execute("BEGIN IMMEDIATE")
                     if _INIT_DB_PAUSE_HOOK is not None:
                         _INIT_DB_PAUSE_HOOK()

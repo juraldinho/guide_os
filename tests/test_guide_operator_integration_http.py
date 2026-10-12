@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from database.db import init_db
 from database.queries import (
+    get_guide_operator_assignment_lifecycle_inbox,
     get_guide_operator_assignment,
     get_guide_operator_connection,
     get_guide_operator_connection_inbox,
@@ -52,6 +53,8 @@ from services.guide_operator_service_jwt import (
 from web_api.guide_operator_integration import (
     EVENT_ASSIGNMENT_CANCELLED,
     EVENT_ASSIGNMENT_OFFERED,
+    EVENT_ASSIGNMENT_WITHDRAWN,
+    EVENT_ASSIGNMENT_EXPIRED,
     EVENT_CONNECTION_DISCONNECTED,
     EVENT_CONNECTION_INVITED,
     EVENT_VERSION_PUBLISHED,
@@ -566,6 +569,65 @@ def test_assignment_offered(auth_settings, clock, keys):
     assert response_json(response)["data"]["status"] == "applied"
     assert get_guide_operator_assignment(assignment_id)["status"] == "offered"
     assert get_guide_operator_offer_inbox(event_id) is not None
+
+
+@pytest.mark.parametrize(
+    ("event_type", "suffix", "expected_status"),
+    [
+        (EVENT_ASSIGNMENT_WITHDRAWN, "withdrawn", "withdrawn"),
+        (EVENT_ASSIGNMENT_EXPIRED, "expired", "expired"),
+    ],
+)
+def test_assignment_offer_lifecycle_authenticated_intake(
+    auth_settings, clock, keys, event_type, suffix, expected_status
+):
+    guide_os_id = _seed_guide()
+    connection = ensure_confirmed_connection_for_tests(guide_os_id)
+    assignment_id = str(uuid4())
+    from services.guide_operator_assignment_service import (
+        AssignmentOfferIntake,
+        receive_assignment_offer,
+    )
+
+    receive_assignment_offer(
+        AssignmentOfferIntake(
+            event_id=str(uuid4()),
+            assignment_id=assignment_id,
+            guide_os_id=guide_os_id,
+            company_id=connection["company_id"],
+            company_name=connection["company_name"],
+            guide_connection_id=connection["connection_id"],
+            role="main_guide",
+            start_date="2026-10-01",
+            end_date="2026-10-03",
+            working_package=_package(assignment_id, guide_os_id),
+        )
+    )
+    event_id = str(uuid4())
+    path = f"/integration/v1/assignments/{assignment_id}/{suffix}"
+    payload = {"assignment_id": assignment_id, "guide_os_id": guide_os_id}
+    first, replay = api_posts(
+        auth_settings,
+        clock,
+        [
+            {
+                "path": path,
+                "token": mint_token(keys[0], scope=SCOPE_OFFERS_WRITE),
+                "body": _envelope(event_type, payload, event_id=event_id),
+            },
+            {
+                "path": path,
+                "token": mint_token(keys[0], scope=SCOPE_OFFERS_WRITE),
+                "body": _envelope(event_type, payload, event_id=event_id),
+            },
+        ],
+    )
+    assert first.status == 200
+    assert response_json(first)["data"]["status"] == "applied"
+    assert replay.status == 200
+    assert response_json(replay)["data"]["status"] == "replayed"
+    assert get_guide_operator_assignment(assignment_id)["status"] == expected_status
+    assert get_guide_operator_assignment_lifecycle_inbox(event_id) is not None
 
 
 def test_assignment_offered_without_connection_fails_closed(auth_settings, clock, keys):

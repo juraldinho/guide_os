@@ -2530,6 +2530,22 @@ def get_guide_operator_cancellation_inbox(event_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_guide_operator_assignment_lifecycle_inbox(event_id: str) -> dict | None:
+    ensure_db_ready()
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM guide_operator_assignment_lifecycle_inbox
+        WHERE event_id = ?
+        LIMIT 1
+        """,
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def get_guide_operator_version_inbox(event_id: str) -> dict | None:
     ensure_db_ready()
     conn = get_connection()

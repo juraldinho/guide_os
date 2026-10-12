@@ -20,6 +20,7 @@ from uuid import UUID
 from aiohttp import web
 
 from database.queries import (
+    get_guide_operator_assignment_lifecycle_inbox,
     get_guide_operator_cancellation_inbox,
     get_guide_operator_connection_inbox,
     get_guide_operator_offer_inbox,
@@ -27,6 +28,7 @@ from database.queries import (
 )
 from services.guide_operator_assignment_service import (
     AssignmentCancellationIntake,
+    AssignmentLifecycleIntake,
     AssignmentConflictError,
     AssignmentNotActionableError,
     AssignmentNotFoundError,
@@ -36,6 +38,7 @@ from services.guide_operator_assignment_service import (
     CalendarConflictError,
     GuideOperatorAssignmentError,
     apply_assignment_cancellation,
+    apply_assignment_lifecycle_transition,
     apply_ordinary_assignment_version,
     intake_critical_assignment_version,
     receive_assignment_offer,
@@ -98,6 +101,8 @@ EVENT_CONNECTION_DISCONNECTED = "guide_connection.disconnected.v1"
 EVENT_ASSIGNMENT_OFFERED = "assignment.offered.v1"
 EVENT_VERSION_PUBLISHED = "assignment.version.published.v1"
 EVENT_ASSIGNMENT_CANCELLED = "assignment.cancelled.v1"
+EVENT_ASSIGNMENT_WITHDRAWN = "assignment.withdrawn.v1"
+EVENT_ASSIGNMENT_EXPIRED = "assignment.expired.v1"
 
 _MSG_AUTH = "Authentication failed"
 _MSG_AUTH_UNAVAILABLE = "Service authentication is unavailable"
@@ -568,6 +573,58 @@ def create_guide_operator_integration_app(
             replayed=prior is not None,
         )
 
+    async def _lifecycle_handler(
+        request: web.Request, *, expected_event_type: str
+    ) -> web.Response:
+        rid, failure = await _prepare(request, expected_scope=SCOPE_OFFERS_WRITE)
+        if failure is not None:
+            return failure
+        assignment_id = _parse_path_id(request.match_info.get("assignmentId", ""))
+        if assignment_id is None:
+            return error_response("validation_error", _MSG_INVALID, rid, 400)
+        try:
+            envelope = await _read_envelope(request)
+        except (ValueError, UnicodeError, json.JSONDecodeError, web.HTTPRequestEntityTooLarge):
+            return error_response("invalid_request", _MSG_INVALID, rid, 400)
+        if envelope["event_type"] != expected_event_type:
+            return error_response("invalid_request", _MSG_INVALID, rid, 400)
+        payload = envelope["payload"]
+        if set(payload) != {"assignment_id", "guide_os_id"}:
+            return error_response("validation_error", _MSG_VALIDATION, rid, 400)
+        if payload.get("assignment_id") != assignment_id:
+            return error_response("validation_error", _MSG_INVALID, rid, 400)
+        prior = get_guide_operator_assignment_lifecycle_inbox(envelope["event_id"])
+        try:
+            apply_assignment_lifecycle_transition(
+                AssignmentLifecycleIntake(
+                    event_id=envelope["event_id"],
+                    event_type=envelope["event_type"],
+                    assignment_id=assignment_id,
+                    guide_os_id=payload.get("guide_os_id"),
+                    transitioned_at=envelope["occurred_at"],
+                )
+            )
+        except GuideOperatorAssignmentError as exc:
+            return _map_assignment_error(exc, rid)
+        except TypeError:
+            return error_response("validation_error", _MSG_VALIDATION, rid, 400)
+        return _applied_response(
+            rid=rid,
+            event_id=envelope["event_id"],
+            event_type=envelope["event_type"],
+            replayed=prior is not None,
+        )
+
+    async def withdrawn_handler(request: web.Request) -> web.Response:
+        return await _lifecycle_handler(
+            request, expected_event_type=EVENT_ASSIGNMENT_WITHDRAWN
+        )
+
+    async def expired_handler(request: web.Request) -> web.Response:
+        return await _lifecycle_handler(
+            request, expected_event_type=EVENT_ASSIGNMENT_EXPIRED
+        )
+
     async def discovery_handler(request: web.Request) -> web.Response:
         rid, failure = await _prepare(request, expected_scope=SCOPE_CONNECTIONS_WRITE)
         if failure is not None:
@@ -755,6 +812,14 @@ def create_guide_operator_integration_app(
     app.router.add_post(
         "/integration/v1/assignments/{assignmentId}/cancelled",
         cancelled_handler,
+    )
+    app.router.add_post(
+        "/integration/v1/assignments/{assignmentId}/withdrawn",
+        withdrawn_handler,
+    )
+    app.router.add_post(
+        "/integration/v1/assignments/{assignmentId}/expired",
+        expired_handler,
     )
     app.router.add_post("/integration/v1/guides/discovery", discovery_handler)
     app.router.add_post(

@@ -15,6 +15,7 @@ from typing import Any, Callable
 from database.db import ensure_db_ready, run_write_with_retry
 from database.queries import (
     get_guide_operator_assignment,
+    get_guide_operator_assignment_lifecycle_inbox,
     get_guide_operator_assignment_for_guide,
     get_guide_operator_assignment_version,
     get_guide_operator_cancellation_inbox,
@@ -161,6 +162,26 @@ class AssignmentCancellationResult:
     cancelled_at: str
     cancellation_event_id: str
     projection_released: bool
+    replayed: bool = False
+
+
+@dataclass(frozen=True)
+class AssignmentLifecycleIntake:
+    """Canonical withdrawn/expired event bound to one offered assignment."""
+
+    event_id: str
+    event_type: str
+    assignment_id: str
+    guide_os_id: str
+    transitioned_at: str
+
+
+@dataclass(frozen=True)
+class AssignmentLifecycleResult:
+    assignment_id: str
+    guide_os_id: str
+    status: str
+    event_type: str
     replayed: bool = False
 
 
@@ -769,6 +790,135 @@ def apply_assignment_cancellation(
         )
 
     return run_write_with_retry(operation)
+
+
+def apply_assignment_lifecycle_transition(
+    event: AssignmentLifecycleIntake,
+) -> AssignmentLifecycleResult:
+    """Apply an authoritative offered -> withdrawn/expired transition."""
+    ensure_db_ready()
+    normalized = _normalize_assignment_lifecycle(event)
+    payload_hash = _canonical_hash(normalized)
+    event_id = normalized["event_id"]
+    assignment_id = normalized["assignment_id"]
+    identity = normalized["guide_os_id"]
+    target_status = normalized["status"]
+
+    existing_inbox = get_guide_operator_assignment_lifecycle_inbox(event_id)
+    if existing_inbox is not None:
+        if existing_inbox["payload_hash"] != payload_hash:
+            raise AssignmentConflictError(
+                "Lifecycle event ID was already used with another payload."
+            )
+        stored = get_guide_operator_assignment_for_guide(identity, assignment_id)
+        if stored is None:
+            raise AssignmentNotFoundError("Assignment was not found.")
+        if stored["status"] != target_status:
+            raise AssignmentValidationError(
+                "Lifecycle inbox exists without matching assignment state."
+            )
+        return AssignmentLifecycleResult(
+            assignment_id=assignment_id,
+            guide_os_id=identity,
+            status=target_status,
+            event_type=normalized["event_type"],
+            replayed=True,
+        )
+
+    assignment = get_assignment_for_guide(identity, assignment_id)
+    if assignment["status"] != "offered":
+        raise AssignmentNotActionableError(
+            "Only an offered assignment can be withdrawn or expired."
+        )
+    if assignment.get("projection_tour_id") is not None:
+        raise AssignmentConflictError(
+            "An offered assignment must not have a protected projection."
+        )
+
+    def operation(conn):
+        inbox = conn.execute(
+            """
+            SELECT * FROM guide_operator_assignment_lifecycle_inbox
+            WHERE event_id = ? LIMIT 1
+            """,
+            (event_id,),
+        ).fetchone()
+        if inbox is not None:
+            if inbox["payload_hash"] != payload_hash:
+                raise AssignmentConflictError(
+                    "Lifecycle event ID was already used with another payload."
+                )
+            locked = conn.execute(
+                """
+                SELECT * FROM guide_operator_assignments
+                WHERE assignment_id = ? AND guide_os_id = ? LIMIT 1
+                """,
+                (assignment_id, identity),
+            ).fetchone()
+            if locked is None or locked["status"] != target_status:
+                raise AssignmentValidationError(
+                    "Lifecycle inbox exists without matching assignment state."
+                )
+            return True
+
+        locked = conn.execute(
+            """
+            SELECT * FROM guide_operator_assignments
+            WHERE assignment_id = ? AND guide_os_id = ? LIMIT 1
+            """,
+            (assignment_id, identity),
+        ).fetchone()
+        if locked is None:
+            raise AssignmentNotFoundError("Assignment was not found.")
+        if locked["status"] != "offered":
+            raise AssignmentNotActionableError(
+                "Only an offered assignment can be withdrawn or expired."
+            )
+        if locked["projection_tour_id"] is not None:
+            raise AssignmentConflictError(
+                "An offered assignment must not have a protected projection."
+            )
+
+        received_at = _utc_now()
+        conn.execute(
+            """
+            INSERT INTO guide_operator_assignment_lifecycle_inbox (
+                event_id, event_type, assignment_id, guide_os_id,
+                payload_hash, received_at, result_status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'applied')
+            """,
+            (
+                event_id,
+                normalized["event_type"],
+                assignment_id,
+                identity,
+                payload_hash,
+                received_at,
+            ),
+        )
+        cursor = conn.execute(
+            """
+            UPDATE guide_operator_assignments
+            SET status = ?, updated_at = ?
+            WHERE assignment_id = ? AND guide_os_id = ? AND status = 'offered'
+              AND projection_tour_id IS NULL
+            """,
+            (target_status, normalized["transitioned_at"], assignment_id, identity),
+        )
+        if cursor.rowcount != 1:
+            raise AssignmentNotActionableError(
+                "Only an offered assignment can be withdrawn or expired."
+            )
+        return False
+
+    replayed = run_write_with_retry(operation)
+    return AssignmentLifecycleResult(
+        assignment_id=assignment_id,
+        guide_os_id=identity,
+        status=target_status,
+        event_type=normalized["event_type"],
+        replayed=bool(replayed),
+    )
 
 
 def list_cancellation_ack_outbox(assignment_id: str) -> list[dict[str, Any]]:
@@ -2785,6 +2935,33 @@ def _normalize_cancellation(
         "guide_os_id": guide_os_id,
         "version_number": event.version_number,
         "cancelled_at": cancelled_at,
+    }
+
+
+def _normalize_assignment_lifecycle(
+    event: AssignmentLifecycleIntake,
+) -> dict[str, Any]:
+    if not isinstance(event, AssignmentLifecycleIntake):
+        raise AssignmentValidationError(
+            "Lifecycle payload must be AssignmentLifecycleIntake."
+        )
+    statuses = {
+        "assignment.withdrawn.v1": "withdrawn",
+        "assignment.expired.v1": "expired",
+    }
+    event_type = _require_nonempty(event.event_type, "event_type")
+    status = statuses.get(event_type)
+    if status is None:
+        raise AssignmentValidationError("Unsupported assignment lifecycle event.")
+    return {
+        "event_id": _require_nonempty(event.event_id, "event_id"),
+        "event_type": event_type,
+        "assignment_id": _require_nonempty(event.assignment_id, "assignment_id"),
+        "guide_os_id": validate_guide_os_id(event.guide_os_id),
+        "transitioned_at": _require_iso_datetime(
+            event.transitioned_at, "transitioned_at"
+        ),
+        "status": status,
     }
 
 
