@@ -62,7 +62,14 @@ class GuideOperatorIntegrationSettings:
                 "Guide Operator integration configuration is invalid"
             )
         app_env = source.get("APP_ENV", "development")
-        if app_env == "production" and host in {"0.0.0.0", "::"}:
+        production_runtime_enabled = _as_bool(
+            source.get("GUIDE_OS_CONSOLIDATED_PRODUCTION_RUNTIME_ENABLED", "false")
+        )
+        if (
+            app_env == "production"
+            and host in {"0.0.0.0", "::"}
+            and not production_runtime_enabled
+        ):
             raise GuideOperatorIntegrationConfigurationError(
                 "Guide Operator integration configuration is invalid"
             )

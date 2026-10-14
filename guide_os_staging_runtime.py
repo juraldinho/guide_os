@@ -1,7 +1,4 @@
-"""GO13C2 single-replica consolidated staging runtime.
-
-This launcher is staging-only. Production continues to use ``python bot.py``.
-"""
+"""Shared lifecycle for the single-replica consolidated Guide OS runtimes."""
 
 from __future__ import annotations
 
@@ -26,7 +23,9 @@ class ConsolidatedStagingRuntimeConfigurationError(ValueError):
 def _flag(values: Mapping[str, str], name: str) -> bool:
     value = values.get(name, "false")
     if not isinstance(value, str):
-        raise ConsolidatedStagingRuntimeConfigurationError("invalid runtime configuration")
+        raise ConsolidatedStagingRuntimeConfigurationError(
+            "invalid runtime configuration"
+        )
     normalized = value.strip().lower()
     if normalized in _TRUE:
         return True
@@ -43,7 +42,9 @@ def _port(values: Mapping[str, str], name: str, default: int) -> int:
             "invalid runtime configuration"
         ) from None
     if not 1 <= value <= 65535:
-        raise ConsolidatedStagingRuntimeConfigurationError("invalid runtime configuration")
+        raise ConsolidatedStagingRuntimeConfigurationError(
+            "invalid runtime configuration"
+        )
     return value
 
 
@@ -57,7 +58,7 @@ class ConsolidatedStagingRuntimeSettings:
     @classmethod
     def from_env(
         cls, values: Mapping[str, str] | None = None
-    ) -> "ConsolidatedStagingRuntimeSettings":
+    ) -> ConsolidatedStagingRuntimeSettings:
         source = os.environ if values is None else values
         if source.get("APP_ENV") != "staging" or not _flag(
             source, "GUIDE_OS_CONSOLIDATED_STAGING_RUNTIME_ENABLED"
@@ -93,9 +94,10 @@ class ConsolidatedStagingRuntimeSettings:
             raise ConsolidatedStagingRuntimeConfigurationError(
                 "GuideShop link provider must use its isolated runtime"
             )
-        if source.get("MINI_APP_API_HOST") != "0.0.0.0" or source.get(
-            "GUIDE_OS_GUIDE_OPERATOR_INTEGRATION_HOST"
-        ) != "0.0.0.0":
+        if (
+            source.get("MINI_APP_API_HOST") != "0.0.0.0"
+            or source.get("GUIDE_OS_GUIDE_OPERATOR_INTEGRATION_HOST") != "0.0.0.0"
+        ):
             raise ConsolidatedStagingRuntimeConfigurationError(
                 "HTTP components require explicit staging hosts"
             )
@@ -127,42 +129,60 @@ class ConsolidatedStagingRuntimeSettings:
 @dataclass(frozen=True)
 class RuntimeDependencies:
     run_bot: Callable[[], Awaitable[None]]
-    run_integration: Callable[[asyncio.Event], Awaitable[None]]
-    run_outbound: Callable[[], None]
-    stop_outbound: Callable[[], None]
+    run_integration: Callable[[asyncio.Event], Awaitable[None]] | None = None
+    run_outbound: Callable[[], None] | None = None
+    stop_outbound: Callable[[], None] | None = None
 
 
-def _default_dependencies(values: Mapping[str, str] | None) -> RuntimeDependencies:
+def build_runtime_dependencies(
+    values: Mapping[str, str] | None,
+    *,
+    integration_enabled: bool,
+    outbound_enabled: bool,
+) -> RuntimeDependencies:
     import bot
-    from guide_operator_integration_api import run_guide_operator_integration_api
-    from services.guide_operator_outbound_settings import GuideOperatorOutboundSettings
-    from services.guide_operator_outbound_worker import (
-        GuideOperatorOutboundDeliveryWorker,
-        GuideOperatorOutboundWorkerSettings,
-    )
-
-    worker_settings = GuideOperatorOutboundWorkerSettings.from_env(values)
-    outbound_settings = GuideOperatorOutboundSettings.from_env(values)
-    worker = GuideOperatorOutboundDeliveryWorker(
-        settings=worker_settings,
-        outbound_settings=outbound_settings,
-    )
 
     async def run_bot() -> None:
         await bot.main(polling_handle_signals=False)
 
-    async def run_integration(stop_event: asyncio.Event) -> None:
-        await run_guide_operator_integration_api(
-            values,
-            stop_event=stop_event,
-            install_signal_handlers=False,
+    run_integration = None
+    if integration_enabled:
+        from guide_operator_integration_api import run_guide_operator_integration_api
+
+        async def run_integration(stop_event: asyncio.Event) -> None:
+            await run_guide_operator_integration_api(
+                values,
+                stop_event=stop_event,
+                install_signal_handlers=False,
+            )
+
+    run_outbound = None
+    stop_outbound = None
+    if outbound_enabled:
+        from services.guide_operator_outbound_settings import (
+            GuideOperatorOutboundSettings,
         )
+        from services.guide_operator_outbound_worker import (
+            GuideOperatorOutboundDeliveryWorker,
+            GuideOperatorOutboundWorkerSettings,
+        )
+
+        outbound_settings = GuideOperatorOutboundSettings.from_env(values)
+        worker_settings = GuideOperatorOutboundWorkerSettings.from_env(
+            values, outbound=outbound_settings
+        )
+        worker = GuideOperatorOutboundDeliveryWorker(
+            settings=worker_settings,
+            outbound_settings=outbound_settings,
+        )
+        run_outbound = worker.run_forever
+        stop_outbound = worker.request_stop
 
     return RuntimeDependencies(
         run_bot=run_bot,
         run_integration=run_integration,
-        run_outbound=worker.run_forever,
-        stop_outbound=worker.request_stop,
+        run_outbound=run_outbound,
+        stop_outbound=stop_outbound,
     )
 
 
@@ -175,15 +195,15 @@ def _validate_database_binding(expected: str) -> None:
         )
 
 
-async def run_consolidated_staging_runtime(
-    values: Mapping[str, str] | None = None,
+async def run_consolidated_runtime(
     *,
-    dependencies: RuntimeDependencies | None = None,
+    database_path: str,
+    shutdown_timeout_seconds: float,
+    dependencies: RuntimeDependencies,
     stop_event: asyncio.Event | None = None,
+    runtime_name: str,
 ) -> None:
-    settings = ConsolidatedStagingRuntimeSettings.from_env(values)
-    _validate_database_binding(settings.database_path)
-    deps = dependencies or _default_dependencies(values)
+    _validate_database_binding(database_path)
     stop = stop_event or asyncio.Event()
     integration_stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -196,17 +216,26 @@ async def run_consolidated_staging_runtime(
                 continue
             installed_signals.append(sig)
 
-    tasks = {
-        asyncio.create_task(deps.run_bot(), name="telegram_and_miniapp"): "bot",
-        asyncio.create_task(
-            deps.run_integration(integration_stop), name="guide_operator_integration"
-        ): "integration",
-        asyncio.create_task(
-            asyncio.to_thread(deps.run_outbound), name="guide_operator_outbound"
-        ): "outbound",
+    tasks: dict[asyncio.Task[object], str] = {
+        asyncio.create_task(dependencies.run_bot(), name="telegram_and_miniapp"): "bot"
     }
+    if dependencies.run_integration is not None:
+        tasks[
+            asyncio.create_task(
+                dependencies.run_integration(integration_stop),
+                name="guide_operator_integration",
+            )
+        ] = "integration"
+    if dependencies.run_outbound is not None:
+        tasks[
+            asyncio.create_task(
+                asyncio.to_thread(dependencies.run_outbound),
+                name="guide_operator_outbound",
+            )
+        ] = "outbound"
+
     stop_task = asyncio.create_task(stop.wait(), name="runtime_stop")
-    logger.info("Consolidated staging runtime started")
+    logger.info("Consolidated %s runtime started", runtime_name)
     failed_component: str | None = None
     try:
         done, _pending = await asyncio.wait(
@@ -217,7 +246,8 @@ async def run_consolidated_staging_runtime(
             logger.error("Required runtime component stopped")
     finally:
         integration_stop.set()
-        deps.stop_outbound()
+        if dependencies.stop_outbound is not None:
+            dependencies.stop_outbound()
         for task, component in tasks.items():
             if component == "bot" and not task.done():
                 task.cancel()
@@ -225,14 +255,14 @@ async def run_consolidated_staging_runtime(
         try:
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=settings.shutdown_timeout_seconds,
+                timeout=shutdown_timeout_seconds,
             )
         except TimeoutError:
-            logger.error("Consolidated staging runtime shutdown timed out")
+            logger.error("Consolidated runtime shutdown timed out")
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            raise RuntimeError("consolidated staging runtime shutdown failed") from None
+            raise RuntimeError("consolidated runtime shutdown failed") from None
         finally:
             await asyncio.gather(stop_task, return_exceptions=True)
             for sig in installed_signals:
@@ -240,9 +270,28 @@ async def run_consolidated_staging_runtime(
                     loop.remove_signal_handler(sig)
                 except (NotImplementedError, RuntimeError):
                     pass
-        logger.info("Consolidated staging runtime stopped")
+        logger.info("Consolidated %s runtime stopped", runtime_name)
     if failed_component is not None:
         raise RuntimeError("required runtime component stopped")
+
+
+async def run_consolidated_staging_runtime(
+    values: Mapping[str, str] | None = None,
+    *,
+    dependencies: RuntimeDependencies | None = None,
+    stop_event: asyncio.Event | None = None,
+) -> None:
+    settings = ConsolidatedStagingRuntimeSettings.from_env(values)
+    deps = dependencies or build_runtime_dependencies(
+        values, integration_enabled=True, outbound_enabled=True
+    )
+    await run_consolidated_runtime(
+        database_path=settings.database_path,
+        shutdown_timeout_seconds=settings.shutdown_timeout_seconds,
+        dependencies=deps,
+        stop_event=stop_event,
+        runtime_name="staging",
+    )
 
 
 def main() -> None:
@@ -255,7 +304,7 @@ def main() -> None:
     except ConsolidatedStagingRuntimeConfigurationError:
         logger.error("Consolidated staging runtime configuration is invalid")
         raise SystemExit(1) from None
-    except BaseException:
+    except RuntimeError:
         logger.error("Consolidated staging runtime failed")
         raise SystemExit(1) from None
 
