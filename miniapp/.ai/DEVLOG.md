@@ -1,5 +1,13 @@
 # Guide OS Mini App — Development Log
 
+## 2026-10-29 — production reminder links; release docs synchronized
+
+Чаевые Mini App-first выпущены 2026-10-27. Новая кнопка reminder → точная карточка Mini App выпущена 2026-10-29: backend `5dd8037d…`, frontend `3d307e26…`, SUCCESS. Source hashes, backup/integrity, одна runtime/polling instance, keyboard/menu, public bundle и auth gates проверены; manual Telegram/device E2E остаётся pending. Git/pins не изменялись. [Точный release evidence](../../docs/REMINDER_MINIAPP_LINK.md). Старые записи ниже сохранены с исходными датами.
+
+## 2026-10-22 — синхронизация документации
+
+Учтены GO13I1 (withdrawal/expiry backend), GO13J1 (local production launcher), текущая навигация Mini App и ранее существовавшая локальная identity-работа. Deployment не выполнялся. [Сводка и границы evidence](../../docs/CURRENT_STATE.md). Записи ниже сохраняют даты и результаты исходных этапов.
+
 Краткий append-only журнал завершённых Mini App stages. Не копировать сюда длинные prompts, terminal output, secrets, commit hashes или speculative plans.
 
 ## 2026-09-04 — GSMA10 owner E2E PASS (sanitized)

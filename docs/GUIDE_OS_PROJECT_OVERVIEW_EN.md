@@ -1,5 +1,11 @@
 # Guide OS
 
+Release update / Обновление 2026-10-29: Mini App daily tips are deployed; new tour reminders include «Открыть в приложении» targeting the exact owner-scoped card. Production runtime/integration/outbound are observed enabled; this is not a new full Guide Operator production E2E certification. Manual Telegram/device validation remains pending. [Current evidence](CURRENT_STATE.md).
+
+Historical Guide Operator snapshot (2026-10-22; superseded by the release update above): guide-facing consent/assignment/version UX and staging E2E closure are recorded; withdrawal/expiration intake is implemented in backend (GO13I1), without dedicated Mini App sections. Production consolidated launcher GO13J1 is implemented locally; production rollout is not authorized. Earlier product descriptions below retain their original scope where they discuss future ecosystem capabilities.
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 ## The Operating System for Professional Tourism
 
 > Project overview updated on September 5, 2026.
@@ -243,7 +249,7 @@ Still pending:
 - running PostgreSQL infrastructure;
 - operator authentication;
 - production frontend connected to the API;
-- Guide Operator Telegram notifications;
+- further Guide Operator notification UX; existing delivery foundations are implemented;
 - staging deployment and production pilot.
 
 Local GO9A HTTP E2E against sibling Guide OS is complete. Feature flags remain off outside that harness. Reconciliation, notifications, frontend wiring, and deployment still require explicit approval.
@@ -345,11 +351,11 @@ Future work is separated into approval-based product streams. Planned direction 
 
 ### Completing Guide Operator
 
-Potential next stages include operator-facing notifications UI, isolated staging E2E, and a controlled production deployment. Local reconciliation snapshots and safe calendar projection repair exist on the API-only Guide OS integration surface and are not a Mini App or deployment task.
+GO13D staging E2E was completed on 2026-10-08. The Guide OS production consolidated runtime and existing authenticated intake/outbound flags were observed enabled on 2026-10-29. Operator-facing notifications UI and any new full production E2E certification require a separate scope. Reconciliation snapshots and safe projection repair remain API-only; the recent feature releases did not execute production repair.
 
-### Daily tips
+### Daily tips — remaining Telegram bot UX
 
-A planned Guide OS feature may allow one tip amount per guide and calendar date, independent of tours. Implementation has not started.
+Daily tips were released in the Mini App on 2026-10-27: one amount per guide/date, independent of tours, with separate tour income, tips and combined totals. Telegram bot tips UX remains deferred.
 
 ### Google Calendar import
 
@@ -381,18 +387,18 @@ Later modules may provide deeper workload, partner, assignment, and performance 
 - GuideShop production CRM;
 - monitored and reconcilable event processing.
 
-### Implemented but not fully deployed end to end
+### Guide Operator: implemented; full production E2E not newly certified
 
 - Guide Operator backend and responsive prototype;
-- Guide OS Guide Operator module and inbound integration, including read-only reconciliation snapshots and safe local calendar projection repair (API-only; not deployed);
+- Guide OS Guide Operator module and inbound integration, including read-only reconciliation snapshots and safe local calendar projection repair (API-only; no production repair executed in the recent releases);
 - assignment versions, cancellations, critical confirmations, consent, discovery, and availability foundations.
 
 ### Planned or not yet activated
 
-- Guide Operator operator-facing notifications UI and production deployment;
-- Guide Operator Telegram notifications;
+- Guide Operator operator-facing notifications UI and separately authorized rollout/E2E work;
+- further Guide Operator notification UX; existing delivery foundations are implemented;
 - Google Calendar import;
-- daily tips;
+- Telegram bot tips UX (Mini App tips are already released);
 - official external-sale PTS claims;
 - broader AI, knowledge, analytics, and marketplace modules.
 

@@ -1,3 +1,4 @@
+import { MAX_DAILY_TIPS } from '../types';
 import type { GuideOsClient, GuideShopReadOptions, WriteOptions } from '../client';
 import type {
   AvailabilityPreviewParams,
@@ -1102,6 +1103,16 @@ function calcCommissionReportsSummary(
   };
 }
 
+const dailyTips = new Map<string, number>();
+
+function validateTipDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < '0001-01-01' ||
+      date > '9999-12-31' || !Number.isFinite(Date.parse(date)) ||
+      new Date(date).toISOString().slice(0, 10) !== date) {
+    throw new Error('Укажите корректную дату YYYY-MM-DD.');
+  }
+}
+
 export const mockClient: GuideOsClient = {
   async trackAnalyticsEvent(name: MiniAppAnalyticsEventName) {
     analyticsEvents.push(name);
@@ -1178,6 +1189,29 @@ export const mockClient: GuideOsClient = {
     return mockClient.getProfile();
   },
 
+  async getDailyTip(date: string) {
+    validateTipDate(date);
+    return { date, amount: dailyTips.get(date) ?? 0 };
+  },
+
+  async listDailyTips(from: string, to: string) {
+    validateTipDate(from);
+    validateTipDate(to);
+    if (from > to) throw new Error('Некорректный период.');
+    return [...dailyTips].filter(([date]) => date >= from && date <= to)
+      .sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => ({ date, amount }));
+  },
+
+  async setDailyTip(date: string, amount: number) {
+    validateTipDate(date);
+    if (!Number.isInteger(amount) || typeof amount !== 'number' || amount < 0 || amount > MAX_DAILY_TIPS) {
+      throw new Error(`Введите целое число USD от 0 до ${MAX_DAILY_TIPS}.`);
+    }
+    if (amount === 0) dailyTips.delete(date);
+    else dailyTips.set(date, amount);
+    return { date, amount };
+  },
+
   async getReportsSummary(params: ReportsSummaryParams) {
     const summary = calcSummary(entries, { from: params.from, to: params.to }, {
       status: params.status,
@@ -1185,8 +1219,11 @@ export const mockClient: GuideOsClient = {
       company: params.company ?? '',
       location: params.location ?? '',
     });
+    const tips = (await mockClient.listDailyTips(params.from, params.to)).reduce((sum, row) => sum + row.amount, 0);
     return {
       ...summary,
+      tips,
+      totalEarnings: summary.income + tips,
       period: { from: params.from, to: params.to },
     };
   },
@@ -1897,6 +1934,7 @@ export function __testAnalyticsEvents(): MiniAppAnalyticsEventName[] {
 }
 
 export function __resetMockStore() {
+  dailyTips.clear();
   analyticsEvents.length = 0;
   entries.length = 0;
   entries.push(...INITIAL_ENTRIES.map((e) => ({ ...e })));

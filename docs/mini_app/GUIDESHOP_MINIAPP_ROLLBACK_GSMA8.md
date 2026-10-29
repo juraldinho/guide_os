@@ -1,5 +1,7 @@
 # GuideShop Mini App — rollback & resilience runbook (GSMA8)
 
+> Состояние на 2026-10-22: [реализация, окружения и границы подтверждения](../CURRENT_STATE.md). Старые deployment/PASS записи относятся к указанным датам; live-состояние этой документационной сверкой не проверялось.
+
 > Дата: 2026-09-03  
 > Scope: official GuideShop reads in Mini App only. Sales remain **withdrawn** from Mini App. Do not reintroduce `/app/v1/guideshop/sales`.
 

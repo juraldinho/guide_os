@@ -1,3 +1,4 @@
+import { DailyTipsSheet } from './DailyTipsSheet';
 import { useState } from 'react';
 import type {
   ConflictOverlayData,
@@ -183,6 +184,7 @@ export function CalendarOverlays() {
     closeOverlay,
     openTourForm,
     openDayOffForm,
+    openTipsForm,
     returnToTourFormFromConflict,
     saveTour,
     ackWarningAndSave,
@@ -198,6 +200,8 @@ export function CalendarOverlays() {
 
   if (!overlay || overlay === 'free-dates' || overlay === 'demo-states') return null;
 
+  if (overlay === 'tips-form') return <DailyTipsSheet />;
+
   if (overlay === 'add-select') {
     return (
       <OverlaySheet title={t.addTitle} onClose={closeOverlay}>
@@ -211,6 +215,9 @@ export function CalendarOverlays() {
           onClick={openDayOffForm}
         >
           {t.dayOff}
+        </button>
+        <button type="button" className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={openTipsForm}>
+          Чаевые
         </button>
       </OverlaySheet>
     );

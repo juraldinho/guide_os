@@ -1,8 +1,12 @@
 # Guide OS Mini App
 
-React frontend + disposable MA2 prototype + Web API backend (**MA0–MA10 complete** on local E2E). Telegram-бот не изменён; production rollout не включён.
+Текущий release 2026-10-29: чаевые и переход из новых напоминаний в точную карточку работают в production. [Технические проверки и текущие deployment IDs](../docs/REMINDER_MINIAPP_LINK.md). Manual Telegram E2E и owner Git/source alignment остаются отдельными follow-up.
 
-## Status (2026-08-30)
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](../docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
+React frontend + disposable MA2 prototype + Web API backend (**MA0–MA10 complete** on local E2E). Public production pilot owner-validated; formal general release not separately declared. Guide Operator staging evidence and existing production runtime/intake flags are recorded; no new full production integration E2E is claimed. Further rollouts require their own owner scope.
+
+## Historical MA stages (completed through MA10; current status 2026-10-22 above)
 
 | Этап | Статус | Описание |
 |------|--------|----------|
@@ -158,18 +162,18 @@ Guide OS SQLite
 - [docs/mini_app/API_CONTRACT_v1.md](../docs/mini_app/API_CONTRACT_v1.md)
 - [docs/mini_app/STAGING_SMOKE_MA9.md](../docs/mini_app/STAGING_SMOKE_MA9.md)
 - [docs/mini_app/PRODUCTION_GATE_MA9.md](../docs/mini_app/PRODUCTION_GATE_MA9.md)
-- [.ai/NEXT_TASK.md](.ai/NEXT_TASK.md) — **MA11** (deferred)
+- [.ai/NEXT_TASK.md](.ai/NEXT_TASK.md) — текущий scope; MA11 не является активной следующей задачей
 
 ## Constraints
 
 - Russian UI, USD only
 - Bot handlers unchanged
-- No production Mini App until staging gate (**MA11+** when approved)
+- Public Mini App pilot remains owner-authorized; new rollout/flags require explicit scope
 
-## Future daily tips roadmap
+## Daily tips and reminder navigation — deployed
 
-Owner approved a not-yet-implemented bot-first daily tips feature: one amount per user and calendar date, independent of tours. After bot validation, the shared API will expose it to this Mini App. See [`../docs/TIPS_ROADMAP.md`](../docs/TIPS_ROADMAP.md).
+Daily tips were delivered Mini App-first to production on 2026-10-27. Calendar → Добавить → Чаевые supports replace/zero-delete, with separate tour/tips/combined income. New tour reminders open the exact card through the authenticated owner-scoped API (production 2026-10-29). [Tips roadmap](../docs/TIPS_ROADMAP.md), [reminder release](../docs/REMINDER_MINIAPP_LINK.md). Manual Telegram/device validation remains pending; bot tips UX is deferred.
 
 ## Active GuideShop Mini App roadmap
 
-Owner activated the GuideShop Mini App workstream. The planned third bottom module combines user-owned personal companies/commissions with the official read-only GuideShop catalog through the Guide OS API. Current stage is GSMA0 contract/audit; implementation has not started. See [`../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
+Owner activated the GuideShop Mini App workstream. The planned third bottom module combines user-owned personal companies/commissions with the official read-only GuideShop catalog through the Guide OS API. GSMA0–GSMA10 are complete for the public pilot; no active GuideShop coding task. See [`../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).

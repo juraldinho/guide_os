@@ -16,6 +16,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from database.db import init_db
 from database.queries import get_guide_os_id, get_user_id_by_guide_os_id, register_user
+from services.guide_operator_connection_service import (
+    ConnectionInvitationIntake,
+    ensure_confirmed_connection_for_tests,
+    receive_connection_invitation,
+)
 from services.guide_operator_service_auth_settings import (
     GuideOperatorServiceAuthSettings,
     reset_guide_operator_service_auth_for_tests,
@@ -171,6 +176,18 @@ def api_post(auth_settings, clock, path: str, *, token: str | None, body):
     return run(_with_client(auth_settings, clock, _call))
 
 
+def api_get(auth_settings, clock, path: str, *, token: str | None):
+    async def _call(client):
+        headers = {}
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token}"
+        response = await client.get(path, headers=headers)
+        response._body_text = await response.text()
+        return response
+
+    return run(_with_client(auth_settings, clock, _call))
+
+
 def response_json(response):
     return json.loads(response._body_text)
 
@@ -220,6 +237,61 @@ def test_discovery_resolves_canonical_telegram_id_without_disclosing_it(
     }
     assert telegram_id not in response._body_text
     assert telegram_id not in caplog.text
+
+
+def test_confirmed_connection_identity_is_authorized_by_exact_connection(
+    auth_settings, clock, keys
+):
+    guide_os_id = _seed_guide()
+    connection = ensure_confirmed_connection_for_tests(
+        guide_os_id,
+        connection_id="11111111-1111-4111-8111-111111111111",
+        company_id="22222222-2222-4222-8222-222222222222",
+    )
+    response = api_get(
+        auth_settings,
+        clock,
+        "/integration/v1/guide-connections/"
+        f"{connection['connection_id']}/identity?companyId={connection['company_id']}"
+        f"&guideOsId={guide_os_id}",
+        token=mint_token(keys[0], scope=SCOPE_CONNECTIONS_WRITE),
+    )
+    assert response.status == 200
+    assert response_json(response)["data"] == {
+        "connectionId": connection["connection_id"],
+        "companyId": connection["company_id"],
+        "guideOsId": guide_os_id,
+        "telegramUserId": str(API_USER),
+    }
+
+
+def test_connection_identity_hides_unconfirmed_or_mismatched_connection(
+    auth_settings, clock, keys
+):
+    guide_os_id = _seed_guide()
+    connection_id = "11111111-1111-4111-8111-111111111111"
+    company_id = "22222222-2222-4222-8222-222222222222"
+    receive_connection_invitation(
+        ConnectionInvitationIntake(
+            event_id="33333333-3333-4333-8333-333333333333",
+            connection_id=connection_id,
+            company_id=company_id,
+            company_name="Owner Co",
+            guide_os_id=guide_os_id,
+            invitation_expires_at="2099-12-31T23:59:59+00:00",
+            invited_at="2026-01-01T00:00:00+00:00",
+        )
+    )
+    for query_company in (company_id, "44444444-4444-4444-8444-444444444444"):
+        response = api_get(
+            auth_settings,
+            clock,
+            f"/integration/v1/guide-connections/{connection_id}/identity"
+            f"?companyId={query_company}&guideOsId={guide_os_id}",
+            token=mint_token(keys[0], scope=SCOPE_CONNECTIONS_WRITE),
+        )
+        assert response.status == 404
+        assert str(API_USER) not in response._body_text
 
 
 @pytest.mark.parametrize(
@@ -581,3 +653,30 @@ def test_availability_disabled_auth_503(clock, keys):
         body={"start_date": "2026-11-01", "end_date": "2026-11-02"},
     )
     assert response.status == 503
+
+
+@pytest.mark.parametrize("access", ["missing_auth", "wrong_scope", "foreign_company", "foreign_guide"])
+def test_confirmed_identity_rejects_unauthorized_access(auth_settings, clock, keys, access):
+    guide_os_id = _seed_guide()
+    connection = ensure_confirmed_connection_for_tests(
+        guide_os_id,
+        connection_id="11111111-1111-4111-8111-111111111111",
+        company_id="22222222-2222-4222-8222-222222222222",
+    )
+    company_id = connection["company_id"]
+    requested_guide = guide_os_id
+    if access == "foreign_company":
+        company_id = "44444444-4444-4444-8444-444444444444"
+    if access == "foreign_guide":
+        requested_guide = "55555555-5555-4555-8555-555555555555"
+    token = None if access == "missing_auth" else mint_token(
+        keys[0], scope=SCOPE_AVAILABILITY_READ if access == "wrong_scope" else SCOPE_CONNECTIONS_WRITE
+    )
+    response = api_get(
+        auth_settings, clock,
+        f"/integration/v1/guide-connections/{connection['connection_id']}/identity"
+        f"?companyId={company_id}&guideOsId={requested_guide}",
+        token=token,
+    )
+    assert response.status == (401 if access in {"missing_auth", "wrong_scope"} else 404)
+    assert str(API_USER) not in response._body_text

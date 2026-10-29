@@ -7,6 +7,7 @@ from aiohttp import web
 from services.miniapp_api_settings import MiniAppApiSettings
 from web_api.routes.analytics import register_analytics_routes
 from web_api.routes.availability import register_availability_routes
+from web_api.routes.daily_tips import register_daily_tips_routes
 from web_api.routes.entries import register_entries_routes
 from web_api.routes.guide_operator_assignments import (
     register_guide_operator_assignment_routes,
@@ -118,6 +119,7 @@ def register_miniapp_api_on_app(app: web.Application, settings: MiniAppApiSettin
     register_guideshop_visits_routes(app)
     register_guideshop_points_routes(app)
     register_guideshop_history_routes(app)
+    register_daily_tips_routes(app)
     register_reports_routes(app)
     register_availability_routes(app)
 

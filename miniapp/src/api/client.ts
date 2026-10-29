@@ -2,6 +2,7 @@ import type {
   AvailabilityPreview,
   AvailabilityPreviewParams,
   CalendarEntry,
+  DailyTip,
   CommissionReportsSummary,
   CommissionReportsSummaryParams,
   DayOffFormValues,
@@ -59,6 +60,9 @@ export interface GuideOsClient {
   updateDayLocations(id: string, locations: Record<string, string>): Promise<CalendarEntry>;
   getProfile(): Promise<GuideProfile>;
   updateProfile(patch: GuideProfilePatch): Promise<GuideProfile>;
+  getDailyTip(date: string): Promise<DailyTip>;
+  listDailyTips(from: string, to: string): Promise<DailyTip[]>;
+  setDailyTip(date: string, amount: number): Promise<DailyTip>;
   getReportsSummary(params: ReportsSummaryParams): Promise<ReportsSummary>;
   getCommissionReportsSummary(
     params: CommissionReportsSummaryParams,

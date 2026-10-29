@@ -1,5 +1,7 @@
 # Guide OS Mini App — MA4 Service Gap Analysis
 
+> Актуализация 2026-10-22: ниже сохранён scope исходного этапа/плана. Его старые next-step, ограничения активации и результаты не описывают автоматически текущий runtime. [Текущее состояние и последующие реализации](../CURRENT_STATE.md); незаполненные gates не считаются PASS.
+
 > Maps MA3 mock client → API Contract v1 → Python services.
 > **MA4 Step 2 closed** (services + migrations). **MA5 closed** (`web_api/` routes).
 > Last updated: 2026-08-29

@@ -2,10 +2,11 @@ import asyncio
 import logging
 from datetime import date, datetime, timedelta
 from html import escape
+from urllib.parse import urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from config import TIMEZONE
 from database.queries import (
@@ -16,6 +17,7 @@ from database.queries import (
 
 from utils.constants import ENTRY_TYPE_DAY_OFF, MONTH_NAMES_RU_GENITIVE
 from services.tour_card_formatter import format_tour_status
+from services.miniapp_api_settings import MiniAppMenuSettings
 
 logger = logging.getLogger(__name__)
 REMINDER_TZ = ZoneInfo(TIMEZONE)
@@ -42,10 +44,12 @@ def format_ru_date_range(start_date: str, end_date: str) -> str:
     )
 
 
-def build_open_tour_keyboard(target_date: str) -> InlineKeyboardMarkup:
+def build_open_tour_keyboard(
+    target_date: str, entry_id: int | None = None
+) -> InlineKeyboardMarkup:
     target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
 
-    return InlineKeyboardMarkup(
+    keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -55,6 +59,25 @@ def build_open_tour_keyboard(target_date: str) -> InlineKeyboardMarkup:
             ]
         ]
     )
+    try:
+        settings = MiniAppMenuSettings.from_env()
+    except ValueError:
+        return keyboard
+    if (
+        settings.enabled
+        and settings.public_url
+        and urlsplit(settings.public_url).scheme == "https"
+        and type(entry_id) is int
+        and 0 < entry_id <= 2**63 - 1
+    ):
+        query = urlencode({"reminder_entry": entry_id, "reminder_date": target_date})
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(
+                text="Открыть в приложении",
+                web_app=WebAppInfo(url=f"{settings.public_url}?{query}"),
+            )
+        ])
+    return keyboard
 
 def build_reminder_text(entry: dict, target_date: str) -> str:
     target_date_ru = format_ru_date(target_date)
@@ -168,7 +191,9 @@ async def send_tour_reminders(bot: Bot) -> None:
                         await bot.send_message(
                             chat_id=user_id,
                             text=build_reminder_text(entry, tomorrow_date),
-                            reply_markup=build_open_tour_keyboard(tomorrow_date),
+                            reply_markup=build_open_tour_keyboard(
+                                tomorrow_date, entry_id=entry["id"]
+                            ),
                             parse_mode="HTML",
                         )
                         

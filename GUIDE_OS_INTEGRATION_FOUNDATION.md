@@ -1,15 +1,17 @@
 # Guide OS Integration Foundation
 
+> Актуализация 2026-10-22: ниже сохранён scope исходного этапа/плана. Его старые next-step, ограничения активации и результаты не описывают автоматически текущий runtime. [Текущее состояние и последующие реализации](docs/CURRENT_STATE.md); незаполненные gates не считаются PASS.
+
 > **Архивный Guide OS foundation:** этот файл сохраняет раннюю техническую и архитектурную историю. Канонический актуальный roadmap находится в `integration_foundation.md`, раздел 18. Исторические readiness-gates ниже описывают состояние на дату соответствующей записи и не являются текущими блокерами.
 
-**Актуальный статус:** Stages 0–18 complete; production events active в GuideShop и Guide OS, Guide OS Telegram notifications active, GuideShop notifications disabled. Runtime/data/security/operations closure — PASS. Stage 19 выбран и начат в Guide OS: личные места и self-reported external outcomes хранятся только в Guide OS и не создают GuideShop companies/sales.
+**Актуальный статус:** Stages 0–18 complete; production events active в GuideShop и Guide OS, Guide OS Telegram notifications active, GuideShop notifications disabled. Runtime/data/security/operations closure — PASS. Stage 19 завершён в Guide OS: личные места и self-reported external outcomes хранятся только в Guide OS и не создают GuideShop companies/sales.
 
 **Финальная production-архитектура:** GuideShop, как источник истины для Visits и points, атомарно создаёт события в outbox и публикует их через authenticated feed. Guide OS валидирует principal и contract `v1.2.0`, выполняет durable inbox/deduplication, поддерживает checkpoint/watermark и доставляет bounded Telegram notification с server-side deep link к актуальному read-only состоянию.
 
 **Финальное sanitized evidence:** одна active link; GuideShop outbox `2`, один aggregate subject version `2`; Guide OS inbox stale `1`, delivered `1`, pending/processing/dead-letter `0`; checkpoint generation `2`; watermark version `2`; notification attempts/successes `1/1`; duplicates `0`; reconciliation `CLEAN`. Owner notification/deep-link smoke и Visit back-navigation smoke — PASS. Stage 17: `10m11s`, `22` completed cycles, HTTP `200×22`, failures/retries/duplicates/DLQ `0`.
 
 **Назначение:** единый документ подготовки Phase 3 — Guide OS Integration MVP
-**Текущая следующая деятельность:** Stage 19C local Telegram smoke для `📍 Мои места`, затем owner-run Terminal commit/push; routine post-launch monitoring Stages 0–18 продолжается параллельно.
+**Текущая следующая деятельность:** только явно активированный владельцем scope из `.ai/NEXT_TASK.md`; Stage 19C больше не является следующей задачей.
 **Владелец и утверждающий:** Product Owner
 **Дата утверждения:** 2026-08-07  
 **Область утверждения:** архитектура, data ownership, минимальный состав данных, linking, API/events, Telegram UX, план тестирования и начало implementation preparation.
@@ -1129,9 +1131,9 @@ Verification:
 
 Я, Product Owner, подтверждаю предложенные в этом документе product и architecture решения, принимаю ответственность по перечисленным направлениям и разрешаю начать подготовку и реализацию интеграции Guide OS ↔ GuideShop в пределах Track A и доступной части Track B. Это подтверждение не разрешает production activation до получения и фиксации evidence из раздела 14.1.
 
-## Future daily tips roadmap
+## Daily tips — Mini App-first production delivery
 
-Дневные чаевые являются отдельной будущей функцией Guide OS и не относятся к GuideShop income/points integration: одна сумма на `user_id + calendar_date`, bot-first, затем Mini App. Реализация не начата; см. `docs/TIPS_ROADMAP.md`.
+Дневные чаевые — отдельная от GuideShop функция, выпущенная Mini App-first в production 2026-10-27: одна сумма на `user_id + calendar_date`. Bot tips UX отложен; см. `docs/TIPS_ROADMAP.md`.
 
 ## Active GuideShop Mini App composition
 

@@ -156,13 +156,17 @@ describe('getCommissionReportRange', () => {
 });
 
 describe('ReportsPage', () => {
-  it('renders five summary metric labels', async () => {
+  it('renders tour, tips and total income metric labels', async () => {
     wrap(<ReportsPage />);
-    expect(screen.getByText('Туров')).toBeInTheDocument();
-    expect(screen.getByText('Рабочих дней')).toBeInTheDocument();
-    expect(screen.getByText('Доход ($)')).toBeInTheDocument();
-    expect(screen.getByText('Оплаченных туров')).toBeInTheDocument();
-    expect(screen.getByText('Неоплаченных туров')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Туров')).toBeInTheDocument();
+      expect(screen.getByText('Рабочих дней')).toBeInTheDocument();
+      expect(screen.getByText('Доход от туров')).toBeInTheDocument();
+      expect(screen.getByText('Чаевые')).toBeInTheDocument();
+      expect(screen.getByText('Общий доход')).toBeInTheDocument();
+      expect(screen.getByText('Оплаченных туров')).toBeInTheDocument();
+      expect(screen.getByText('Неоплаченных туров')).toBeInTheDocument();
+    });
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: t.commissionReportsTitle })).toBeTruthy();
     });
@@ -192,16 +196,15 @@ describe('ReportsPage', () => {
   it('places commission section between tour summary and share-free-dates', async () => {
     wrap(<ReportsPage />);
     await waitFor(() => {
-      expect(screen.getByText(t.commissionReportsTotal)).toBeTruthy();
+      const main = document.querySelector('main.main')!;
+      const tour = within(main).getByTestId('tour-reports-summary');
+      const commissions = within(main).getByTestId('commission-reports-section');
+      const share = within(main).getByRole('button', { name: t.shareFreeDates });
+      const position = (node: Element) =>
+        Array.from(main.children).findIndex((child) => child === node || child.contains(node));
+      expect(position(tour)).toBeLessThan(position(commissions));
+      expect(position(commissions)).toBeLessThan(position(share));
     });
-    const main = document.querySelector('main.main')!;
-    const tour = within(main).getByTestId('tour-reports-summary');
-    const commissions = within(main).getByTestId('commission-reports-section');
-    const share = within(main).getByRole('button', { name: t.shareFreeDates });
-    const position = (node: Element) =>
-      Array.from(main.children).findIndex((child) => child === node || child.contains(node));
-    expect(position(tour)).toBeLessThan(position(commissions));
-    expect(position(commissions)).toBeLessThan(position(share));
   });
 
   it('shows initial commission loading state', () => {

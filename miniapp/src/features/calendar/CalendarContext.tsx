@@ -34,6 +34,7 @@ import {
   daysInRange,
   parseDate,
   shiftIso,
+  toISO,
 } from '@/features/calendar/lib/dates';
 import type {
   AvailOpenFrom,
@@ -78,6 +79,9 @@ function defaultTourForm(selectedDate: string, prefill?: Partial<TourFormValues>
 }
 
 interface CalendarContextValue {
+  tipsRevision: number;
+  tipsChanged: () => void;
+  openTipsForm: () => void;
   entries: CalendarEntry[];
   activeTab: TabId;
   calendarScreen: CalendarScreen;
@@ -165,12 +169,28 @@ interface CalendarContextValue {
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
 
+function readReminderTarget(search: string): { id: string; date: string } | null {
+  const query = new URLSearchParams(search);
+  if (query.getAll('reminder_entry').length !== 1 || query.getAll('reminder_date').length !== 1) return null;
+  const id = query.get('reminder_entry')!;
+  const date = query.get('reminder_date')!;
+  if (!/^[1-9]\d{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || toISO(parseDate(date)) !== date) return null;
+  return { id, date };
+}
+
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
+  const reminderTarget = useMemo(() => readReminderTarget(window.location.search), []);
+  const reminderRequest = useRef<Promise<[CalendarEntry[], CalendarEntry | null]> | null>(null);
+  const reminderHandled = useRef(false);
   const todayMonthYear = useMemo(() => {
     const d = parseDate(MOCK_TODAY);
     return { month: d.getMonth(), year: d.getFullYear() };
   }, []);
+  const [tipsRevision, setTipsRevision] = useState(0);
+  const tipsChanged = useCallback(() => setTipsRevision((n) => n + 1), []);
+  const openTipsForm = useCallback(() => setOverlay('tips-form'), []);
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
   const [activeTab, setActiveTabState] = useState<TabId>('calendar');
   const [calendarScreen, setCalendarScreen] = useState<CalendarScreen>('feed');
@@ -219,9 +239,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshEntries();
+    if (!reminderTarget) refreshEntries();
     guideOsClient.getProfile().then(setProfile);
-  }, [refreshEntries]);
+  }, [refreshEntries, reminderTarget]);
 
   useEffect(() => {
     if (initialCalendarTrackedRef.current) return;
@@ -532,19 +552,21 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   );
 
   const openDetail = useCallback(
-    (id: string) => {
-      const entry = entries.find((row) => row.id === id);
+    (id: string, launch?: { entry: CalendarEntry; date: string }) => {
+      const entry = launch?.entry ?? entries.find((row) => row.id === id);
+      const focusDate = launch?.date ?? selectedDate;
+      const returnScreen = launch ? 'day' : calendarScreen;
       if (entry?.guideOperatorAssignmentId) {
         setGuideOperatorFocus({
           assignmentId: entry.guideOperatorAssignmentId,
-          focusDate: selectedDate,
+          focusDate,
           returnTo: {
-            calendarScreen,
-            selectedDate,
-            viewMonth,
-            viewYear,
-            monthExpanded,
-            feedScrollIso: selectedDate,
+            calendarScreen: returnScreen,
+            selectedDate: focusDate,
+            viewMonth: launch ? parseDate(focusDate).getMonth() : viewMonth,
+            viewYear: launch ? parseDate(focusDate).getFullYear() : viewYear,
+            monthExpanded: launch ? false : monthExpanded,
+            feedScrollIso: focusDate,
           },
         });
         setOverlay(null);
@@ -561,9 +583,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       }
       setOverlay('detail');
       setOverlayData({ id } as DetailOverlayData);
-      if (calendarScreen === 'day') setOverlayReturn('day');
+      if (returnScreen === 'day') setOverlayReturn('day');
     },
     [
+      tipsRevision,
+      tipsChanged,
+      openTipsForm,
       entries,
       selectedDate,
       calendarScreen,
@@ -572,6 +597,44 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       monthExpanded,
     ],
   );
+
+  useEffect(() => {
+    if (!reminderTarget || reminderHandled.current) return;
+    let active = true;
+    reminderRequest.current ??= Promise.all([
+      guideOsClient.listEntries().catch(() => []),
+      guideOsClient.getEntry(reminderTarget.id),
+    ]);
+    reminderRequest.current.then(([list, entry]) => {
+      if (!active || reminderHandled.current) return;
+      reminderHandled.current = true;
+      // The authenticated entry endpoint resolves row IDs to canonical multi-day IDs.
+      setEntries(entry ? [...list.filter((row) => row.id !== entry.id), entry] : list);
+      if (!entry) {
+        showToast(t.tourNotFound);
+      } else {
+        const date = reminderTarget.date >= entry.startDate && reminderTarget.date <= entry.endDate
+          ? reminderTarget.date : entry.startDate;
+        const d = parseDate(date);
+        setSelectedDate(date);
+        setViewMonth(d.getMonth());
+        setViewYear(d.getFullYear());
+        setVisibleFeedMonth(d.getMonth());
+        setVisibleFeedYear(d.getFullYear());
+        setCalendarScreen('day');
+        openDetail(entry.id, { entry, date });
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('reminder_entry');
+      url.searchParams.delete('reminder_date');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }).catch(() => {
+      if (!active || reminderHandled.current) return;
+      reminderHandled.current = true;
+      showToast('Не удалось открыть тур. Откройте напоминание ещё раз.');
+    });
+    return () => { active = false; };
+  }, [reminderTarget, openDetail, showToast]);
 
   const editTour = useCallback(
     async (id: string) => {
@@ -834,6 +897,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CalendarContextValue>(
     () => ({
+      tipsRevision,
+      tipsChanged,
+      openTipsForm,
       entries,
       activeTab,
       calendarScreen,
@@ -972,6 +1038,9 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       retryDemo,
     }),
     [
+      tipsRevision,
+      tipsChanged,
+      openTipsForm,
       entries,
       activeTab,
       calendarScreen,

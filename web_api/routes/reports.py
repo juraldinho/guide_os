@@ -36,13 +36,9 @@ def register_reports_routes(app: web.Application) -> None:
 
         from_date = request.rel_url.query.get("from")
         to_date = request.rel_url.query.get("to")
-        if (
-            not from_date
-            or not to_date
-            or _DATE_RE.fullmatch(from_date) is None
-            or _DATE_RE.fullmatch(to_date) is None
-            or from_date > to_date
-        ):
+        try:
+            from_date, to_date = validate_date_range(from_date, to_date)
+        except ValueError:
             return error_response("validation_error", "Укажите корректные from и to.", rid, 400)
 
         status = request.rel_url.query.get("status", "all")

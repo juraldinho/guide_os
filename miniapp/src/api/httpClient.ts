@@ -9,6 +9,7 @@ import type {
   AvailabilityPreview,
   AvailabilityPreviewParams,
   CalendarEntry,
+  DailyTip,
   CommissionReportsSummary,
   CommissionReportsSummaryParams,
   DayOffFormValues,
@@ -460,6 +461,23 @@ export function createHttpClient(): GuideOsClient {
         method: 'PATCH',
         headers: { 'Idempotency-Key': newIdempotencyKey() },
         body: JSON.stringify(patch),
+      });
+    },
+
+    async getDailyTip(date: string) {
+      return apiRequest<DailyTip>(`/app/v1/daily-tips/${encodeURIComponent(date)}`);
+    },
+
+    async listDailyTips(from: string, to: string) {
+      const query = new URLSearchParams({ from, to });
+      const result = await apiRequest<{ tips: DailyTip[] }>(`/app/v1/daily-tips?${query}`);
+      return result.tips;
+    },
+
+    async setDailyTip(date: string, amount: number) {
+      return apiRequest<DailyTip>(`/app/v1/daily-tips/${encodeURIComponent(date)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ amount }),
       });
     },
 

@@ -3,19 +3,19 @@ import { trackMiniAppEvent } from '@/api/analytics';
 import { Chip } from '@/components/ui/Chip';
 import { IconChevronLeft, IconChevronRight } from '@/components/ui/Icons';
 import { guideOsClient } from '@/api/createClient';
-import { USE_MOCK_API } from '@/config';
 import { MONTH_NAMES_CAP } from '@/i18n/ru';
 import { t } from '@/i18n/strings';
 import { useCalendar } from '@/features/calendar/CalendarContext';
 import { CommissionReportsSection } from './CommissionReportsSection';
-import { getCommissionReportRange, getReportRange, getMockTodayYear } from './lib/periods';
-import { calcSummary } from './lib/summary';
-import type { ReportsSummary } from './lib/types';
+import { getCommissionReportRange, getIncomeReportRange, getMockTodayYear } from './lib/periods';
+import type { ReportsSummary } from '@/api/types';
 
 const EMPTY_SUMMARY: ReportsSummary = {
   tourCount: 0,
   workDays: 0,
   income: 0,
+  tips: 0,
+  totalEarnings: 0,
   paidTours: 0,
   unpaidTours: 0,
 };
@@ -23,6 +23,7 @@ const EMPTY_SUMMARY: ReportsSummary = {
 export function ReportsPage() {
   const {
     entries,
+    tipsRevision,
     reportsPeriod,
     reportsMonth,
     reportsYear,
@@ -39,35 +40,22 @@ export function ReportsPage() {
   } = useCalendar();
 
   const maxYear = getMockTodayYear();
-  const range = getReportRange(reportsPeriod, reportsMonth, reportsYear, entries);
+  const range = getIncomeReportRange(reportsPeriod, reportsMonth, reportsYear, entries);
   const commissionRange = useMemo(
     () => getCommissionReportRange(reportsPeriod, reportsMonth, reportsYear),
     [reportsPeriod, reportsMonth, reportsYear],
   );
-  const mockSummary = useMemo(
-    () =>
-      calcSummary(entries, range, {
-        status: filterStatus,
-        payment: filterPayment,
-        company: '',
-        location: '',
-      }),
-    [entries, range, filterStatus, filterPayment],
-  );
-
   const [apiSummary, setApiSummary] = useState<ReportsSummary | null>(null);
   const expectedIncomeTrackedRef = useRef(false);
-  const [summaryLoaded, setSummaryLoaded] = useState(USE_MOCK_API);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
 
+  const [summaryError, setSummaryError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (USE_MOCK_API) {
-      setApiSummary(null);
-      setSummaryLoaded(true);
-      return;
-    }
 
     let cancelled = false;
     setSummaryLoaded(false);
+    setSummaryError(false);
     guideOsClient
       .getReportsSummary({
         from: range.from,
@@ -82,13 +70,13 @@ export function ReportsPage() {
         }
       })
       .catch(() => {
-        if (!cancelled) setApiSummary(EMPTY_SUMMARY);
+        if (!cancelled) setSummaryError(true);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [range.from, range.to, filterStatus, filterPayment]);
+  }, [range.from, range.to, filterStatus, filterPayment, tipsRevision, entries, attempt]);
 
   useEffect(() => {
     if (!summaryLoaded || expectedIncomeTrackedRef.current) return;
@@ -96,7 +84,7 @@ export function ReportsPage() {
     trackMiniAppEvent('expected_income_viewed');
   }, [summaryLoaded]);
 
-  const summary = USE_MOCK_API ? mockSummary : (apiSummary ?? EMPTY_SUMMARY);
+  const summary = apiSummary ?? EMPTY_SUMMARY;
 
   return (
     <main className="main">
@@ -183,6 +171,10 @@ export function ReportsPage() {
         />
       </div>
 
+      <p className="text-muted">Фильтры применяются к турам. Чаевые учитываются за весь выбранный период.</p>
+      <p className="text-muted">Доход от туров включает выбранные оплаченные и неоплаченные туры. Чаевые уже получены.</p>
+      {summaryError ? <div role="alert">Не удалось загрузить итоги. <button className="btn btn-secondary" onClick={() => setAttempt((n) => n + 1)}>Повторить</button></div> :
+      !summaryLoaded ? <p role="status">Загрузка итогов…</p> :
       <div className="summary-grid" data-testid="tour-reports-summary">
         <div className="summary-item">
           <div className="label">{t.metricTours}</div>
@@ -193,7 +185,7 @@ export function ReportsPage() {
           <div className="value">{summary.workDays}</div>
         </div>
         <div className="summary-item">
-          <div className="label">{t.metricIncome}</div>
+          <div className="label">Доход от туров</div>
           <div className="value">${summary.income}</div>
         </div>
         <div className="summary-item">
@@ -204,7 +196,15 @@ export function ReportsPage() {
           <div className="label">{t.metricUnpaidTours}</div>
           <div className="value">{summary.unpaidTours}</div>
         </div>
-      </div>
+        <div className="summary-item">
+          <div className="label">Чаевые</div>
+          <div className="value">${summary.tips}</div>
+        </div>
+        <div className="summary-item">
+          <div className="label">Общий доход</div>
+          <div className="value">${summary.totalEarnings}</div>
+        </div>
+      </div>}
 
       <CommissionReportsSection range={commissionRange} />
 

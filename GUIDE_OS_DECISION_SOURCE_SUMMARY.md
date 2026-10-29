@@ -1,8 +1,10 @@
 # Guide OS — Decision Source Summary
 
+> Актуализация 2026-10-22: ниже сохранён scope исходного этапа/плана. Его старые next-step, ограничения активации и результаты не описывают автоматически текущий runtime. [Текущее состояние и последующие реализации](docs/CURRENT_STATE.md); незаполненные gates не считаются PASS.
+
 Concise summary derived from the **current codebase**, tests, README, folder structure, and existing documentation (`docs/project_context.md`, `.cursor/rules/`). Intended as input for a future `DECISION_LOG.md`.
 
-Later owner-approved future work is recorded separately from the original MVP evidence. Tips follow the not-yet-implemented bot-first roadmap in `docs/TIPS_ROADMAP.md`.
+Later owner-approved future work is recorded separately from the original MVP evidence. Tips were subsequently delivered Mini App-first to production on 2026-10-27; Telegram bot tips UX remains deferred. See `docs/TIPS_ROADMAP.md`.
 
 **Evidence date:** inferred from repository state; no git history was used for this document.
 
@@ -722,4 +724,4 @@ Below are **recommended DECISION_LOG entries** with the standard fields. Copy/ad
 
 ## Later active roadmap
 
-The owner activated the GuideShop Mini App workstream: scalable third bottom module, personal companies/commissions first, official GuideShop read-only. Current stage is GSMA0; see `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+The owner activated the GuideShop Mini App workstream: scalable third bottom module, personal companies/commissions first, official GuideShop read-only. GSMA0–GSMA10 are complete for the public pilot; see `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

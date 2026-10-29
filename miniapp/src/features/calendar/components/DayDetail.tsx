@@ -1,3 +1,4 @@
+import { DailyTipsDay } from './DailyTipsSheet';
 import { fmtDateLong } from '../lib/dates';
 import {
   dayStatus,
@@ -94,6 +95,7 @@ export function DayDetail() {
           </div>
         ))
       )}
+      <DailyTipsDay />
       <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={openAdd}>
         {t.add}
       </button>

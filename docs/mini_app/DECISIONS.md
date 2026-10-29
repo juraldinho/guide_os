@@ -1,6 +1,8 @@
 # Guide OS Mini App — журнал решений
 
-> **Implementation progress (2026-08-29):** MA0–MA6 complete. Следующий: **MA7** (React HTTP client). См. [`../../miniapp/.ai/NEXT_TASK.md`](../../miniapp/.ai/NEXT_TASK.md).
+> Состояние на 2026-10-22: [реализация, окружения и границы подтверждения](../CURRENT_STATE.md). Старые deployment/PASS записи относятся к указанным датам; live-состояние этой документационной сверкой не проверялось.
+
+> **Implementation progress (2026-10-22):** MA0–MA10 и GSMA0–GSMA10 complete; Guide Operator UI и staging closure реализованы/зафиксированы. Новый coding scope не активирован. См. [`../../miniapp/.ai/NEXT_TASK.md`](../../miniapp/.ai/NEXT_TASK.md).
 
 ## D-001. Целевая аудитория
 
@@ -26,10 +28,12 @@ Guide OS и Guide OS Mini App предназначены только для т�
 
 **Статус:** принято
 
-Mini App использует две основные вкладки:
+Первоначальные две вкладки расширены GSMA/GO workstreams. Текущая горизонтально прокручиваемая панель:
 
 - `Календарь`;
-- `Итоги`.
+- `Итоги`;
+- `GuideShop`;
+- `Guide Operator`.
 
 Настройки не занимают отдельную нижнюю вкладку.
 

@@ -1,5 +1,7 @@
 # GO13D Guide Operator ↔ Guide OS staging E2E runbook
 
+> Контекст на 2026-10-22: результаты ниже относятся к датированному прогону, повторный E2E/security audit этой правкой не выполнялся. [Текущее состояние](CURRENT_STATE.md).
+
 Status: `GO13D_PASS` (owner-authorized staging execution completed 2026-10-08).
 
 Sanitized closure: one confirmed connection; one cancelled assignment; immutable v1/v2 retained; zero active protected projections; cancellation and acknowledgement applied exactly once; GO11B1 discrepancy count zero; eligible integration-outbox rows zero in both systems; SQLite quick check `ok`. GO13D3A changed only the cancelled-tour assignment-cancellation frontend guard.

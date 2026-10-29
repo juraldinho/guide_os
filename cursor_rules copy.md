@@ -1,5 +1,7 @@
 # Guide OS - Cursor Rules
 
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 ## Главная цель проекта
 
 Довести Guide OS до рабочего MVP максимально быстро, просто и безопасно.
@@ -191,7 +193,7 @@ keyboards/
 
 Не реализовывай её.
 
-Позднее владелец отдельно утвердил будущую функцию чаевых. Она не активируется автоматически; при явном запросе следовать bot-first плану `docs/TIPS_ROADMAP.md`.
+Владелец активировал и выпустил дневные чаевые Mini App-first в production 2026-10-27. Telegram bot tips UX остаётся отложенным; текущий план — `docs/TIPS_ROADMAP.md`. Не запускать заново завершённую функцию.
 
 Пометь как:
 
@@ -366,4 +368,4 @@ CODE
 
 Строй только то, что нужно, чтобы сегодня работал MVP Guide OS.
 
-Активное исключение, явно утверждённое владельцем: GuideShop Mini App, начиная с GSMA0. Следовать `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`; official data остаётся read-only.
+Активное исключение, явно утверждённое владельцем: GuideShop Mini App GSMA0–GSMA10 завершён для public pilot; Guide Operator реализован в пределах карты `AGENTS.md`. Новые workstreams автоматически не активируются. Следовать `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`; official data остаётся read-only.

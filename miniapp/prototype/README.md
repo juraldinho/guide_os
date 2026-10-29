@@ -1,5 +1,7 @@
 # Guide OS Mini App — UX Prototype (MA2)
 
+> Актуализация 2026-10-22: ниже сохранён scope исходного этапа/плана. Его старые next-step, ограничения активации и результаты не описывают автоматически текущий runtime. [Текущее состояние и последующие реализации](../../docs/CURRENT_STATE.md); незаполненные gates не считаются PASS.
+
 High-fidelity **disposable** clickable prototype on mock data. **Not** the production frontend — use `miniapp/src/` (MA3 React app) for active development.
 
 ## Status

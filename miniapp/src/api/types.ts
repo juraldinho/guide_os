@@ -53,6 +53,7 @@ export interface DayOffFormValues {
 }
 
 export type OverlayKind =
+  | 'tips-form'
   | 'add-select'
   | 'tour-form'
   | 'dayoff-form'
@@ -191,7 +192,16 @@ export interface ReportsSummaryPeriod {
   to: string;
 }
 
+export interface DailyTip {
+  date: string;
+  amount: number;
+}
+
+export const MAX_DAILY_TIPS = 1_000_000_000;
+
 export interface ReportsSummary {
+  tips: number;
+  totalEarnings: number;
   tourCount: number;
   workDays: number;
   income: number;

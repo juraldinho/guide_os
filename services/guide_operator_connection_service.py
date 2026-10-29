@@ -417,6 +417,32 @@ def get_connection_for_guide(guide_os_id: str, connection_id: str) -> dict[str, 
     return row
 
 
+def get_confirmed_connection_identity(
+    *, connection_id: str, company_id: str, guide_os_id: str
+) -> dict[str, str]:
+    """Return the authoritative Telegram identity for one exact confirmed connection."""
+    identity = validate_guide_os_id(guide_os_id)
+    connection_id = _require_nonempty(connection_id, "connection_id")
+    company_id = _require_nonempty(company_id, "company_id")
+    connection = get_guide_operator_connection(connection_id)
+    if (
+        connection is None
+        or connection["company_id"] != company_id
+        or connection["guide_os_id"] != identity
+        or connection["status"] != "confirmed"
+    ):
+        raise ConnectionNotFoundError("Confirmed connection identity was not found.")
+    telegram_user_id = get_user_id_by_guide_os_id(identity)
+    if telegram_user_id is None:
+        raise ConnectionNotFoundError("Confirmed connection identity was not found.")
+    return {
+        "connection_id": connection_id,
+        "company_id": company_id,
+        "guide_os_id": identity,
+        "telegram_user_id": str(telegram_user_id),
+    }
+
+
 def list_connections_for_guide(
     guide_os_id: str, *, now: str | None = None
 ) -> list[dict[str, Any]]:

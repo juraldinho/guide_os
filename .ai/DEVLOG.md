@@ -1,5 +1,15 @@
 # Guide OS — Development Log
 
+## 2026-10-29 — production reminder links; release docs synchronized
+
+Docs-only validation: environment-documentation guard **1 passed**; relative links in **28** updated Markdown files are valid; `git diff --check` clean. No application/runtime changes in this documentation task.
+
+Чаевые Mini App-first выпущены 2026-10-27. Новая кнопка reminder → точная карточка Mini App выпущена 2026-10-29: backend `5dd8037d…`, frontend `3d307e26…`, SUCCESS. Source hashes, backup/integrity, одна runtime/polling instance, keyboard/menu, public bundle и auth gates проверены; manual Telegram/device E2E остаётся pending. Git/pins не изменялись. [Точный release evidence](../docs/REMINDER_MINIAPP_LINK.md). Старые записи ниже сохранены с исходными датами.
+
+## 2026-10-22 — синхронизация документации
+
+Учтены GO13I1 (withdrawal/expiry backend), GO13J1 (local production launcher), текущая навигация Mini App и ранее существовавшая локальная identity-работа. Deployment не выполнялся. [Сводка и границы evidence](../docs/CURRENT_STATE.md). Записи ниже сохраняют даты и результаты исходных этапов.
+
 ## 2026-10-09 — GO13G staging closure and production-readiness audit
 
 - Recorded `GO13D_PASS`, the narrow GO13D3A cancellation guard, and the GO13E operational audit without rewriting historical evidence.

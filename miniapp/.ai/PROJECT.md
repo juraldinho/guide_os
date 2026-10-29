@@ -1,6 +1,12 @@
 # Guide OS Mini App — Project State
 
-> Обновлено: 2026-09-01
+**Owner validation — 2026-10-29:** владелец сообщил, что ручная проверка закрыта: функция работает корректно. Functional manual validation считается **PASS по подтверждению владельца**; это не новый автоматический прогон и не отдельная аттестация каждого устройства. По прямому поручению владельца агент выполняет Git commit/push и production source-pin alignment; статус операции обновляется в `docs/REMINDER_MINIAPP_LINK.md`.
+
+**Release update 2026-10-29:** Чаевые Mini App-first выпущены в production 2026-10-27; «Открыть в приложении» в новых напоминаниях — 2026-10-29. Текущие production deployments: backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`. Technical smoke прошёл; functional manual validation закрыта владельцем 2026-10-29. Релизы выполнены из изолированных артефактов; Git HEAD остаётся `24b3cad`, старые source pins не включают новые функции. Текущая задача: по прямому поручению владельца агент выполняет Git/source alignment перед новой выкладкой из Git. Новая coding-задача не активирована.
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](../../docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
+> Обновлено: 2026-10-29
 
 ## Статус
 
@@ -10,11 +16,11 @@
 
 **MA11** hosted closed staging — **not** the active next step; owner authorized reversible public production pilot instead.
 
-**Active next product stage: GSMA0** — GuideShop Mini App product/API audit and contract. Third bottom module, personal companies/commissions, then official read-only catalog. Application code and deployment have not started. Canonical plan: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+**GuideShop GSMA0–GSMA10 complete for the public pilot**; no active GuideShop coding task. Guide Operator is the fourth module with consent, assignments, version decisions and protected calendar projections. Canonical plan: `../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
 
 **Google Calendar** утверждён как будущий отдельный workstream: read-only import в Guide OS с последующим ручным преобразованием external event в полноценный native tour. Реализация не начата. Канонический план: `../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`.
 
-**Дневные чаевые** утверждены как будущий bot-first workstream: одна сумма на `user_id + calendar_date`, независимо от туров; shared foundation и Telegram bot сначала, затем Web API/Mini App parity. Реализация не начата. Канонический план: `../../docs/TIPS_ROADMAP.md`.
+**Дневные чаевые**: Mini App-first; staging 2026-10-22 и production 2026-10-27. Одна сумма пользователя/даты, replace/zero-delete, общий backend/API и отдельные tips/totalEarnings в Итогах. Telegram bot tips UX/statistics отложены. План: `../../docs/TIPS_ROADMAP.md`.
 
 Не описывать планируемую архитектуру как существующий код.
 
@@ -26,7 +32,7 @@
 
 - пользователь — только гид;
 - бот и Mini App — равноценные интерфейсы общих данных;
-- две вкладки: `Календарь`, `Итоги`;
+- четыре вкладки: `Календарь`, `Итоги`, `GuideShop`, `Guide Operator`;
 - настройки через шестерёнку;
 - day/week/month;
 - tour/day off;

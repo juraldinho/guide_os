@@ -1,34 +1,11 @@
 # Guide OS Mini App — Next Task
 
-> Обновлено: 2026-09-04
+Обновлено: **2026-10-29**. [Текущее состояние](../../docs/CURRENT_STATE.md).
 
-## Единственная следующая задача
+Чаевые выпущены в production 2026-10-27; переход к точному туру из нового reminder — 2026-10-29. Backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`, SUCCESS. Новая coding-задача не назначена.
 
-**Нет активной GuideShop Mini App coding-задачи.**
+Ручная функциональная проверка закрыта владельцем 2026-10-29 (owner-reported PASS). Текущая задача: агенту явно поручены commit/push проверенного production source и обновление Railway production pins. Не повторять готовый deploy и не считать старые Git pins актуальным source новых функций. Handoffs: [daily tips](../../docs/DAILY_TIPS_IMPLEMENTATION.md), [reminder links](../../docs/REMINDER_MINIAPP_LINK.md).
 
-GSMA0–GSMA10 complete for the current public production **pilot**. Owner two-account E2E: **PASS** (2026-09-04, sanitized record in [`../../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md)).
+Проверить чаевые save/reload/edit/zero, breakdown в Итогах и второй аккаунт; новое напоминание → Открыть в приложении → нужная карточка и дата после закрытия. Старые сообщения не изменяются. Владелец подтвердил функциональный manual PASS; отдельная device matrix не предоставлялась.
 
-- Public production pilot: **REMAINS ENABLED**
-- Formal general Mini App release: **NOT** separately declared
-- Official GuideShop data: remains **read-only**
-- Mini App GuideShop sales: remain **withdrawn**
-
-Ждать явной активации следующего roadmap владельцем. Не кодировать, не деплоить и не объявлять general release без нового запроса.
-
-Канонический план: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md).
-
-Security matrix: [`../../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md).
-
-Rollback: [`../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`](../../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md).
-
-## Утверждённый будущий roadmap — Google Calendar
-
-Владелец утвердил будущую одностороннюю интеграцию `Google Calendar → Guide OS`. Реализация не начата и **не** активируется автоматически. План: [`../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`](../../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md).
-
-## Утверждённый будущий roadmap — чаевые
-
-Bot-first дневные чаевые не начаты и **не** активируются автоматически. План: [`../../docs/TIPS_ROADMAP.md`](../../docs/TIPS_ROADMAP.md).
-
-## Public production pilot — ACTIVE
-
-Do not disable pilot, redeploy, or flip production flags without a new explicit owner request. Rollback: `MINI_APP_ENABLED=false` (+ `MINI_APP_API_ENABLED=false` if needed).
+MA0–MA10 и GSMA0–GSMA10 завершены для public pilot; formal general release отдельно не объявлен. Official GuideShop read-only, продажи GuideShop скрыты. Google Calendar остаётся будущим неактивным roadmap. Telegram bot tips UX/statistics отложены. Не отключать pilot, менять flags или расширять scope без запроса владельца.

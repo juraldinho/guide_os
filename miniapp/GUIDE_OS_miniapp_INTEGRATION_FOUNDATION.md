@@ -1,15 +1,17 @@
 # Guide OS Mini App — Integration Foundation
 
+> Актуализация 2026-10-22: ниже сохранён scope исходного этапа/плана. Его старые next-step, ограничения активации и результаты не описывают автоматически текущий runtime. [Текущее состояние и последующие реализации](../docs/CURRENT_STATE.md); незаполненные gates не считаются PASS.
+
 > Версия: 1.0  
 > Дата: 2026-08-28  
 > Обновлено: 2026-08-29
-> Статус: **MA0–MA10 complete**. Следующий: **MA11** hosted closed staging deploy (deferred until owner approval).
+> Статус: исторический foundation MA0–MA10. Public pilot и GSMA0–GSMA10 впоследствии завершены; MA11 не является активной следующей задачей.
 
 ## 1. Цель
 
 Определить безопасную техническую границу между Telegram Mini App, Guide OS Web API, существующей бизнес-логикой Guide OS и read-only GuideShop integration.
 
-Конкретные HTTP schemas: [`docs/mini_app/API_CONTRACT_v1.md`](../docs/mini_app/API_CONTRACT_v1.md). Реализация routes: `web_api/` (MA5). Production activation **не разрешена** до staging gate.
+Конкретные HTTP schemas: [`docs/mini_app/API_CONTRACT_v1.md`](../docs/mini_app/API_CONTRACT_v1.md). Реализация routes: `web_api/` (MA5). Исходный staging gate ниже сохранён как история; последующий public pilot был отдельно разрешён владельцем. Новый deployment требует собственного scope.
 
 ## 2. System context
 
@@ -667,10 +669,10 @@ Resolve only at their stage:
 
 Each decision needs smallest viable option, tests and compatibility analysis. Do not use open items to expand MVP.
 
-## Future daily tips integration
+## Daily tips — implemented shared API
 
-Daily tips are approved but not implemented: one amount per authenticated user/calendar date, stored outside tours. Telegram bot delivery precedes Web API and Mini App parity. Canonical plan: `../docs/TIPS_ROADMAP.md`.
+Daily tips are implemented Mini App-first and deployed to production 2026-10-27: one amount per authenticated user/date, outside tours; shared API and report totals. Telegram bot tips delivery is deferred. Canonical plan: `../docs/TIPS_ROADMAP.md`.
 
 ## Active GuideShop Mini App composition
 
-The owner activated GSMA0. Compose existing personal-place services and request-scoped official read-only GuideShop data through the Guide OS API; do not create a parallel frontend model. See `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+GSMA0–GSMA10 are complete for the public pilot. Reuse existing personal-place services and request-scoped official read-only GuideShop data through the Guide OS API; do not create a parallel frontend model. See `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

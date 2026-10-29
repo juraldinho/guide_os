@@ -195,6 +195,8 @@ def reports_summary_to_api(summary: dict[str, Any]) -> dict[str, Any]:
         "tourCount": summary["tour_count"],
         "workDays": summary["work_days"],
         "income": summary["income"],
+        "tips": summary["tips"],
+        "totalEarnings": summary["total_earnings"],
         "paidTours": summary["paid_tours"],
         "unpaidTours": summary["unpaid_tours"],
         "period": {

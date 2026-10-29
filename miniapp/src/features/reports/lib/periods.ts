@@ -100,3 +100,11 @@ export function getAvailContextRange(
   }
   return getReportRange(reports.period, reports.month, reports.year, entries);
 }
+
+/** Income all-time includes tips-only dates outside loaded tour bounds. */
+export function getIncomeReportRange(
+  period: ReportsPeriod, month: number, year: number, entries: CalendarEntry[],
+): DateRange {
+  return period === 'all' ? { from: '0001-01-01', to: '9999-12-31' }
+    : getReportRange(period, month, year, entries);
+}

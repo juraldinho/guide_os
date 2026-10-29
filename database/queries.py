@@ -3137,3 +3137,27 @@ def finish_guide_operator_guide_notification_delivery(
         return dict(row) if row else None
 
     return run_write_with_retry(operation)
+
+
+def list_daily_tips(user_id: int, from_date: str, to_date: str) -> list[dict]:
+    with get_db_connection() as conn:
+        return [dict(row) for row in conn.execute(
+            "SELECT tip_date AS date, amount FROM daily_tips "
+            "WHERE user_id = ? AND tip_date BETWEEN ? AND ? ORDER BY tip_date",
+            (user_id, from_date, to_date),
+        )]
+
+
+def set_daily_tips(user_id: int, tip_date: str, amount: int) -> None:
+    def operation(conn):
+        if amount == 0:
+            conn.execute("DELETE FROM daily_tips WHERE user_id = ? AND tip_date = ?",
+                         (user_id, tip_date))
+        else:
+            conn.execute(
+                "INSERT INTO daily_tips(user_id, tip_date, amount) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, tip_date) DO UPDATE SET "
+                "amount = excluded.amount, updated_at = CURRENT_TIMESTAMP",
+                (user_id, tip_date, amount),
+            )
+    run_write_with_retry(operation)

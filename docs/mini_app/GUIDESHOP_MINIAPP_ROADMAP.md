@@ -1,5 +1,7 @@
 # Guide OS Mini App — GuideShop module roadmap
 
+> Состояние на 2026-10-22: [реализация, окружения и границы подтверждения](../CURRENT_STATE.md). Старые deployment/PASS записи относятся к указанным датам; live-состояние этой документационной сверкой не проверялось.
+
 > Зафиксировано: 2026-09-02  
 > Статус: **GSMA0–GSMA10 complete** for the current public production **pilot** (owner E2E PASS 2026-09-04). Not an unrestricted formal general production release.
 > Порядок: navigation → personal companies/commissions → official GuideShop → unified UX → optional official submodules → security/E2E

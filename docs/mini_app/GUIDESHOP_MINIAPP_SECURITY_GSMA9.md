@@ -1,5 +1,7 @@
 # GuideShop Mini App — security matrix (GSMA9)
 
+> Контекст на 2026-10-22: результаты ниже относятся к датированному прогону, повторный E2E/security audit этой правкой не выполнялся. [Текущее состояние](../CURRENT_STATE.md).
+
 > Дата: 2026-09-03 (manual E2E row updated 2026-09-04)  
 > Scope: Mini App composition API + frontend client. Official GuideShop remains **read-only**. Mini App **sales are withdrawn**.  
 > Evidence: automated tests cited below, plus completed GSMA10 owner E2E. **Not** a formal security certification. **Not** a separate formal general release.

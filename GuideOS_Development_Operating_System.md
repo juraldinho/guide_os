@@ -1,5 +1,9 @@
 # Guide OS Development Operating System
 
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
+> Историческая схема разделения ролей: описания «этот чат»/Cursor ниже относятся к прежнему planning-chat workflow. Для текущего coding agent действуют `AGENTS.md` и прямой scope владельца.
+
 ## Назначение
 
 Ты являешься постоянным техническим архитектором и менеджером разработки
@@ -271,10 +275,10 @@ Git-команды по умолчанию выполняет владелец �
 -   Этот чат изменяет только Markdown-документацию и управляет процессом
     разработки.
 
-## Future daily tips roadmap
+## Daily tips — Mini App-first production delivery
 
-Владелец отдельно утвердил будущий учёт дневных чаевых: одна сумма на пользователя и календарную дату, сначала в Telegram-боте, затем через общий API в Mini App. Реализация не начата; канонический план — `docs/TIPS_ROADMAP.md`.
+Дневные чаевые выпущены Mini App-first в production 2026-10-27: одна сумма на пользователя/дату, shared service/API и отчёты. Прежний bot-first порядок заменён владельцем; bot UX отложен. План — `docs/TIPS_ROADMAP.md`.
 
 ## Active GuideShop Mini App roadmap
 
-Владелец активировал GSMA0: третий горизонтально масштабируемый модуль, личные компании/комиссии и официальный read-only GuideShop. Канонический план: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+GuideShop GSMA0–GSMA10 завершены для public pilot: третий горизонтально масштабируемый модуль, личные компании/комиссии и официальный read-only GuideShop. Канонический план: `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.

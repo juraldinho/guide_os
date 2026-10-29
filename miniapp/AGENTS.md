@@ -1,12 +1,18 @@
 # Guide OS Mini App — инструкции для AI-агентов
 
+**Owner validation — 2026-10-29:** владелец сообщил, что ручная проверка закрыта: функция работает корректно. Functional manual validation считается **PASS по подтверждению владельца**; это не новый автоматический прогон и не отдельная аттестация каждого устройства. По прямому поручению владельца агент выполняет Git commit/push и production source-pin alignment; статус операции обновляется в `docs/REMINDER_MINIAPP_LINK.md`.
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](../docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 Этот файл действует для каталога `miniapp/` и всех вложенных файлов. Читай его первым. Не сканируй весь репозиторий без доказанной необходимости.
 
 При конфликте приоритет: текущий код и тесты → этот файл → `miniapp/.ai/*` → остальные Mini App Markdown-документы → root docs.
 
 ## Текущее состояние
 
-> Обновлено: 2026-09-04. Этапы **MA0–MA10** — завершённые исторические этапы. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). **Public production pilot — ACTIVE, owner-validated** (2026-09-01). **GuideShop Mini App GSMA0–GSMA10 complete** for the public pilot; GSMA10 two-account owner E2E **PASS** (2026-09-04). Formal general release was **not** separately declared. No active GuideShop coding task.
+**Release update 2026-10-29:** Чаевые Mini App-first выпущены в production 2026-10-27; «Открыть в приложении» в новых напоминаниях — 2026-10-29. Текущие production deployments: backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`. Technical smoke прошёл; functional manual validation закрыта владельцем 2026-10-29. Релизы выполнены из изолированных артефактов; Git HEAD остаётся `24b3cad`, старые source pins не включают новые функции. Текущая задача: по прямому поручению владельца агент выполняет Git/source alignment перед новой выкладкой из Git. Новая coding-задача не активирована. Полные детали: `../docs/REMINDER_MINIAPP_LINK.md`.
+
+> Обновлено: 2026-10-29. Этапы **MA0–MA10** — завершённые исторические этапы. Post-MA10: **Owner-approved Mini App MVP UX checkpoint — complete** (commit `57405f4` on `main`). **Public production pilot — ACTIVE, owner-validated** (2026-09-01). **GuideShop Mini App GSMA0–GSMA10 complete** for the public pilot; GSMA10 two-account owner E2E **PASS** (2026-09-04). Formal general release was **not** separately declared. No active GuideShop coding task.
 
 | Этап | Статус | Артефакт |
 |------|--------|----------|
@@ -31,17 +37,17 @@
 
 **Future Google Calendar workstream (approved concept, not started):** one-way import `Google Calendar → Guide OS`, external event → editable draft → native tour. Canonical stages GC0–GC13: `../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`. Не начинать без нового явного запроса владельца; Apple/iCloud и обратная запись в Google вне первого scope.
 
-**Future tips workstream (approved concept, not started):** one total tips amount per `user_id + calendar_date`, independent of tours; shared foundation and Telegram bot first, then Web API and Mini App parity. Canonical stages TIP0–TIP10: `../docs/TIPS_ROADMAP.md`. Не начинать без нового явного запроса владельца.
+**Daily tips (owner activated 2026-10-22, Mini App-first):** shared persistence/service + authenticated API + HTTP/mock clients + date chooser/editor + reports deployed to staging (2026-10-22) and owner-authorized production (2026-10-27). One integer USD total per `user_id + calendar_date`; replace or zero/delete, independent of tours/occupancy. Reports preserve `income` and add `tips`/`totalEarnings`; all-time includes tips-only dates. Telegram bot UX/statistics and manual Telegram/device E2E remain pending; production technical checks passed (see `../docs/DAILY_TIPS_IMPLEMENTATION.md`). Canonical status: `../docs/TIPS_ROADMAP.md`.
 
-**GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0–GSMA10 complete for the public production pilot — official Visits (detail includes GuideShop points), «Баллы GuideShop» (+ «История выплат»), resilience, security matrix. **«Продажи GuideShop» withdrawn from Mini App.** GSMA10 two-account owner E2E **PASS** on 2026-09-04 (`../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`). Pilot remains enabled; formal general release was **not** separately declared. **No active GuideShop coding task.** Future Google Calendar and tips roadmaps remain inactive until explicitly activated. Contract: `../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Rollback: `../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`. Security: `../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
+**GuideShop Mini App workstream (owner activated 2026-09-02):** GSMA0–GSMA10 complete for the public production pilot — official Visits (detail includes GuideShop points), «Баллы GuideShop» (+ «История выплат»), resilience, security matrix. **«Продажи GuideShop» withdrawn from Mini App.** GSMA10 two-account owner E2E **PASS** on 2026-09-04 (`../docs/mini_app/GUIDESHOP_MINIAPP_E2E_GSMA10.md`). Pilot remains enabled; formal general release was **not** separately declared. **No active GuideShop coding task.** Future Google Calendar remains inactive; daily tips Mini App-first is deployed to production (2026-10-27). Contract: `../docs/mini_app/GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`. Rollback: `../docs/mini_app/GUIDESHOP_MINIAPP_ROLLBACK_GSMA8.md`. Security: `../docs/mini_app/GUIDESHOP_MINIAPP_SECURITY_GSMA9.md`. Canonical plan: `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`.
 
-**Guide Operator Mini App (GO6B1–GO6B5, GO7B2, GO7D2, GO7E3, GO8C3):** authenticated assignments API + lifecycle lists + connection-consent list/confirm/decline UX above assignment sections + pending-offers UX + accepted calendar projections + reports/income semantics + cancelled retained detail + ordinary unread/diff/`Ознакомился` + critical pending indicator. Backend GO7B1/GO7D1/GO7E1–GO7E2/GO8B/GO8C2/GO8D1–GO8D2/GO8F2A–GO8F2B/GO9A/GO10A1–GO10A2B/GO11A/GO11B2B paths are complete; **STOP before operator-facing notifications UI, staging, or deployment**. Reconciliation repair is API-only and does not change Mini App calendar UX.
+**Guide Operator Mini App (GO6B1–GO6B5, GO7B2, GO7D2, GO7E3, GO8C3):** authenticated assignments API + lifecycle lists + connection-consent list/confirm/decline UX above assignment sections + pending-offers UX + accepted calendar projections + reports/income semantics + cancelled retained detail + ordinary unread/diff/`Ознакомился` + critical pending indicator. Backend GO7B1/GO7D1/GO7E1–GO7E2/GO8B/GO8C2/GO8D1–GO8D2/GO8F2A–GO8F2B/GO9A/GO10A1–GO10A2B/GO11A/GO11B2B paths are complete; **GO13C–GO13G staging closure recorded; no new notification UI or deployment without explicit owner scope**. Reconciliation repair is API-only and does not change Mini App calendar UX.
 
 **Агентам:** не отключать pilot, не redeploy, не расширять scope и не объявлять formal general release без **нового явного запроса владельца**. Rollback reversible: `MINI_APP_ENABLED=false`, при необходимости `MINI_APP_API_ENABLED=false`, redeploy bot — только когда owner попросит скрыть Mini App.
 
 **Frontend** (`miniapp/src/`) по умолчанию на **mock store** (`VITE_USE_MOCK_API` unset/`true`). HTTP client готов: `VITE_USE_MOCK_API=false` + API/proxy. **Production Web API** с **real initData auth**; production bot и Mini App используют общий Guide OS data layer через shared services/database.
 
-Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **STOP before operator-facing notifications UI, staging, or deployment**; Google Calendar / tips remain inactive until owner activates).
+Главная следующая задача — только в `.ai/NEXT_TASK.md` (сейчас: **GO13C–GO13G staging closure recorded; no new notification UI or deployment without explicit owner scope**; Google Calendar remains inactive; daily tips and reminder links are deployed; manual validation/source alignment remain).
 
 ## Цель и приоритет
 
@@ -71,7 +77,7 @@ Guide OS Mini App — быстрый профессиональный кален
 
 - Пользователь Mini App — только гид.
 - Бот и Mini App — равноценные интерфейсы общих данных.
-- MVP имеет две вкладки: `Календарь` и `Итоги`.
+- Текущая навигация имеет четыре вкладки: `Календарь`, `Итоги`, `GuideShop`, `Guide Operator`.
 - Основной сценарий `проверить дату → добавить тур` должен занимать 10–15 секунд.
 - Русский язык и USD — единственные язык и валюта MVP.
 - GuideShop в MVP не является большим отдельным модулем.
@@ -124,7 +130,7 @@ database/             # schema + SQL boundary
 |---|---|
 | Утверждённый продукт и экраны | `miniapp/GuideOS_miniapp_Development_Operating_System.md` |
 | Future Google Calendar roadmap | `docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md` |
-| Future tips roadmap | `docs/TIPS_ROADMAP.md` |
+| Daily tips roadmap | `docs/TIPS_ROADMAP.md` |
 | Active GuideShop Mini App roadmap | `docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md` |
 | API contract v1 | `docs/mini_app/API_CONTRACT_v1.md` |
 | Service gap / MA4 mapping | `docs/mini_app/SERVICE_GAP_ANALYSIS_MA4.md` |
@@ -148,7 +154,7 @@ database/             # schema + SQL boundary
 - `paid` и `unpaid` — единственные payment statuses MVP.
 - `income` — дневная ставка; для multi-day расчёт идёт по дням.
 - `day_off` занимает весь день, имеет нулевой доход и не считается рабочим днём.
-- Отмена тура означает подтверждённое удаление; cancelled status не добавлять.
+- Отмена личного тура означает подтверждённое удаление. Operator assignments используют отдельные terminal statuses; backend GO13I1 также поддерживает withdrawn/expired.
 - Multi-day использует общий `tour_group_id`; общие изменения и удаление применяются ко всей группе.
 - Местоположение допускает daily override внутри multi-day тура.
 - Время Mini App необязательно; если включено, нужны `start_time` и `end_time`.

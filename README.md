@@ -1,15 +1,19 @@
 # Guide OS
 
+Текущий release 2026-10-29: чаевые и переход из новых напоминаний в точную карточку работают в production. [Технические проверки и текущие deployment IDs](docs/REMINDER_MINIAPP_LINK.md). Manual Telegram E2E и owner Git/source alignment остаются отдельными follow-up.
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 Guide OS is a Telegram bot for guides to manage tours, schedules, income,
 notifications, and optional GuideShop views.
 
-## Future roadmap
+## Released features and future roadmap
 
 The owner-approved, not-yet-implemented one-way Google Calendar import roadmap is documented in [`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`](docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md). It covers importing external events, supplementing them in Guide OS, and converting them into native tours without writing back to Google.
 
-The owner-approved, not-yet-implemented bot-first tips roadmap is documented in [`docs/TIPS_ROADMAP.md`](docs/TIPS_ROADMAP.md). Tips are planned as one total amount per user and calendar date, independent of tours, implemented in the bot first and then exposed through the shared API to the Mini App.
+Daily tips are implemented Mini App-first and deployed to production (2026-10-27): one total per user/date, independent of tours, with separate tour/tips/combined income. [Roadmap](docs/TIPS_ROADMAP.md), [release evidence](docs/DAILY_TIPS_IMPLEMENTATION.md). New reminders also link directly to the exact Mini App tour card (production 2026-10-29): [handoff](docs/REMINDER_MINIAPP_LINK.md). Telegram bot tips UX/statistics remain deferred.
 
-The active GuideShop Mini App workstream is documented in [`docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md). It adds scalable bottom navigation, personal companies and commissions first, then composes the official read-only GuideShop catalog.
+The completed GuideShop Mini App GSMA0–GSMA10 pilot workstream is documented in [`docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`](docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md). It provides scalable bottom navigation, personal companies/commissions and the official read-only GuideShop catalog. Guide Operator adds a fourth module; its production rollout remains separately gated.
 
 ## Prerequisites
 
@@ -76,15 +80,14 @@ GuideShop is off by default. For an explicit development-only fake, set
 `GUIDESHOP_USE_FAKE=true` in the local `.env`. This uses the existing empty
 in-memory GuideShop client and requires no API URL or signing key.
 
-Real GuideShop mode remains disabled until the GuideShop staging API and
-verifier exist. This repository does not provide instructions that activate
+Real GuideShop mode remains disabled in fresh local configuration unless explicitly configured. The historical staging API/verifier and production integration stages are complete. This repository does not provide instructions that activate
 real mode.
 
 ## Security and environment isolation
 
 Never commit `.env`, database files, logs, private keys, bot tokens, access
 tokens, or other credentials. Keep `BOT_TOKEN` in the environment or an
-approved secrets manager. The Ed25519 private key for future real GuideShop
+approved secrets manager. The Ed25519 private key for real GuideShop
 composition must also be supplied through environment secrets and must never
 be stored in the repository.
 

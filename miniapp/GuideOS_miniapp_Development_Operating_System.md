@@ -1,8 +1,10 @@
 # Guide OS Mini App — Development Operating System
 
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](../docs/CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 > Версия: 1.0  
 > Дата: 2026-08-28  
-> Статус: утверждённая архитектура; **implementation progress через MA8** (см. §1.1)
+> Статус: утверждённая архитектура; **MA0–MA10 и GSMA0–GSMA10 complete; Guide Operator UI implemented** (см. §1.1)
 
 ## 1. Назначение документа
 
@@ -31,7 +33,7 @@
 
 | MA12–MA16 | ⏳ | Quality gate, pilot, production |
 
-Telegram-бот (handlers) **не изменён**. Production Mini App **выключен** (`MINI_APP_API_ENABLED=false`).
+Public production pilot owner-validated (2026-09-01), GuideShop GSMA10 E2E recorded (2026-09-04). Source defaults remain off; they do not describe deployed flags.
 
 ## 2. Продуктовая формулировка
 
@@ -103,8 +105,8 @@ Telegram-бот и Mini App остаются двумя равноценными
 - QR для Guide ID/linking;
 - Tourism OS Mini App Starter.
 - односторонний импорт Google Calendar с преобразованием external event в полноценный Guide OS tour — отдельный утверждённый roadmap `../docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`, реализация не начата;
-- дневные чаевые — отдельный утверждённый bot-first roadmap `../docs/TIPS_ROADMAP.md`: одна сумма на пользователя и дату независимо от туров; shared foundation и бот сначала, затем Web API/Mini App; реализация не начата;
-- GuideShop Mini App — активированный roadmap `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`: третий нижний раздел, personal companies/commissions, затем official read-only catalog; текущий этап GSMA0;
+- Telegram bot tips UX — отложен; дневные чаевые уже выпущены в Mini App/production 2026-10-27 через shared storage/API и отчёты. План: `../docs/TIPS_ROADMAP.md`;
+- GuideShop Mini App — активированный roadmap `../docs/mini_app/GUIDESHOP_MINIAPP_ROADMAP.md`: третий нижний раздел, personal companies/commissions, затем official read-only catalog; GSMA0–GSMA10 complete for public pilot;
 
 ### 5.3 Не входит
 
@@ -113,11 +115,11 @@ Telegram-бот и Mini App остаются двумя равноценными
 - Apple/iCloud Calendar в первой версии Google Calendar workstream;
 - публичные booking slots;
 - recurring rules;
-- приём payments/эквайринг для чаевых (учёт введённой гидом суммы чаевых вынесен в будущий `../docs/TIPS_ROADMAP.md`);
+- приём payments/эквайринг для чаевых (учёт введённой гидом суммы чаевых реализован в Mini App, см. `../docs/TIPS_ROADMAP.md`);
 - квизы;
 - marketplace/social feed;
 - admin, broadcast и backup UI;
-- Guide Operator;
+- Operator CRM/admin roles (guide-facing Guide Operator module is implemented);
 - PostgreSQL migration внутри Mini App workstream.
 
 ## 6. Информационная архитектура
@@ -141,6 +143,8 @@ Mini App
 │   ├── Визуальная занятость
 │   ├── Фильтры
 │   └── Свободные даты
+├── GuideShop (official read-only + личные компании/комиссии)
+├── Guide Operator (подключения, назначения, версии)
 └── Настройки
     ├── Профиль
     ├── Типы и география гида
@@ -156,6 +160,10 @@ Mini App
 
 1. `Календарь` — стартовая вкладка.
 2. `Итоги` — отчёт и доступность.
+3. `GuideShop` — official read-only data и личные компании/комиссии.
+4. `Guide Operator` — подключения, назначения и решения по версиям.
+
+Панель горизонтально прокручивается; настройки остаются отдельным действием.
 
 Шестерёнка открывает настройки. Кнопка `Добавить` доступна из календаря и относится к выбранной дате.
 
@@ -740,13 +748,13 @@ Verified UX improvements:
 - Reports duplicate `Итоги` title removed; bottom Reports action reachable above fixed navigation
 - Automatic `Telegram.WebApp.ready()` and `expand()` on startup
 
-No known blocking UX issues remain. Further refinements may be requested later. MA11 and production deployment remain unauthorized.
+No known blocking UX issues remain. Further refinements may be requested later. This was the pre-pilot checkpoint; the subsequent public pilot was owner-authorized on 2026-09-01. New deployments remain separately gated.
 
 ### MA11 — Hosted closed staging ⏸
 
 **Deferred until owner approval.** Separate test bot/token, Railway staging URL/DB/secrets, allowlist, synthetic data, feature flags. Do not start without explicit owner sign-off.
 
-DoD: [STAGING_SMOKE_MA9.md](../../docs/mini_app/STAGING_SMOKE_MA9.md) overall PASS on isolated staging; URL without valid initData and allowlisted ID is rejected.
+DoD: [STAGING_SMOKE_MA9.md](../docs/mini_app/STAGING_SMOKE_MA9.md) overall PASS on isolated staging; URL without valid initData and allowlisted ID is rejected.
 
 ### MA12 — Quality gate
 

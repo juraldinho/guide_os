@@ -1,71 +1,27 @@
 # Guide OS — Next Task
 
-> Обновлено: 2026-10-09
+Обновлено: **2026-10-29**. [Текущее состояние](../docs/CURRENT_STATE.md).
 
-## Завершённое состояние
+## Завершено
 
-Интеграционные Stages 0–18 и Stage 19 (личные места) завершены. GuideShop Mini App GSMA0–GSMA10 complete for the public production pilot (GSMA10 owner E2E PASS 2026-09-04). Formal general release was not separately declared.
+Чаевые Mini App-first — production 2026-10-27. Переход «Открыть в приложении» из новых напоминаний — production 2026-10-29. Backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`, оба SUCCESS. Staging остаётся на backend `4f2df896-9a08-43a1-88f4-da86da2fde47`, frontend `346e539b-36c7-4524-adb8-28af77e14a80`.
 
-**GO6A–GO6B5, GO7B1–GO7B2, GO7D1–GO7D2, GO7E1–GO7E3, GO8B, GO8C2, GO8C3, GO8D1, GO8D2, GO8F2A, GO8F2B, GO9A, GO10A1, GO10A2A, GO10A2B, GO11A, and GO11B2B complete**:
-- GO6A–GO6B5: intake through lifecycle lists / calendar / reports semantics
-- GO7B1–GO7B2: cancellation apply + cancelled list/detail
-- GO7D1–GO7D2: ordinary version apply + unread acknowledgement UX
-- GO7E1–GO7E3: critical intake + confirm/reject service + Mini App API/UX
-- GO8B: Guide Operator service JWT verify/sign foundation
-- GO8C2: local connection-consent domain + offer intake enforcement
-- GO8C3: connection Mini App API + Guide Operator tab UX
-- GO8D1: authenticated inbound HTTP event routes (API-only entrypoint)
-- GO8D2: authenticated discovery + availability reads on the same API-only surface
-- GO8F2A: authenticated single-event outbound `deliver_one()` to Guide Operator GO8F1 routes
-- GO8F2B: bounded outbound delivery worker (separate CLI process; default off)
-- GO9A: local two-service HTTP E2E harness (sibling Guide Operator pytest + Guide OS test-only servers; flags off outside the harness)
-- GO10A1: durable guide-notification outbox foundation (atomic with intake)
-- GO10A2A: reusable `deliver_one_notification()` Telegram send (default off)
-- GO10A2B: bounded notification drain task inside existing `bot.py` (default off)
-- GO11A: read-only reconciliation local-projection snapshots (`GET /integration/v1/reconcile/guides/{guideOsId}/…`, scope `guide-operator:reconcile`)
-- GO11B2B: safe local calendar projection repair (`POST …/assignments/{assignmentId}/repair`, same reconcile scope; derived only from local active version + retained accept decision)
+Core/Stage 19, Mini App MA0–MA10, GuideShop GSMA0–GSMA10 и реализованные GO6–GO13 paths описаны в AGENTS. Не запускать заново уже выполненные development/deployment этапы.
 
-## Закрыто после GO13D
+## Следующие действия
 
-- GO13E зафиксировал operational-аудит после полного staging E2E.
-- Notification relevance работает fail-closed: `True` отправляется, `False` завершается как `superseded`, `None` — как `local_state`; последние два исхода не вызывают Telegram HTTP.
-- `STAGING_NOTIFICATION_DRAIN_PASS`: три устаревших уведомления подавлены без Telegram-запросов, актуальная отмена доставлена ровно один раз. Delivery и один встроенный worker теперь включены только в staging.
-- `GO13F_ALREADY_COMPLETE`: production runtime и Mini App закреплены на `f3c3806d328332fb0ff0a40987d582a4f0d09316`; новые push в `main` их не разворачивают.
-- Рабочий staging Mini App URL — Railway service domain. `staging.guideos.uz` остаётся необязательным follow-up.
+1. Ручная функциональная проверка закрыта владельцем 2026-10-29: owner-reported PASS. Повторять её как незавершённый пункт не требуется.
+2. По прямому поручению владельца агент выполняет Git commit/push проверенного production source и обновление production source pins Railway. Не включать посторонние analytics/media и не использовать git add .
+3. Новая coding-задача не назначена. Не деплоить заново и не менять runtime/flags по этому статусу.
 
-## Единственная следующая задача
+## Evidence
 
-Только после отдельной точной авторизации участвовать в Phase 0 production-подготовки Guide Operator: зафиксировать SHA, backup/restore и rollback evidence и подтвердить изоляцию production. Не создавать Guide Operator production services и не включать production integration по этому документу.
+- [Чаевые: tests, artifacts, migration, backup и release](../docs/DAILY_TIPS_IMPLEMENTATION.md).
+- [Reminder links: полный regression и deployment checks](../docs/REMINDER_MINIAPP_LINK.md).
+- Last feature regression: 1885 backend passed, 1 skipped; 375 frontend passed; build successful. Это датированные локальные результаты, не новый прогон этой docs-задачи.
 
-## Local notification delivery
+## Ограничения
 
-Runs only inside the existing bot process (`python bot.py`) as one background task. Does not create a second bot, getUpdates loop, or webhook. Defaults remain off in source; the existing staging runtime has both delivery and worker explicitly enabled after the controlled drain. Production activation is not authorized.
+Google Calendar остаётся неактивным. Telegram tips UX/statistics, operator notifications UI, guide-initiated disconnect и dedicated withdrawn/expired Mini App sections не активируются автоматически. Official GuideShop остаётся read-only. Нового полного production GO E2E эти релизы не подтверждают.
 
-Env (documented in `.env.example`, defaults off / safe):
-- `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_DELIVERY_ENABLED` — requires `BOT_TOKEN` + HTTPS `MINI_APP_PUBLIC_URL`
-- `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_WORKER_ENABLED`
-- `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_WORKER_POLL_INTERVAL_SECONDS` (1–300, default 5)
-- `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_WORKER_BATCH_SIZE` (1–50, default 10)
-- `GUIDE_OS_GUIDE_OPERATOR_NOTIFICATION_WORKER_SHUTDOWN_TIMEOUT_SECONDS` (1–120, default 15)
-
-## Out of scope until activated
-
-- GO11B comparison / automatic repair of assignment/version/decision state
-- Operator-facing / Mini App notification UI
-- Production rollout or production cross-service activation
-- Google Calendar roadmap (`docs/mini_app/GOOGLE_CALENDAR_ROADMAP.md`)
-- Tips roadmap (`docs/TIPS_ROADMAP.md`)
-- GuideShop Mini App new coding (pilot remains enabled; no active GSMA task)
-
-## Known GO limitations
-
-- Inbound HTTP + discovery/availability are implemented (GO8D1–GO8D2) but remain feature-flagged off by default
-- Outbound `deliver_one()` + worker exist (GO8F2A–GO8F2B) and are proven by the GO9A local HTTP harness; they remain feature-flagged off
-- Guide-notification rows + single-send + in-bot drain exist (GO10A1–GO10A2B); staging is enabled after the controlled drain, while source defaults and production remain off/unapproved
-- GO11A reconcile reads exist on the API-only surface and remain behind service-auth fail-closed defaults
-- GO11B2B local projection repair exists on the same API-only surface (same scope/auth; default-off service auth). It does not change assignment/version/decision machines, UI, notifications, or personal tours
-- Mini App WebApp button opens the approved Mini App URL (Guide Operator tab deep-link not invented yet)
-- Operator-facing notifications UI and deployment are not started
-- Operator projection has no guide fee (income NULL; excluded from paid/unpaid)
-- Withdrawal/expiration are not implemented
-- Guide-initiated disconnect is not implemented
+Production service-auth/integration/outbound flags наблюдались включёнными до этих releases и сохранены. Source defaults остаются fail-closed; не отключать или включать интеграции на основании старых roadmap gates. GO notification delivery flags отдельно последним preflight не аттестованы.

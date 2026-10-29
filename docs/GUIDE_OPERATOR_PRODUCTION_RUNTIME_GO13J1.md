@@ -1,11 +1,13 @@
 # GO13J1 Guide OS production consolidated runtime
 
-Status: local implementation only. Production deployment remains unauthorized.
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
+Status update 2026-10-29: this launcher is already used by the production Guide OS runtime. Latest artifact release and pre/post checks are recorded in [reminder handoff](REMINDER_MINIAPP_LINK.md). The phased gates below remain a rollout reference, not permission for new changes or a full GO production E2E claim.
 
 ## Runtime and command
 
-The existing Guide OS production service remains one Railway service with exactly
-one replica and one SQLite volume mounted at `/data`. Start it with:
+The proposed GO13J1 topology keeps one Guide OS runtime Railway service with exactly
+one replica and one SQLite volume mounted at `/data`. After explicit rollout approval, the candidate command is:
 
 ```sh
 python guide_os_production_runtime.py

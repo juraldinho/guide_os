@@ -51,6 +51,7 @@ from services.guide_operator_connection_service import (
     ConnectionNotFoundError,
     ConnectionValidationError,
     GuideOperatorConnectionError,
+    get_confirmed_connection_identity,
     receive_connection_disconnect,
     receive_connection_invitation,
 )
@@ -652,6 +653,33 @@ def create_guide_operator_integration_app(
             rid,
         )
 
+    async def connection_identity_handler(request: web.Request) -> web.Response:
+        rid, failure = await _prepare(request, expected_scope=SCOPE_CONNECTIONS_WRITE)
+        if failure is not None:
+            return failure
+        connection_id = _parse_path_id(request.match_info.get("connectionId", ""))
+        company_id = _parse_path_id(request.rel_url.query.get("companyId", ""))
+        guide_os_id = _parse_uuid4(request.rel_url.query.get("guideOsId", ""))
+        if connection_id is None or company_id is None or guide_os_id is None:
+            return error_response("validation_error", _MSG_DISCOVERY, rid, 400)
+        try:
+            result = get_confirmed_connection_identity(
+                connection_id=connection_id,
+                company_id=company_id,
+                guide_os_id=guide_os_id,
+            )
+        except ConnectionNotFoundError:
+            return error_response("not_found", _MSG_NOT_FOUND, rid, 404)
+        return success_response(
+            {
+                "connectionId": result["connection_id"],
+                "companyId": result["company_id"],
+                "guideOsId": result["guide_os_id"],
+                "telegramUserId": result["telegram_user_id"],
+            },
+            rid,
+        )
+
     async def availability_handler(request: web.Request) -> web.Response:
         rid, failure = await _prepare(request, expected_scope=SCOPE_AVAILABILITY_READ)
         if failure is not None:
@@ -822,6 +850,10 @@ def create_guide_operator_integration_app(
         expired_handler,
     )
     app.router.add_post("/integration/v1/guides/discovery", discovery_handler)
+    app.router.add_get(
+        "/integration/v1/guide-connections/{connectionId}/identity",
+        connection_identity_handler,
+    )
     app.router.add_post(
         "/integration/v1/guides/{guideOsId}/availability",
         availability_handler,

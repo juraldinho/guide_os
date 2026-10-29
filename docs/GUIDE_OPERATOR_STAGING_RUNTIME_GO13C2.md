@@ -1,6 +1,8 @@
 # GO13C2 consolidated Guide OS staging runtime
 
-Status: locally implemented and verified. Deployment and integration enablement are deferred to GO13C3.
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
+Status: implemented; subsequent deployment and GO13D E2E closure recorded in [GO13D evidence](GUIDE_OPERATOR_STAGING_E2E_GO13D.md). This document describes topology; it is not a fresh live health check.
 
 ## Topology
 
@@ -20,7 +22,7 @@ The HTTP applications remain separate. `/app/v1/*` routes are not mounted on the
 python guide_os_staging_runtime.py
 ```
 
-Production continues to use `python bot.py`.
+Production observed 2026-10-29 uses `python guide_os_production_runtime.py`; `python bot.py` remains a standalone entrypoint. Current staging DB path is `/data/guide_os_staging.db`; the generic configuration example below predates that observed path.
 
 ## Required staging configuration
 

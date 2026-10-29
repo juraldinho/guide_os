@@ -1,5 +1,7 @@
 # GuideShop official submodules — contract GSMA7
 
+> Состояние на 2026-10-22: [реализация, окружения и границы подтверждения](../CURRENT_STATE.md). Старые deployment/PASS записи относятся к указанным датам; live-состояние этой документационной сверкой не проверялось.
+
 > Дата: 2026-09-03
 > Статус: **GSMA7 optional submodules complete**; **Sales withdrawn from Mini App UX** (owner 2026-09-03); next = **GSMA8**
 > Назначение: product/API audit for optional official visits / sales / points / payout-history in Mini App

@@ -5,6 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from config import TIMEZONE
+from services.daily_tips_service import get_daily_tips
 from services.external_sales_service import (
     ExternalSale,
     ExternalSalesService,
@@ -77,10 +78,13 @@ def get_reports_summary(
             else:
                 unpaid_tours += 1
 
+    tips = sum(row["amount"] for row in get_daily_tips(user_id, from_date, to_date))
     return {
         "tour_count": tour_count,
         "work_days": len(work_days_set),
         "income": income,
+        "tips": tips,
+        "total_earnings": income + tips,
         "paid_tours": paid_tours,
         "unpaid_tours": unpaid_tours,
         "period": {"from": from_date, "to": to_date},

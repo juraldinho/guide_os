@@ -229,6 +229,19 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     cursor = conn.cursor()
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_tips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(user_id),
+        tip_date TEXT NOT NULL CHECK(length(tip_date) = 10),
+        amount INTEGER NOT NULL CHECK(typeof(amount) = 'integer'
+            AND amount >= 0 AND amount <= 1000000000),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, tip_date)
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS tours (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,

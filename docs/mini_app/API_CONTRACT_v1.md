@@ -1,5 +1,11 @@
 # Guide OS Mini App — API Contract v1
 
+## Release/navigation update — 2026-10-29
+
+Daily tips endpoints below are deployed to production. Reminder WebApp URLs add `reminder_entry` (positive SQLite row ID as a string) and `reminder_date` (ISO calendar date); these are frontend navigation hints, not auth claims. The client uses the existing session-authenticated `GET /app/v1/entries/{id}`; canonical multi-day IDs come from its response. Missing/foreign/deleted records remain inaccessible; invalid targets are ignored. Successful/not-found navigation consumes only those two query fields, preserving other query/hash data. No new endpoint or trusted body identity was introduced. See [handoff](../REMINDER_MINIAPP_LINK.md).
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](../CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 > Version: **v1**
 > Base path: `/app/v1`
 > Status: **implemented (MA5–MA6)** — routes + initData session auth; dev stub gated by flag
@@ -13,13 +19,13 @@
 - Dev auth (tests only): `MINI_APP_API_DEV_AUTH=true` + `dev_user_id`
 - Sessions: `miniapp_sessions` table; `Authorization: Bearer <session_token>`
 - Optional staging allowlist: `MINI_APP_API_ALLOWLIST`
-- Frontend: mocks in `miniapp/src/` until **MA7**
+- Frontend: mock mode by default locally; HTTP client implemented since MA7
 
 ## 1. Scope
 
-This contract maps the MA3 React mock client (`miniapp/src/api/client.ts`, `miniapp/src/api/types.ts`) to a future Guide OS Web API. All business rules execute in **shared Python services**; routes validate auth, DTOs, idempotency, and map service results to this envelope.
+This contract maps the MA3 React mock client (`miniapp/src/api/client.ts`, `miniapp/src/api/types.ts`) to the implemented Guide OS Web API. All business rules execute in **shared Python services**; routes validate auth, DTOs, idempotency, and map service results to this envelope.
 
-**Out of scope for v1:** GuideShop mutations, personal places CRUD via Mini App, CSV export, multi-currency.
+**Out of scope:** official GuideShop mutations, CSV export, multi-currency. Personal places CRUD was subsequently implemented by GSMA; see [GSMA contract](GUIDESHOP_MINIAPP_CONTRACT_GSMA0.md). The original calendar contract below is not a complete inventory of later GuideShop/Guide Operator routes; current route schemas and types live in `web_api/` and `miniapp/src/api/types.ts`.
 
 ## 2. Transport
 
@@ -571,8 +577,40 @@ Step 2 migrations must be additive, backup-tested, default null for legacy rows.
 - `miniapp/src/features/reports/lib/summary.ts`
 - `miniapp/src/features/reports/lib/availability.ts`
 
-## Future contract extension — not implemented
+## Subsequent contract extensions
 
-Daily tips will require a day-scoped API and separate report fields. The approved rule is one amount per authenticated user and calendar date, independent of tours. This v1 contract is unchanged until the workstream begins; see `../TIPS_ROADMAP.md`.
+Daily tips now use the implemented day-scoped API and additive report fields documented below. One amount per authenticated user/date, independent of tours; production release 2026-10-27. See `../TIPS_ROADMAP.md`.
 
-GuideShop Mini App requires additive personal-place/commission and official read-only composition endpoints. Exact contracts are a GSMA0 deliverable; see `GUIDESHOP_MINIAPP_ROADMAP.md`. This existing v1 contract is not silently changed by the roadmap note.
+GuideShop personal-place/commission and official read-only composition endpoints were subsequently implemented through GSMA0–GSMA10. See `GUIDESHOP_MINIAPP_ROADMAP.md` and `GUIDESHOP_SUBMODULES_CONTRACT_GSMA7.md`; the original calendar schemas above retain their scope.
+
+
+## Daily tips — owner-activated Mini App-first extension (2026-10-22)
+
+All routes require the existing bearer Mini App session and return the standard
+`data` / safe `error` envelope. Owner identity is resolved only from that session.
+
+| Method / route | Input | `data` |
+|---|---|---|
+| GET `/app/v1/daily-tips/{date}` | strict ISO calendar date | `{ "date": "2026-10-22", "amount": 20 }`; absent amount is 0 |
+| GET `/app/v1/daily-tips?from=…&to=…` | inclusive ordered ISO bounds | `{ "tips": [{ "date": "2026-10-22", "amount": 20 }] }` |
+| PUT `/app/v1/daily-tips/{date}` | exactly `{ "amount": 20 }` | saved `{date, amount}` |
+
+Dates are Asia/Tashkent calendar dates, passed verbatim without UTC conversion.
+Allowed dates: `0001-01-01` through `9999-12-31`. Reads select stored rows only;
+large valid ranges do not expand into daily arrays. Duplicate/missing/unknown range
+query parameters fail validation. Amount is integer USD in `0…1_000_000_000`;
+bools, fractional JSON numbers, strings, negatives and overflow are rejected.
+This bound keeps even all possible dates' tips inside JavaScript safe integer.
+Positive PUT replaces the day's total, zero removes it. PUT is naturally idempotent;
+no separate Idempotency-Key is required. Extra body keys (including `user_id`) fail.
+Invalid input returns HTTP 400 `validation_error`; missing/expired/revoked auth uses
+the existing auth error envelope. No DELETE or client-supplied owner identifier.
+
+`GET /app/v1/reports/summary` adds `tips` and `totalEarnings` while `income` retains
+its existing tour-income meaning. `totalEarnings = income + tips`. Tour-specific
+status/payment/company/location filters never filter tips; tips use the requested
+date period. Guide Operator entries without fee still contribute no tour income.
+Mini App all-time income requests use the full valid calendar range, including
+past/future tips-only dates. Availability and GuideShop commissions remain separate.
+
+Telegram bot UX/statistics are deferred; no deployment is implied by this extension.

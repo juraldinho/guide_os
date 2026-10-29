@@ -360,7 +360,7 @@ export const t = {
   periodMonth: 'Месяц',
   periodYear: 'Год',
   periodAll: 'За весь период',
-  periodAllHint: 'Все туры в прототипе',
+  periodAllHint: 'Доход от туров и чаевые за все даты',
   prevYear: 'Предыдущий год',
   nextYear: 'Следующий год',
   filterStatusLabel: 'Дополнительные фильтры',

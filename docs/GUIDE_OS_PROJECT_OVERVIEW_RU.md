@@ -1,5 +1,11 @@
 # Guide OS
 
+Release update / Обновление 2026-10-29: Mini App daily tips are deployed; new tour reminders include «Открыть в приложении» targeting the exact owner-scoped card. Production runtime/integration/outbound are observed enabled; this is not a new full Guide Operator production E2E certification. Manual Telegram/device validation remains pending. [Current evidence](CURRENT_STATE.md).
+
+Historical Guide Operator snapshot (2026-10-22; superseded by the release update above): guide-facing consent/assignment/version UX and staging E2E closure are recorded; withdrawal/expiration intake is implemented in backend (GO13I1), without dedicated Mini App sections. Production consolidated launcher GO13J1 is implemented locally; production rollout is not authorized. Earlier product descriptions below retain their original scope where they discuss future ecosystem capabilities.
+
+> Сводка обновлена 2026-10-29 по записанным release evidence: [реализация и окружения](CURRENT_STATE.md). Исторические PASS относятся к своим датам; эта docs-правка не является новым live-аудитом.
+
 ## Операционная система для профессионального туризма
 
 > Обзор проекта обновлён 5 сентября 2026 года.
@@ -255,7 +261,7 @@ Guide Operator пока не является развёрнутым production-
 - production frontend, подключённый к API;
 - исходящие HTTP delivery workers;
 - полная живая сетевая связь с Guide OS;
-- Telegram-уведомления Guide Operator;
+- дальнейший UX уведомлений Guide Operator; delivery foundation уже реализован;
 - staging deployment и production pilot.
 
 Guide Operator умеет сохранять события в outbox, но пока не отправляет их по HTTP. Сетевая доставка, deployment и расширение функциональности требуют отдельного явного решения владельца продукта.
@@ -357,11 +363,11 @@ GuideShop сообщает гиду, что официально произош�
 
 ### Завершение Guide Operator
 
-Следующие возможные этапы: Telegram-уведомления, UI уведомлений для оператора, изолированный staging E2E и контролируемый production deployment. Локальные reconciliation-снимки и безопасный repair календарной проекции уже есть на API-only поверхности Guide OS и не являются задачей Mini App или deployment.
+GO13D staging E2E завершён 2026-10-08. На 2026-10-29 подтверждён работающий consolidated production runtime Guide OS с ранее включёнными authenticated intake/outbound flags. UI уведомлений для оператора и новый полный production E2E требуют отдельного scope. Reconciliation и safe repair остаются API-only; последние feature releases не выполняли production repair.
 
-### Ежедневные чаевые
+### Чаевые — оставшийся Telegram bot UX
 
-Планируется возможность сохранять одну сумму чаевых на гида и календарную дату независимо от туров. Реализация ещё не началась.
+Чаевые выпущены в Mini App 2026-10-27: одна сумма на гида/дату независимо от туров, с отдельным доходом туров, чаевыми и общим итогом. Telegram bot tips UX отложен.
 
 ### Google Calendar
 
@@ -395,18 +401,18 @@ AI будет добавляться только там, где качеств�
 - production CRM GuideShop;
 - наблюдаемая и сверяемая обработка событий.
 
-### Реализовано, но ещё не развёрнуто полностью end-to-end
+### Guide Operator: реализовано; новый полный production E2E не аттестован
 
 - backend и адаптивный прототип Guide Operator;
-- модуль Guide Operator и входящая интеграция в Guide OS, включая read-only reconciliation-снимки и безопасный локальный repair календарной проекции (только API; не задеплоено);
+- модуль Guide Operator и входящая интеграция в Guide OS, включая read-only reconciliation-снимки и безопасный локальный repair календарной проекции (только API; последние релизы не выполняли production repair);
 - версии назначений, отмены, критические подтверждения, согласие, discovery и availability.
 
 ### Планируется или ещё не активировано
 
-- UI уведомлений Guide Operator и production deployment;
-- Telegram-уведомления Guide Operator;
+- UI уведомлений Guide Operator и новые owner-authorized rollout/E2E работы;
+- дальнейший UX уведомлений Guide Operator; delivery foundation уже реализован;
 - импорт Google Calendar;
-- ежедневные чаевые;
+- Telegram bot UX для чаевых (учёт в Mini App уже выпущен);
 - официальные PTS-заявки по внешним продажам;
 - более широкие AI, knowledge, analytics и marketplace-модули.
 
