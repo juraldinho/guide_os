@@ -1,6 +1,6 @@
 # Daily tips — implementation handoff (2026-10-22)
 
-**Owner validation — 2026-10-29:** владелец сообщил, что ручная проверка закрыта: функция работает корректно. Functional manual validation считается **PASS по подтверждению владельца**; это не новый автоматический прогон и не отдельная аттестация каждого устройства. По прямому поручению владельца агент выполняет Git commit/push и production source-pin alignment; статус операции обновляется в `docs/REMINDER_MINIAPP_LINK.md`.
+**Closure — 2026-10-29:** ручная функциональная проверка закрыта владельцем (owner-reported PASS). Код зафиксирован и отправлен в GitHub: `569e8906c04a5380c96dc6a142b3cdd264b1f806`; оба production-сервиса Railway закреплены на этом commit. Backend `cfe3ab97-25e5-4952-a488-779e264bb52e` и frontend `3142566b-e4cb-4c6c-8632-f290f361ab5c` — SUCCESS; live smoke PASS, staging не изменён. Отдельно открыт CI defect: standalone Mini App API import требует BOT_TOKEN через analytics/config (1 failed, 1882 passed, 3 skipped); integration workflows PASS. Подробности: `docs/REMINDER_MINIAPP_LINK.md`.
 
 Latest environment update 2026-10-29: daily tips are retained by the subsequent reminder-link release. Current production backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`; current staging IDs/evidence: [reminder handoff](REMINDER_MINIAPP_LINK.md). Deployment IDs below describe the original tips rollout and its rollback history.
 

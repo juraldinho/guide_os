@@ -4,15 +4,15 @@
 
 ## Завершено
 
-Чаевые Mini App-first — production 2026-10-27. Переход «Открыть в приложении» из новых напоминаний — production 2026-10-29. Backend `5dd8037d-97e8-48ad-890a-c04cb0cb6683`, frontend `3d307e26-3378-4171-8f13-aa6fa7e3379c`, оба SUCCESS. Staging остаётся на backend `4f2df896-9a08-43a1-88f4-da86da2fde47`, frontend `346e539b-36c7-4524-adb8-28af77e14a80`.
+Чаевые Mini App-first — production 2026-10-27. Переход «Открыть в приложении» из новых напоминаний — production 2026-10-29. Backend `cfe3ab97-25e5-4952-a488-779e264bb52e`, frontend `3142566b-e4cb-4c6c-8632-f290f361ab5c`, оба SUCCESS. Staging остаётся на backend `4f2df896-9a08-43a1-88f4-da86da2fde47`, frontend `346e539b-36c7-4524-adb8-28af77e14a80`.
 
 Core/Stage 19, Mini App MA0–MA10, GuideShop GSMA0–GSMA10 и реализованные GO6–GO13 paths описаны в AGENTS. Не запускать заново уже выполненные development/deployment этапы.
 
 ## Следующие действия
 
 1. Ручная функциональная проверка закрыта владельцем 2026-10-29: owner-reported PASS. Повторять её как незавершённый пункт не требуется.
-2. По прямому поручению владельца агент выполняет Git commit/push проверенного production source и обновление production source pins Railway. Не включать посторонние analytics/media и не использовать git add .
-3. Новая coding-задача не назначена. Не деплоить заново и не менять runtime/flags по этому статусу.
+2. Git commit/push и production pins закрыты: `569e8906c04a5380c96dc6a142b3cdd264b1f806`. Посторонние analytics/media/QR не включены.
+3. Открыт отдельный CI defect: standalone API import без BOT_TOKEN падает через analytics/config; 1 failed, 1882 passed, 3 skipped. Production smoke PASS. Новая coding-задача не назначена. Не деплоить заново и не менять runtime/flags по этому статусу.
 
 ## Evidence
 

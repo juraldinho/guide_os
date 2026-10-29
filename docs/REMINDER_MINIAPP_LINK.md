@@ -1,11 +1,11 @@
 # Reminder → Mini App tour detail
 
-**Owner validation — 2026-10-29:** владелец сообщил, что ручная проверка закрыта: функция работает корректно. Functional manual validation считается **PASS по подтверждению владельца**; это не новый автоматический прогон и не отдельная аттестация каждого устройства. По прямому поручению владельца агент выполняет Git commit/push и production source-pin alignment; статус операции обновляется в `docs/REMINDER_MINIAPP_LINK.md`.
+**Closure — 2026-10-29:** ручная функциональная проверка закрыта владельцем (owner-reported PASS). Код зафиксирован и отправлен в GitHub: `569e8906c04a5380c96dc6a142b3cdd264b1f806`; оба production-сервиса Railway закреплены на этом commit. Backend `cfe3ab97-25e5-4952-a488-779e264bb52e` и frontend `3142566b-e4cb-4c6c-8632-f290f361ab5c` — SUCCESS; live smoke PASS, staging не изменён. Отдельно открыт CI defect: standalone Mini App API import требует BOT_TOKEN через analytics/config (1 failed, 1882 passed, 3 skipped); integration workflows PASS. Подробности: `docs/REMINDER_MINIAPP_LINK.md`.
 
 Implemented; staging deployed 2026-10-28 and production promotion completed
-2026-10-29. Technical rollout checks passed; owner Telegram/device validation
-remains pending. No Git mutations or manual Telegram test-message sending were
-performed. Prior daily-tips and integration features are retained.
+2026-10-29. Technical rollout checks passed; functional manual validation was
+closed by the owner on 2026-10-29. Git/pin closure is recorded below. No manual
+Telegram test messages were sent by the agent. Prior features are retained.
 
 ## Behavior
 
@@ -306,3 +306,24 @@ No Git commit/push or source-pin alignment was performed. Old configured Git pin
 do not contain the daily-tips/reminder features; owner source alignment remains a
 follow-up before a later deployment from Git. Current artifact manifests and
 source archives preserve the exact promoted code.
+
+
+## Git / production source-pin closure — 2026-10-29
+
+Owner explicitly authorized agent commit/push and Railway source alignment, and
+reported functional manual validation PASS. Earlier pending/manual/Git statements
+in dated continuation sections above are historical and superseded here.
+
+- Application commit: `569e8906c04a5380c96dc6a142b3cdd264b1f806`, pushed normally to `origin/main`; 31 code/test files plus 44 Markdown files. No force push; analytics/media/QR assets excluded.
+- Production backend: `cfe3ab97-25e5-4952-a488-779e264bb52e` — SUCCESS.
+- Production frontend: `3142566b-e4cb-4c6c-8632-f290f361ab5c` — SUCCESS.
+- Both Git source pins: `juraldinho/guide_os`, main, exact application SHA above; frontend root `/miniapp` preserved. All non-source config and variable names unchanged; safe runtime flags verified unchanged.
+- Fresh online backup: `/data/backups/pre_git_alignment_20261029T082726Z.db`, 2207744 bytes, SHA256 `f138d03b2465291ff93a4fb044e35e512135a542a9a0de2d09930b9732b1777f`, mode 0600, integrity ok; hash rechecked after deploy. Existing production SQLite `/data/guide_os.db` and volume retained.
+- Live smoke: 119 runtime source hashes match prior tested artifact; daily_tips table retained; full SQLite integrity ok; one runtime process and one polling startup, no traceback/getUpdates conflict in inspected logs. Generated new reminder button and legacy callback correct; Telegram menu remains web_app. No test messages sent.
+- Public frontend HTTP 200; `/assets/index-BZ2Xoudl.js`, SHA256 `b7be409966920d98d7a73fd9d46f204221ae0a5b52a9d2b5f33ba4a40bacd329`, identical to prior tested production bundle; production API target and reminder query handling present.
+- API: `/health` 200; unauthenticated `/app/v1/entries/17`, `/app/v1/daily-tips/2026-10-29`, `/app/v1/reports/summary` 401.
+- Staging remains backend `4f2df896-9a08-43a1-88f4-da86da2fde47`, frontend `346e539b-36c7-4524-adb8-28af77e14a80`, SUCCESS.
+- GitHub Integration Contracts and Shared GuideShop Event E2E PASS. Main CI [run 40842230363](https://github.com/juraldinho/guide_os/actions/runs/40842230363) has **1 failed, 1882 passed, 3 skipped**: `test_entrypoint_import_without_bot_modules` fails without BOT_TOKEN because `services/miniapp_analytics.py` imports `config.TIMEZONE`. Analytics import predates this release (`2b4b3fa`); the local .env can mask this failure in earlier local runs. This separate defect remains open and was not silently changed during source alignment.
+
+A subsequent documentation-only commit records this evidence. Production pins stay
+on the application SHA above; no additional deployment is required for docs.
