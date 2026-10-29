@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Protocol
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from database.db import ensure_db_ready
@@ -22,6 +23,7 @@ from database.queries import (
     claim_guide_operator_guide_notification_for_delivery,
     finish_guide_operator_guide_notification_delivery,
     get_user_id_by_guide_os_id,
+    get_guide_operator_assignment_version,
     is_guide_operator_guide_notification_current,
 )
 from services.guide_operator_notification_delivery_settings import (
@@ -29,6 +31,7 @@ from services.guide_operator_notification_delivery_settings import (
     GuideOperatorNotificationDeliverySettings,
 )
 from services.guide_operator_notification_outbox import NOTIFICATION_TYPES
+from services.guide_operator_assignment_service import get_assignment_for_guide, GuideOperatorAssignmentError
 from utils.guide_os_identity import GuideOsIdentityError, validate_guide_os_id
 
 logger = logging.getLogger("guide_os.guide_operator_notification_delivery")
@@ -217,6 +220,53 @@ def render_notification_text(notification_type: str, company_name: str) -> str:
     return template.format(company=company)
 
 
+def assignment_notification_content(row: dict[str, Any], public_url: str) -> tuple[str, str, str]:
+    """Read the immutable snapshot only after binding the notification to its guide."""
+    kind = row["notification_type"]
+    text = render_notification_text(kind, row["company_name"])
+    if not row.get("assignment_id"):
+        return text, public_url, BUTTON_TEXT
+    assignment = get_assignment_for_guide(row["guide_os_id"], row["assignment_id"])
+    number = int(row["version_number"])
+    version = get_guide_operator_assignment_version(row["assignment_id"], number)
+    if version is None:
+        raise ValueError("immutable notification version unavailable")
+    package = json.loads(version["working_package_json"])
+    if not isinstance(package, dict):
+        raise ValueError("invalid immutable working package")
+    tour = package.get("tour", {})
+    if not isinstance(tour, dict):
+        raise ValueError("invalid tour snapshot")
+    title = str(tour.get("title") or tour.get("reference") or "Тур")[:200]
+    scope = package.get("assignment", {})
+    if not isinstance(scope, dict):
+        raise ValueError("invalid assignment snapshot")
+    start = scope.get("start_date") or assignment["start_date"]
+    end = scope.get("end_date") or assignment["end_date"]
+    text += f"\n{title}\n{start} — {end}"
+    is_change = kind in {"ordinary_version_change", "critical_confirmation_required"}
+    if is_change:
+        labels = {
+            "assignment_role": "Роль гида", "assignment_dates": "Даты назначения",
+            "city_or_route": "Маршрут", "day_removed": "Удалён день", "day_added": "Добавлен день",
+            "occupancy_envelope": "Время занятости", "event_reordered": "Порядок событий",
+            "event_time_inside_envelope": "Время событий", "driver": "Водитель",
+            "contact": "Контакты", "group_summary": "Группа", "working_conditions": "Условия работы",
+        }
+        changes = json.loads(version.get("change_summary_json") or "[]")
+        if not isinstance(changes, list) or any(not isinstance(item, dict) for item in changes):
+            raise ValueError("invalid change summary")
+        summary = list(dict.fromkeys(labels.get(item.get("code"), "Данные тура") for item in changes))
+        text += f"\nВерсия {number}: " + "; ".join(summary[:5])
+    parts = urlsplit(public_url)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k not in {"go_assignment", "go_version"}]
+    query.append(("go_assignment", row["assignment_id"]))
+    if is_change:
+        query.append(("go_version", str(number)))
+    url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return text, url, "Посмотреть изменения" if is_change else "Посмотреть назначение"
+
+
 def retry_delay(attempt_count: int, *, jitter_unit: float = 0.0) -> timedelta:
     exponent = max(attempt_count - 1, 0)
     delay = BASE_RETRY_DELAY * (2**exponent)
@@ -384,8 +434,8 @@ def _deliver_claimed(
         )
 
     try:
-        text = render_notification_text(notification_type, company_name)
-    except ValueError:
+        text, button_url, button_text = assignment_notification_content(row, settings.mini_app_public_url)
+    except (ValueError, TypeError, KeyError, GuideOperatorAssignmentError):
         return _finish(
             notification_id=notification_id,
             source_event_id=source_event_id,
@@ -405,8 +455,8 @@ def _deliver_claimed(
         api_base_url=settings.telegram_api_base_url,
         chat_id=int(telegram_user_id),
         text=text,
-        web_app_url=settings.mini_app_public_url,
-        button_text=BUTTON_TEXT,
+        web_app_url=button_url,
+        button_text=button_text,
     )
     return _apply_telegram_result(
         notification_id=notification_id,
@@ -415,7 +465,7 @@ def _deliver_claimed(
         attempt_count=attempt_count,
         response=response,
         now=now,
-        mini_app_button_url=settings.mini_app_public_url,
+        mini_app_button_url=button_url,
         jitter_unit=jitter_unit,
     )
 

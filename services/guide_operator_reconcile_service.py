@@ -277,4 +277,17 @@ def get_local_assignment(guide_os_id: object, assignment_id: str) -> dict[str, A
     row = get_guide_operator_assignment_for_guide(identity, assignment_id)
     if row is None:
         raise GuideOperatorReconcileNotFoundError("missing")
-    return _assignment_snapshot(row)
+    snapshot = _assignment_snapshot(row)
+    conn = get_connection()
+    try:
+        notifications = conn.execute(
+            """SELECT source_event_id, notification_type, version_number, delivery_status,
+                      attempt_count, last_error_code
+               FROM guide_operator_guide_notifications
+               WHERE guide_os_id = ? AND assignment_id = ?
+               ORDER BY id DESC LIMIT 50""", (identity, assignment_id),
+        ).fetchall()
+        snapshot["telegram_notifications"] = [dict(item) for item in notifications]
+    finally:
+        conn.close()
+    return snapshot

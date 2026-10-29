@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import threading
 from collections.abc import Iterator
@@ -139,6 +140,12 @@ def _insert_offer_notification(
                 FIXED_NOW.isoformat(),
                 FIXED_NOW.isoformat(),
             ),
+        )
+        conn.execute(
+            """INSERT INTO guide_operator_assignment_versions
+            (assignment_id, version_number, severity, working_package_json, published_at)
+            VALUES (?, 1, 'initial', ?, ?)""",
+            (assignment_id, json.dumps({"tour": {"title": "Самарканд"}}), FIXED_NOW.isoformat()),
         )
         insert_guide_operator_guide_notification(
             conn,

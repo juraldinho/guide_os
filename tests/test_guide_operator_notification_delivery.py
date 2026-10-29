@@ -245,6 +245,14 @@ def _seed_assignment_state(
             ),
         )
 
+        for number in {active_version, pending_critical_version} - {None}:
+            conn.execute(
+                """INSERT INTO guide_operator_assignment_versions
+                (assignment_id, version_number, severity, working_package_json, published_at, change_summary_json)
+                VALUES (?, ?, 'ordinary', ?, ?, '[]')""",
+                (assignment_id, number, json.dumps({"tour": {"title": "Самарканд"}}), FIXED_NOW.isoformat()),
+            )
+
     run_write_with_retry(operation)
 
 
@@ -361,12 +369,20 @@ def test_deliver_one_success_every_type(notification_type: str) -> None:
     assert result is not None
     assert result.outcome == "delivered"
     assert result.notification_type == notification_type
-    assert result.mini_app_button_url == MINI_APP_URL
+    expected_url = MINI_APP_URL
+    expected_button = BUTTON_TEXT
+    if assignment_id:
+        expected_url += f"?go_assignment={assignment_id}"
+        expected_button = "Посмотреть назначение"
+        if notification_type in {"ordinary_version_change", "critical_confirmation_required"}:
+            expected_url += f"&go_version={version_number}"
+            expected_button = "Посмотреть изменения"
+    assert result.mini_app_button_url == expected_url
     assert len(http.calls) == 1
     call = http.calls[0]
     assert call["chat_id"] == user_id
-    assert call["web_app_url"] == MINI_APP_URL
-    assert call["button_text"] == BUTTON_TEXT
+    assert call["web_app_url"] == expected_url
+    assert call["button_text"] == expected_button
     assert "Operator Co" in call["text"]
     assert SECRET_CONTACT not in call["text"]
     row = get_guide_operator_guide_notification_by_source_event_id(event_id)
@@ -884,3 +900,38 @@ def test_privacy_excludes_secrets_from_logs_and_results(caplog) -> None:
     for record in caplog.records:
         assert "Operator Co" not in record.getMessage()
         assert "Новое предложение" not in record.getMessage()
+
+
+@pytest.mark.parametrize("status", ["accepted", "declined", "withdrawn", "expired", "cancelled"])
+def test_obsolete_offer_is_never_sent(status):
+    guide, _ = _seed_guide()
+    aid = str(uuid4())
+    _seed_assignment_state(guide_os_id=guide, assignment_id=aid, status=status, active_version=1)
+    eid = _insert_notification(guide_os_id=guide, notification_type="assignment_offer", assignment_id=aid,
+                               version_number=1, seed_lifecycle=False)
+    http = FakeTelegram()
+    result = deliver_one_notification(settings=_settings(), clock=FrozenClock(), http_client=http, source_event_id=eid)
+    assert result.error_code == ERROR_SUPERSEDED
+    assert http.calls == []
+
+
+def test_two_successive_published_changes_have_distinct_immutable_links():
+    guide, _ = _seed_guide()
+    aid = str(uuid4())
+    eid = _insert_notification(guide_os_id=guide, notification_type="ordinary_version_change", assignment_id=aid, version_number=2)
+    http = FakeTelegram()
+    first = deliver_one_notification(settings=_settings(), clock=FrozenClock(), http_client=http, source_event_id=eid)
+    assert first.outcome == "delivered"
+    def advance(conn):
+        conn.execute("UPDATE guide_operator_assignments SET active_version_number=3, active_version_unread=1 WHERE assignment_id=?", (aid,))
+        conn.execute("""INSERT INTO guide_operator_assignment_versions
+            (assignment_id, version_number, severity, working_package_json, published_at, change_summary_json)
+            VALUES (?, 3, 'ordinary', ?, ?, ?)""", (aid, json.dumps({"tour": {"title": "Бухара"}}), FIXED_NOW.isoformat(), json.dumps([{"code": "driver"}])))
+    run_write_with_retry(advance)
+    eid3 = _insert_notification(guide_os_id=guide, notification_type="ordinary_version_change", assignment_id=aid, version_number=3, seed_lifecycle=False)
+    third = deliver_one_notification(settings=_settings(), clock=FrozenClock(), http_client=http, source_event_id=eid3)
+    assert third.outcome == "delivered"
+    assert http.calls[0]['web_app_url'].endswith('go_version=2')
+    assert http.calls[1]['web_app_url'].endswith('go_version=3')
+    assert 'Бухара' in http.calls[1]['text'] and 'Водитель' in http.calls[1]['text']
+    assert '2026-10-20' in http.calls[1]['text']
