@@ -405,6 +405,8 @@ export interface ListOfficialHistoryOptions {
 }
 
 export type GuideOperatorAssignmentStatus =
+  | 'withdrawn'
+  | 'expired'
   | 'offered'
   | 'accepted'
   | 'declined'

@@ -50,6 +50,7 @@ import { copyText } from '@/utils/copyText';
 export type GuideOperatorCalendarFocus = {
   assignmentId: string;
   focusDate: string | null;
+  versionNumber?: number;
   returnTo: {
     calendarScreen: CalendarScreen;
     selectedDate: string;
@@ -192,7 +193,15 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const tipsChanged = useCallback(() => setTipsRevision((n) => n + 1), []);
   const openTipsForm = useCallback(() => setOverlay('tips-form'), []);
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
-  const [activeTab, setActiveTabState] = useState<TabId>('calendar');
+  const [operatorLaunch] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const id = q.get('go_assignment');
+    const version = q.get('go_version');
+    if (q.getAll('go_assignment').length !== 1 || !id || !/^[A-Za-z0-9._:-]{1,128}$/.test(id)) return null;
+    if (q.getAll('go_version').length > 1 || (version !== null && !/^[1-9]\d{0,8}$/.test(version))) return null;
+    return { id, version: version === null ? undefined : Number(version) };
+  });
+  const [activeTab, setActiveTabState] = useState<TabId>(operatorLaunch ? 'guide_operator' : 'calendar');
   const [calendarScreen, setCalendarScreen] = useState<CalendarScreen>('feed');
   const [monthExpanded, setMonthExpanded] = useState(false);
   const [selectedDate, setSelectedDate] = useState(MOCK_TODAY);
@@ -203,7 +212,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [scrollToTodaySignal, setScrollToTodaySignal] = useState(0);
   const [feedRestoreIso, setFeedRestoreIso] = useState<string | null>(null);
   const [guideOperatorFocus, setGuideOperatorFocus] =
-    useState<GuideOperatorCalendarFocus | null>(null);
+    useState<GuideOperatorCalendarFocus | null>(() => operatorLaunch ? {
+      assignmentId: operatorLaunch.id, versionNumber: operatorLaunch.version, focusDate: null,
+      returnTo: { calendarScreen: 'feed', selectedDate: MOCK_TODAY,
+        viewMonth: todayMonthYear.month, viewYear: todayMonthYear.year,
+        monthExpanded: false, feedScrollIso: MOCK_TODAY },
+    } : null);
   const [overlay, setOverlay] = useState<OverlayKind | null>(null);
   const [overlayData, setOverlayData] = useState<OverlayData>({});
   const [overlayReturn, setOverlayReturn] = useState<'day' | null>(null);
@@ -226,7 +240,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [demoError, setDemoError] = useState(false);
   const [demoOffline, setDemoOffline] = useState(false);
   const initialCalendarTrackedRef = useRef(false);
-  const activeTabRef = useRef<TabId>('calendar');
+  const activeTabRef = useRef<TabId>(operatorLaunch ? 'guide_operator' : 'calendar');
   const monthExpandedRef = useRef(false);
   const settingsOpenRef = useRef(false);
   const unsavedNewTourRef = useRef(false);

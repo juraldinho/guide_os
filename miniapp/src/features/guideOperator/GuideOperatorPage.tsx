@@ -509,6 +509,7 @@ function WorkingPackageSections({
 }) {
   const pkg = viewingPackage;
   const tour = asRecord(pkg.tour);
+  const scope = asRecord(pkg.assignment);
   const days = asArray(pkg.days);
   const drivers = asArray(pkg.drivers);
   const group = asRecord(pkg.group_summary) ?? asRecord(pkg.groupSummary);
@@ -571,7 +572,7 @@ function WorkingPackageSections({
         ) : null}
         <DetailRow
           label={t.guideOperatorFieldDates}
-          value={formatDateRange(detail.assignment.startDate, detail.assignment.endDate)}
+          value={formatDateRange(asString(scope?.start_date) ?? detail.assignment.startDate, asString(scope?.end_date) ?? detail.assignment.endDate)}
         />
         {formatCancellationDate(detail.assignment.cancelledAt) ? (
           <DetailRow
@@ -587,7 +588,7 @@ function WorkingPackageSections({
         ) : null}
         <DetailRow
           label={t.guideOperatorFieldRole}
-          value={roleLabel(detail.assignment.role)}
+          value={roleLabel(asString(scope?.role) ?? detail.assignment.role)}
         />
         {asString(tour?.language) ? (
           <DetailRow label={t.guideOperatorFieldLanguage} value={asString(tour?.language)!} />
@@ -970,8 +971,14 @@ export function GuideOperatorPage() {
           setDetailNotFound(true);
           setDetail(null);
         } else {
+          const targetVersion = guideOperatorFocus?.assignmentId === selectedId
+            ? guideOperatorFocus.versionNumber : undefined;
+          if (targetVersion !== undefined && !row.versions.some((v) => v.versionNumber === targetVersion)) {
+            setDetailNotFound(true);
+            return;
+          }
           setDetail(row);
-          setViewingVersionNumber(row.activeVersion.versionNumber);
+          setViewingVersionNumber(targetVersion ?? row.activeVersion.versionNumber);
         }
       })
       .catch(() => {
@@ -984,7 +991,7 @@ export function GuideOperatorPage() {
       });
 
     return () => controller.abort();
-  }, [selectedId]);
+  }, [selectedId, guideOperatorFocus?.assignmentId, guideOperatorFocus?.versionNumber]);
 
   const closeDetail = () => {
     if (submitting) return;
@@ -1134,13 +1141,16 @@ export function GuideOperatorPage() {
   const canAcknowledge =
     Boolean(detail) &&
     detail!.assignment.status === 'accepted' &&
+    viewingVersionNumber === detail!.activeVersion.versionNumber &&
     detail!.activeVersion.unread &&
     detail!.activeVersion.severity === 'ordinary' &&
     !detail!.pendingCriticalVersion;
   const canDecideCritical =
     Boolean(detail) &&
     detail!.assignment.status === 'accepted' &&
-    detail!.pendingCriticalVersion !== null;
+    detail!.pendingCriticalVersion !== null &&
+    (viewingVersionNumber === detail!.pendingCriticalVersion?.versionNumber ||
+      (guideOperatorFocus?.versionNumber === undefined && viewingVersionNumber === detail!.activeVersion.versionNumber));
 
   return (
     <main className="main guide-operator-page" aria-labelledby={titleId}>
@@ -1384,6 +1394,15 @@ export function GuideOperatorPage() {
           {detailError ? <p role="alert">{t.guideOperatorDetailError}</p> : null}
           {detail ? (
             <>
+              {['declined', 'withdrawn', 'expired'].includes(detail.assignment.status) ? (
+                <p role="status">{({ declined: 'Предложение отклонено', withdrawn: 'Предложение отозвано оператором', expired: 'Срок предложения истёк' } as Record<string, string>)[detail.assignment.status]}</p>
+              ) : null}
+              {viewingVersionNumber !== null && Math.max(...detail.versions.map((v) => v.versionNumber)) > viewingVersionNumber ? (
+                <p role="status">Вы просматриваете версию {viewingVersionNumber}. Есть более новая версия.</p>
+              ) : null}
+              {viewingVersion && viewingVersion.versionNumber !== detail.activeVersion.versionNumber ? (
+                <ChangeSummaryList items={viewingVersion.changeSummary} testIdPrefix="go-historical-change" />
+              ) : null}
               {detail.versions.length > 1 ? (
                 <section
                   className="guide-operator-version-history"
@@ -1443,7 +1462,10 @@ export function GuideOperatorPage() {
                 </section>
               ) : null}
               <WorkingPackageSections
-                detail={detail}
+                detail={viewingVersion ? { ...detail, activeVersion: {
+                  ...detail.activeVersion, ...viewingVersion,
+                  unread: viewingVersion.versionNumber === detail.activeVersion.versionNumber && detail.activeVersion.unread,
+                } } : detail}
                 focusDate={guideOperatorFocus?.focusDate ?? null}
                 viewingPackage={viewingPackage}
               />

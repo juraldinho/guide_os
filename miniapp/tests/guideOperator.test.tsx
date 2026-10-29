@@ -29,6 +29,7 @@ describe('Guide Operator UI (GO6B2)', () => {
 
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, '', '/');
   });
 
   it('places Guide Operator fourth in bottom navigation', () => {
@@ -202,6 +203,8 @@ describe('Guide Operator UI (GO6B2)', () => {
       expect(screen.getAllByText('Хива по назначению').length).toBeGreaterThan(0);
     });
 
+    expect(screen.queryByTestId('go-acknowledge')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: t.guideOperatorVersionLabel(2) }));
     fireEvent.click(screen.getByTestId('go-acknowledge'));
     await waitFor(() => {
       expect(screen.getByText(t.guideOperatorAcknowledgedToast)).toBeTruthy();
@@ -655,3 +658,51 @@ function formatDateRangeLike(start: string, end: string): string {
   if (start === end) return start;
   return `${start} — ${end}`;
 }
+
+
+describe('Telegram assignment links', () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/'); });
+  it.each([1, 2])('opens exact immutable historical version %s', async (number) => {
+    __resetMockStore();
+    vi.spyOn(guideOsClient, 'listGuideOperatorConnections').mockResolvedValue([]);
+    const lists = await guideOsClient.listGuideOperatorAssignmentLists();
+    const assignment = lists.upcoming[0];
+    const detail = await guideOsClient.getGuideOperatorAssignment(assignment.id);
+    expect(detail).not.toBeNull();
+    const base = detail!.versions[0];
+    vi.spyOn(guideOsClient, 'getGuideOperatorAssignment').mockResolvedValue({ ...detail!,
+      versions: [1, 2, 3].map((n) => ({ ...base, versionNumber: n, workingPackage: { tour: { title: `История ${n}` } } })),
+      activeVersion: { ...detail!.activeVersion, versionNumber: 3, unread: true, severity: 'ordinary' },
+    });
+    window.history.replaceState(null, '', `/?go_assignment=${assignment.id}&go_version=${number}`);
+    renderPage();
+    expect(await screen.findByText(`История ${number}`)).toBeInTheDocument();
+    expect(screen.getByText(`Вы просматриваете версию ${number}. Есть более новая версия.`)).toBeInTheDocument();
+    expect(screen.queryByTestId('go-acknowledge')).not.toBeInTheDocument();
+  });
+  it('does not fall back to latest when the requested version is unavailable', async () => {
+    __resetMockStore();
+    vi.spyOn(guideOsClient, 'listGuideOperatorConnections').mockResolvedValue([]);
+    const lists = await guideOsClient.listGuideOperatorAssignmentLists();
+    window.history.replaceState(null, '', `/?go_assignment=${lists.upcoming[0].id}&go_version=999`);
+    renderPage();
+    expect(await screen.findByText(t.guideOperatorDetailNotFound)).toBeInTheDocument();
+    expect(screen.queryByTestId('go-acknowledge')).not.toBeInTheDocument();
+  });
+  it.each(['declined', 'cancelled', 'withdrawn', 'expired'] as const)('opens %s assignment without obsolete actions', async (status) => {
+    __resetMockStore();
+    vi.spyOn(guideOsClient, 'listGuideOperatorConnections').mockResolvedValue([]);
+    const lists = await guideOsClient.listGuideOperatorAssignmentLists();
+    const assignment = lists.upcoming[0];
+    const detail = await guideOsClient.getGuideOperatorAssignment(assignment.id);
+    vi.spyOn(guideOsClient, 'getGuideOperatorAssignment').mockResolvedValue({ ...detail!, assignment: { ...detail!.assignment, status } });
+    window.history.replaceState(null, '', `/?go_assignment=${assignment.id}`);
+    renderPage();
+    expect(await screen.findByText(t.guideOperatorDetailTitle)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(t.guideOperatorDetailLoading)).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: t.guideOperatorAccept })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('go-acknowledge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('go-critical-confirm-yes')).not.toBeInTheDocument();
+  });
+
+});
