@@ -30,7 +30,7 @@ from services.guide_shop_settings import (
     GuideShopSettingsError,
     GuideShopStagingLifecycleSettings,
 )
-from services.miniapp_api_settings import MiniAppApiSettings
+from services.miniapp_api_settings import MiniAppApiSettings, MiniAppApiSettingsError
 from services.guide_shop_staging_lifecycle_auth import (
     GuideShopStagingLifecycleAuthenticationError,
     GuideShopStagingLifecycleJWTVerifier,
@@ -457,6 +457,8 @@ async def start_guide_shop_link_provider(
     if attach_miniapp_api:
         miniapp_settings = MiniAppApiSettings.from_env(values)
         if miniapp_settings.enabled:
+            if not miniapp_settings.bot_token:
+                raise MiniAppApiSettingsError("BOT_TOKEN is required for combined Mini App runtime")
             from web_api.app import register_miniapp_api_on_app
 
             register_miniapp_api_on_app(app, miniapp_settings)

@@ -27,7 +27,7 @@ from services.guide_shop_link_provider import (
     start_guide_shop_link_provider,
 )
 from services.guide_shop_settings import GuideShopInboundJWTSettings
-from services.miniapp_api_settings import MiniAppApiSettings
+from services.miniapp_api_settings import MiniAppApiSettings, MiniAppApiSettingsError
 from web_api.app import (
     MAX_REQUEST_BODY_BYTES as MINIAPP_MAX_REQUEST_BODY_BYTES,
     MINIAPP_CORS_MIDDLEWARE_REGISTERED_KEY,
@@ -224,6 +224,8 @@ def test_combined_runtime_disabled_start_without_bot_token(public_pem, monkeypat
 def test_combined_runtime_enabled_without_bot_token_fails_closed(public_pem, tmp_path):
     env = os.environ.copy()
     env.pop("BOT_TOKEN", None)
+    env["PYTHON_DOTENV_DISABLED"] = "1"
+    env["DATABASE_PATH"] = str(tmp_path / "combined.db")
     env["PYTHONPATH"] = str(ROOT)
     values = _staging_provider_env(
         GUIDESHOP_LINK_JWT_PUBLIC_KEYS=json.dumps({KID: public_pem}),
@@ -251,21 +253,43 @@ def test_combined_runtime_enabled_without_bot_token_fails_closed(public_pem, tmp
     assert "BOT_TOKEN" in completed.stderr or "ValueError" in completed.stderr
 
 
-def test_link_api_entrypoint_import_without_bot_token_when_miniapp_disabled():
+@pytest.mark.parametrize("dev_auth", ["true", "false"])
+@pytest.mark.parametrize("token", [None, "", "   "])
+def test_combined_runtime_rejects_missing_token_before_listener(
+    public_pem, monkeypatch, dev_auth, token
+):
+    monkeypatch.setenv("BOT_TOKEN", TEST_BOT_TOKEN)
+    runner_factory = Mock(side_effect=AssertionError("listener created"))
+    monkeypatch.setattr(provider_module.web, "AppRunner", runner_factory)
+    values = _staging_provider_env(
+        GUIDESHOP_LINK_JWT_PUBLIC_KEYS=json.dumps({KID: public_pem}),
+        MINI_APP_API_ENABLED="true",
+        MINI_APP_API_DEV_AUTH=dev_auth,
+    )
+    if token is not None:
+        values["BOT_TOKEN"] = token
+    with pytest.raises(MiniAppApiSettingsError, match="BOT_TOKEN"):
+        run(start_guide_shop_link_provider(values, attach_miniapp_api=True))
+    runner_factory.assert_not_called()
+
+
+def test_link_api_entrypoint_import_without_bot_token_when_miniapp_disabled(tmp_path):
     env = os.environ.copy()
     env.pop("BOT_TOKEN", None)
+    env["PYTHON_DOTENV_DISABLED"] = "1"
     env["PYTHONPATH"] = str(ROOT)
     script = (
         "import os, sys\n"
         "assert 'BOT_TOKEN' not in os.environ\n"
         "import guide_shop_link_api\n"
+        "assert 'BOT_TOKEN' not in os.environ\n"
         "assert 'bot' not in sys.modules\n"
         "assert 'config' not in sys.modules\n"
         "print('ok')\n"
     )
     completed = subprocess.run(
         [sys.executable, "-c", script],
-        cwd=ROOT,
+        cwd=tmp_path,
         env=env,
         capture_output=True,
         text=True,
