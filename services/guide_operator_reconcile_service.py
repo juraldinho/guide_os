@@ -121,6 +121,9 @@ def list_protected_projection_tours(conn, assignment_id: str) -> list[dict[str, 
 def projection_fingerprint(
     row: dict[str, Any], tours: list[dict[str, Any]]
 ) -> dict[str, Any]:
+    if row.get("projection_mode", "legacy_range") != "legacy_range":
+        # Also used by legacy repair before it can mutate anything.
+        raise GuideOperatorReconcileValidationError("unsupported_projection_mode")
     chosen: dict[str, Any] | None = None
     projection_tour_id = row.get("projection_tour_id")
     if projection_tour_id is not None:
@@ -291,3 +294,153 @@ def get_local_assignment(guide_os_id: object, assignment_id: str) -> dict[str, A
     finally:
         conn.close()
     return snapshot
+
+
+def _assignment_snapshot_v2(conn, row: dict[str, Any]) -> dict[str, Any]:
+    import json
+    from services.reconciliation_v2_contract import IDENTITY, seal, snapshot_base
+
+    versions = []
+    for version in conn.execute(
+        "SELECT version_number, working_package_json FROM guide_operator_assignment_versions "
+        "WHERE assignment_id=? ORDER BY version_number",
+        (row["assignment_id"],),
+    ):
+        try:
+            package = json.loads(version["working_package_json"])
+        except (ValueError, TypeError):
+            package = None
+        versions.append({"version_number": version["version_number"], "package": package})
+    state = {**row, "source_service": SOURCE_GUIDE_OPERATOR}
+    result = snapshot_base(state, versions, row["projection_mode"])
+    links = [
+        dict(link)
+        for link in conn.execute(
+            "SELECT * FROM guide_operator_daily_projections WHERE assignment_id=?",
+            (row["assignment_id"],),
+        )
+    ]
+    owner = conn.execute(
+        "SELECT user_id FROM users WHERE guide_os_id=?", (row["guide_os_id"],)
+    ).fetchone()
+    owner_id = owner["user_id"] if owner else None
+    ids = [link["projection_tour_id"] for link in links]
+    if row["projection_tour_id"] is not None:
+        ids.append(row["projection_tour_id"])
+    placeholders = ",".join("?" for _ in ids) or "NULL"
+    tours = {
+        tour["id"]: dict(tour)
+        for tour in conn.execute(
+            f"SELECT id,user_id,start_date,end_date,source,note,entry_type,tour_group_id "
+            f"FROM tours WHERE (user_id=? AND source=? AND note=?) OR id IN ({placeholders}) LIMIT 1001",
+            (owner_id, SOURCE_GUIDE_OPERATOR, f"go_assignment:{row['assignment_id']}", *ids),
+        )
+    }
+    link_by_id: dict[int, list[dict[str, Any]]] = {}
+    for link in links:
+        link_by_id.setdefault(link["projection_tour_id"], []).append(link)
+    # Preserve duplicate link evidence even if an unsafe legacy database lost uniqueness.
+    evidence = [(key, link) for key in sorted(set(tours) | set(ids))
+                for link in link_by_id.get(key, [None])]
+    for projection_id, link in evidence:
+        tour = tours.get(projection_id)
+        binding = {key: (link[key] if link else state.get(key)) for key in IDENTITY}
+        issues = []
+        visible = tour is not None and tour["user_id"] == owner_id
+        if tour is None:
+            issues.append("missing_tour")
+        elif not visible:
+            issues.append("owner_mismatch")
+        if visible:
+            binding["source_service"] = tour["source"]
+            note = tour["note"] or ""
+            binding["assignment_id"] = (
+                note.removeprefix("go_assignment:") if note.startswith("go_assignment:") else None
+            )
+            if tour["source"] != SOURCE_GUIDE_OPERATOR or tour["entry_type"] != "tour":
+                issues.append("not_protected")
+        if any(binding[key] != state.get(key) for key in IDENTITY):
+            issues.append("binding_mismatch")
+        if row["projection_mode"] == "explicit_days":
+            if link is None:
+                issues.append("unlinked")
+            elif visible:
+                if tour["tour_group_id"] != f"{row['assignment_id']}:{link['tour_day_id']}":
+                    issues.append("group_mismatch")
+                if link["calendar_date"] != tour["start_date"]:
+                    issues.append("date_mismatch")
+            if visible and tour["start_date"] != tour["end_date"]:
+                issues.append("not_daily")
+        result["projections"].append(
+            {
+                "tour_day_id": link["tour_day_id"] if link else None,
+                "date": tour["start_date"] if visible else None,
+                "end_date": tour["end_date"] if visible else None,
+                "projection_tour_id": projection_id,
+                "active_version_number": link["active_version_number"]
+                if link
+                else (
+                    row["active_version_number"]
+                    if row["projection_mode"] == "legacy_range"
+                    else None
+                ),
+                "binding": binding,
+                "issues": issues,
+            }
+        )
+    return seal(result)
+
+
+def list_local_assignments_v2(
+    guide_os_id: object,
+    *,
+    limit: object = None,
+    cursor: str | None = None,
+    ids: list[str] | None = None,
+) -> dict[str, Any]:
+    from services.reconciliation_v2_contract import SCHEMA, SnapshotContractError
+
+    identity = _require_guide(guide_os_id)
+    page_limit = parse_page_limit(limit)
+    id_filter = parse_id_filter(ids)
+    if cursor is not None and (not cursor or len(cursor) > 128 or cursor != cursor.strip()):
+        raise GuideOperatorReconcileValidationError("cursor")
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN")
+        params: list[Any] = [identity]
+        where = ["guide_os_id=?"]
+        if id_filter is not None:
+            where.append("assignment_id IN (" + ",".join("?" for _ in id_filter) + ")")
+            params.extend(id_filter)
+        if cursor is not None:
+            where.append("assignment_id>?")
+            params.append(cursor)
+        rows = conn.execute(
+            "SELECT * FROM guide_operator_assignments WHERE "
+            + " AND ".join(where)
+            + " ORDER BY assignment_id LIMIT ?",
+            (*params, page_limit + 1),
+        ).fetchall()
+        items = [_assignment_snapshot_v2(conn, dict(row)) for row in rows[:page_limit]]
+        return {
+            "schema_version": SCHEMA,
+            "guide_os_id": identity,
+            "resource": "assignments",
+            "items": items,
+            "next_cursor": rows[page_limit - 1]["assignment_id"]
+            if len(rows) > page_limit
+            else None,
+            "authoritative_side": "guide_os_local_projection",
+        }
+    except SnapshotContractError as exc:
+        raise GuideOperatorReconcileValidationError(str(exc)) from exc
+    finally:
+        conn.close()
+
+
+def get_local_assignment_v2(guide_os_id: object, assignment_id: str) -> dict[str, Any]:
+    page = list_local_assignments_v2(guide_os_id, ids=[assignment_id], limit=1)
+    if not page["items"]:
+        raise GuideOperatorReconcileNotFoundError("missing")
+    return page["items"][0]

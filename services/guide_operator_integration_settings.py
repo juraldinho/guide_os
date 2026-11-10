@@ -40,6 +40,7 @@ class GuideOperatorIntegrationSettings:
     enabled: bool = False
     host: str = "127.0.0.1"
     port: int = 8084
+    assignment_explicit_days_v2_receive_enabled: bool = False
 
     @classmethod
     def disabled(cls) -> GuideOperatorIntegrationSettings:
@@ -83,4 +84,15 @@ class GuideOperatorIntegrationSettings:
             raise GuideOperatorIntegrationConfigurationError(
                 "Guide Operator integration configuration is invalid"
             )
-        return cls(enabled=True, host=host, port=port)
+        receive_v2 = _as_bool(
+            source.get(
+                "GUIDE_OS_GUIDE_OPERATOR_ASSIGNMENT_EXPLICIT_DAYS_V2_RECEIVE_ENABLED",
+                "false",
+            )
+        )
+        return cls(
+            enabled=True,
+            host=host,
+            port=port,
+            assignment_explicit_days_v2_receive_enabled=receive_v2,
+        )

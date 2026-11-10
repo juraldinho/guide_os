@@ -745,3 +745,347 @@ def _require_projection_fingerprint(value: object) -> dict[str, Any]:
         "end_date": end_date,
         "version_number": version_number,
     }
+
+
+def repair_local_projection_set(
+    guide_os_id: object,
+    assignment_id: object,
+    *,
+    repair_request_id: object,
+    expected_status: object,
+    expected_active_version_number: object,
+    expected_fingerprint: object,
+) -> ProjectionRepairResult:
+    """Local explicit-day repair only. No HTTP/UI caller or replacement content.
+
+    All evidence checks, conflict detection, projection writes and repair records
+    share BEGIN IMMEDIATE with confirm/cancel. Legacy repair remains separate.
+    """
+    from services.guide_operator_assignment_service import (
+        _daily_conflicts,
+        _release_daily_row,
+        _replace_daily_projections,
+    )
+    from services.guide_operator_reconcile_service import _assignment_snapshot_v2
+    from services.reconciliation_v2_contract import SnapshotContractError
+
+    identity = _require_guide(guide_os_id)
+    assignment_key = _require_assignment_id(assignment_id)
+    request_id = _require_uuid4(repair_request_id, "repair_request_id")
+    status_expected = _require_expected_status(expected_status)
+    version_expected = _require_version_number(expected_active_version_number)
+    if (
+        not isinstance(expected_fingerprint, str)
+        or re.fullmatch("[0-9a-f]{64}", expected_fingerprint) is None
+    ):
+        raise ProjectionRepairValidationError("expected_fingerprint")
+    payload_hash = _canonical_hash(
+        {
+            "schema_version": "projection_set.repair.v2",
+            "assignment_id": assignment_key,
+            "guide_os_id": identity,
+            "expected_status": status_expected,
+            "expected_active_version_number": version_expected,
+            "expected_fingerprint": expected_fingerprint,
+        }
+    )
+
+    def operation(conn):
+        prior = conn.execute(
+            "SELECT * FROM guide_operator_projection_repair_inbox WHERE repair_request_id=?",
+            (request_id,),
+        ).fetchone()
+        if prior is not None:
+            if prior["payload_hash"] != payload_hash:
+                return ProjectionRepairResult("conflict", request_id, False, "none")
+            # Return the recorded terminal result, even after a later confirmation/cancellation.
+            return ProjectionRepairResult(
+                prior["result_status"], request_id, True, prior["action"]
+            )
+        raw = conn.execute(
+            "SELECT * FROM guide_operator_assignments WHERE assignment_id=? AND guide_os_id=?",
+            (assignment_key, identity),
+        ).fetchone()
+        if raw is None:
+            raise ProjectionRepairNotFoundError("missing")
+        assignment = dict(raw)
+
+        def finish(status="no-op", action="none"):
+            return _persist_terminal(
+                conn,
+                request_id=request_id,
+                assignment_id=assignment_key,
+                guide_os_id=identity,
+                payload_hash=payload_hash,
+                result_status=status,
+                action=action,
+                audit=status == "applied",
+            )
+
+        if (
+            assignment["projection_mode"] != "explicit_days"
+            or assignment["projection_tour_id"] is not None
+            or assignment["status"] != status_expected
+            or assignment["active_version_number"] != version_expected
+            or assignment["pending_critical_version_number"] is not None
+        ):
+            return finish()
+        try:
+            snapshot = _assignment_snapshot_v2(conn, assignment)
+        except (SnapshotContractError, ValueError, TypeError, KeyError):
+            return finish()
+        if snapshot["fingerprint"] != expected_fingerprint or snapshot["state_issues"]:
+            return finish()
+        desired = _agreed_explicit_repair_scope(conn, assignment)
+        if desired is None:
+            return finish()
+        package, scope = desired
+        if status_expected == "cancelled":
+            cancellation = conn.execute(
+                "SELECT 1 FROM guide_operator_cancellation_inbox WHERE event_id=? AND assignment_id=? "
+                "AND guide_os_id=? AND version_number=? AND result_status='applied'",
+                (
+                    assignment["cancellation_event_id"],
+                    assignment_key,
+                    identity,
+                    version_expected,
+                ),
+            ).fetchone()
+            if cancellation is None or not assignment["cancelled_at"]:
+                return finish()
+        connection = conn.execute(
+            "SELECT company_id,guide_os_id FROM guide_operator_connections "
+            "WHERE connection_id=?",
+            (assignment["guide_connection_id"],),
+        ).fetchone()
+        if (
+            connection is None
+            or connection["company_id"] != assignment["company_id"]
+            or connection["guide_os_id"] != identity
+        ):
+            return finish()
+        user = conn.execute(
+            "SELECT user_id FROM users WHERE guide_os_id=?", (identity,)
+        ).fetchone()
+        if user is None:
+            return finish()
+        user_id = user["user_id"]
+        owned = _safe_explicit_repair_rows(conn, assignment, snapshot, user_id)
+        if owned is None:
+            return finish()
+        desired_keys = (
+            {key for key, _ in scope} if status_expected == "accepted" else set()
+        )
+        # Never delete a row containing financial values, even if it is an otherwise valid stray.
+        if any(
+            key not in desired_keys
+            and (row["income"] is not None or row["payment_status"] != PAYMENT_UNPAID)
+            for key, row in owned.items()
+        ):
+            return finish()
+        if status_expected == "accepted" and _daily_conflicts(
+            conn,
+            assignment,
+            scope,
+            user_id,
+            exclude_projection_ids={row["id"] for row in owned.values()},
+        ):
+            return finish("conflict")
+        if _explicit_repair_matches(assignment, snapshot, owned, package, scope):
+            return finish()
+
+        conn.execute(
+            "DELETE FROM guide_operator_daily_projections WHERE assignment_id=?",
+            (assignment_key,),
+        )
+        for key, row in owned.items():
+            if key not in desired_keys:
+                _release_daily_row(conn, row["id"], user_id)
+        if status_expected == "accepted":
+            # Reattach only unique, validated stable identities. This also retains a
+            # financially nonempty row if its link was lost; no copying of amounts.
+            for key, value in scope:
+                if key in owned:
+                    conn.execute(
+                        "INSERT INTO guide_operator_daily_projections(source_service,company_id,assignment_id,"
+                        "guide_os_id,operator_tour_id,tour_day_id,calendar_date,active_version_number,projection_tour_id) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (
+                            SOURCE_GUIDE_OPERATOR,
+                            assignment["company_id"],
+                            assignment_key,
+                            identity,
+                            assignment["operator_tour_id"],
+                            key,
+                            value,
+                            version_expected,
+                            owned[key]["id"],
+                        ),
+                    )
+            _replace_daily_projections(
+                conn, assignment, package, version_expected, user_id, scope
+            )
+        after_row = dict(
+            conn.execute(
+                "SELECT * FROM guide_operator_assignments WHERE assignment_id=?",
+                (assignment_key,),
+            ).fetchone()
+        )
+        if after_row != assignment:
+            raise ProjectionRepairValidationError("Repair changed assignment state.")
+        after = _assignment_snapshot_v2(conn, after_row)
+        if not _explicit_repair_matches(
+            assignment, after, {}, package, scope, check_labels=False
+        ):
+            raise ProjectionRepairValidationError(
+                "Repair did not restore the entire projection set."
+            )
+        action = (
+            "release_stray"
+            if status_expected == "cancelled"
+            else ("recreate" if not owned else "repair_mismatch")
+        )
+        result = finish("applied", action)
+        if _REPAIR_FAILURE_HOOK is not None:
+            _REPAIR_FAILURE_HOOK()
+        return result
+
+    return run_write_with_retry(operation)
+
+
+def _agreed_explicit_repair_scope(conn, assignment):
+    """Version reference + retained guide decision, never caller calendar content."""
+    from services.guide_operator_assignment_service import (
+        AssignmentValidationError,
+        _explicit_scope,
+    )
+
+    initial_accept = conn.execute(
+        "SELECT 1 FROM guide_operator_assignment_decisions WHERE assignment_id=? AND guide_os_id=? "
+        "AND decision_type='accept' AND version_number=1",
+        (assignment["assignment_id"], assignment["guide_os_id"]),
+    ).fetchone()
+    if initial_accept is None:
+        return None
+    versions = {
+        row["version_number"]: dict(row)
+        for row in conn.execute(
+            "SELECT * FROM guide_operator_assignment_versions WHERE assignment_id=?",
+            (assignment["assignment_id"],),
+        )
+    }
+    active = versions.get(assignment["active_version_number"])
+    if active is None or versions.get(1, {}).get("severity") != "initial":
+        return None
+    confirmed = {
+        row["version_number"]
+        for row in conn.execute(
+            "SELECT version_number FROM guide_operator_critical_version_decisions WHERE assignment_id=? "
+            "AND guide_os_id=? AND decision_type='confirm_critical'",
+            (assignment["assignment_id"], assignment["guide_os_id"]),
+        )
+    }
+    version = assignment["active_version_number"]
+    if version == 1:
+        proof_version = 1
+    elif active["severity"] == "critical" and version in confirmed:
+        proof_version = version
+    elif active["severity"] == "ordinary":
+        proof_version = max([1] + [n for n in confirmed if n < version])
+        if (
+            proof_version != 1
+            and versions.get(proof_version, {}).get("severity") != "critical"
+        ):
+            return None
+    else:
+        return None
+    try:
+        initial = _load_working_package_json(versions[1]["working_package_json"])
+        package = _load_working_package_json(active["working_package_json"])
+        proof = _load_working_package_json(
+            versions[proof_version]["working_package_json"]
+        )
+        if any(
+            candidate.get("schema_version") != "assignment.working_package.v2"
+            or not isinstance(candidate.get("days"), list)
+            or len(candidate["days"]) > 366
+            for candidate in (initial, package, proof)
+        ):
+            return None
+        _explicit_scope(assignment, initial)
+        scope = _explicit_scope(assignment, package)
+        if (
+            _explicit_scope(assignment, proof) != scope
+            or proof["assignment"]["role"] != package["assignment"]["role"]
+        ):
+            return None
+        return package, scope
+    except (AssignmentValidationError, ValueError, TypeError, KeyError):
+        return None
+
+
+def _safe_explicit_repair_rows(conn, assignment, snapshot, user_id):
+    """Do not guess ownership or select between duplicate stable identities."""
+    owned = {}
+    allowed = {"missing_tour", "unlinked", "date_mismatch", "not_daily"}
+    for item in snapshot["projections"]:
+        if set(item["issues"]) - allowed:
+            return None
+        row = conn.execute(
+            "SELECT * FROM tours WHERE id=?", (item["projection_tour_id"],)
+        ).fetchone()
+        if row is None:
+            continue
+        row = dict(row)
+        if conn.execute(
+            "SELECT 1 FROM guide_operator_daily_projections WHERE projection_tour_id=? "
+            "AND assignment_id<>?",
+            (row["id"], assignment["assignment_id"]),
+        ).fetchone():
+            return None
+        if (
+            row["user_id"] != user_id
+            or row["source"] != SOURCE_GUIDE_OPERATOR
+            or row["note"] != "go_assignment:" + assignment["assignment_id"]
+            or row["entry_type"] != ENTRY_TYPE_TOUR
+            or row["status"] != STATUS_CONFIRMED
+            or row["start_time"] is not None
+            or row["end_time"] is not None
+        ):
+            return None
+        prefix = assignment["assignment_id"] + ":"
+        group = row["tour_group_id"]
+        if not isinstance(group, str) or not group.startswith(prefix):
+            return None
+        try:
+            key = _require_uuid4(group[len(prefix) :], "tour_day_id")
+        except ProjectionRepairValidationError:
+            return None
+        if (
+            item["tour_day_id"] is not None and item["tour_day_id"] != key
+        ) or key in owned:
+            return None
+        owned[key] = row
+    return owned
+
+
+def _explicit_repair_matches(
+    assignment, snapshot, owned, package, scope, *, check_labels=True
+):
+    if assignment["status"] == "cancelled":
+        return not snapshot["projections"]
+    title, city = _projection_labels(assignment, package)
+    desired = {
+        (key, value, value, assignment["active_version_number"]) for key, value in scope
+    }
+    actual = {
+        (p["tour_day_id"], p["date"], p["end_date"], p["active_version_number"])
+        for p in snapshot["projections"]
+        if not p["issues"]
+    }
+    if actual != desired or len(snapshot["projections"]) != len(desired):
+        return False
+    return not check_labels or (
+        len(owned) == len(desired)
+        and all(row["title"] == title and row["city"] == city for row in owned.values())
+    )

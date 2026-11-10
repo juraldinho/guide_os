@@ -377,6 +377,8 @@ def _attach_guide_operator_meta(entry: dict[str, Any]) -> dict[str, Any]:
     if entry.get("source") != SOURCE_DISPLAY[SOURCE_GUIDE_OPERATOR]:
         return entry
 
+    if entry.get("guide_operator_tour_day_id"):
+        return entry
     assignment_id = entry.get("guide_operator_assignment_id")
     if not assignment_id:
         assignment_id = _parse_guide_operator_assignment_id(
@@ -454,13 +456,21 @@ def row_to_entry_dict(row: dict[str, Any]) -> dict[str, Any]:
         "day_locations": day_locations,
         "group_id": row.get("tour_group_id"),
     }
-    assignment_id = _parse_guide_operator_assignment_id(
-        source_key=source_key,
-        group_id=row.get("tour_group_id"),
-        note=row.get("note"),
+    assignment_id = row.get("guide_operator_assignment_id") or (
+        _parse_guide_operator_assignment_id(
+            source_key=source_key,
+            group_id=row.get("tour_group_id"),
+            note=row.get("note"),
+        )
     )
     if assignment_id:
         entry["guide_operator_assignment_id"] = assignment_id
+    if row.get("guide_operator_tour_day_id"):
+        for key in (
+            "guide_operator_tour_day_id", "guide_operator_version",
+            "guide_operator_version_unread", "guide_operator_pending_critical",
+        ):
+            entry[key] = row[key]
     return _attach_guide_operator_meta(entry)
 
 

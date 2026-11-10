@@ -83,6 +83,7 @@ class GuideOperatorOutboundSettings:
     app_env: str = "development"
     base_url: str | None = None
     outbound_jwt: GuideOperatorOutboundJWTSettings | None = None
+    explicit_days_return_enabled: bool = False
 
     @classmethod
     def disabled(cls, app_env: str = "development") -> GuideOperatorOutboundSettings:
@@ -99,6 +100,7 @@ class GuideOperatorOutboundSettings:
         app_env: str,
         base_url: str,
         outbound_jwt: GuideOperatorOutboundJWTSettings,
+        explicit_days_return_enabled: bool = False,
     ) -> GuideOperatorOutboundSettings:
         if not isinstance(outbound_jwt, GuideOperatorOutboundJWTSettings):
             raise GuideOperatorOutboundConfigurationError(
@@ -109,6 +111,7 @@ class GuideOperatorOutboundSettings:
             app_env=app_env,
             base_url=validate_guide_operator_base_url(base_url, app_env=app_env),
             outbound_jwt=outbound_jwt,
+            explicit_days_return_enabled=explicit_days_return_enabled is True,
         )
 
     @classmethod
@@ -154,4 +157,9 @@ class GuideOperatorOutboundSettings:
             app_env=app_env,
             base_url=base_url,
             outbound_jwt=auth.outbound,
+            explicit_days_return_enabled=_as_bool(
+                source.get(
+                    "GUIDE_OS_GUIDE_OPERATOR_EXPLICIT_DAYS_RETURN_ENABLED", "false"
+                )
+            ),
         )

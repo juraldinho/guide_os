@@ -1,3 +1,4 @@
+import { t } from '@/i18n/strings';
 import type { CalendarEntry, DayStatusKind, MarkerKind } from '@/api/types';
 import { dateInEntry } from './dates';
 
@@ -55,4 +56,14 @@ export function sortEntriesForDay(entries: CalendarEntry[]): CalendarEntry[] {
     if (isFullDay(b)) return 1;
     return (a.startTime || '') < (b.startTime || '') ? -1 : 1;
   });
+}
+
+export function guideOperatorRoleLabel(role: string): string {
+  if (role === 'main_guide') return t.guideOperatorRoleMain;
+  if (role === 'assistant_guide') return t.guideOperatorRoleAssistant;
+  if (role === 'accompanying_guide') return 'Сопровождающий гид';
+  if (role === 'local_guide') return 'Местный гид';
+  if (role === 'meet_and_greet') return 'Встреча и проводы';
+  if (role === 'other') return 'Другая роль';
+  return t.guideOperatorRoleUnknown(role);
 }

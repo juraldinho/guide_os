@@ -20,8 +20,6 @@ from uuid import UUID
 from aiohttp import web
 
 from database.queries import (
-    get_guide_operator_assignment_lifecycle_inbox,
-    get_guide_operator_cancellation_inbox,
     get_guide_operator_connection_inbox,
     get_guide_operator_offer_inbox,
     get_guide_operator_version_inbox,
@@ -30,6 +28,7 @@ from services.guide_operator_assignment_service import (
     AssignmentCancellationIntake,
     AssignmentLifecycleIntake,
     AssignmentConflictError,
+    AssignmentForbiddenError,
     AssignmentNotActionableError,
     AssignmentNotFoundError,
     AssignmentOfferIntake,
@@ -42,6 +41,11 @@ from services.guide_operator_assignment_service import (
     apply_ordinary_assignment_version,
     intake_critical_assignment_version,
     receive_assignment_offer,
+)
+from services.guide_operator_assignment_v2_contract import OFFER, VERSION
+from services.guide_operator_assignment_v2_service import (
+    AssignmentV2ReceiveDisabled,
+    receive_assignment_event_v2,
 )
 from services.guide_operator_connection_service import (
     ConnectionConflictError,
@@ -61,6 +65,10 @@ from services.guide_operator_discovery_service import (
     discover_guide_for_operator,
     guide_availability_for_operator,
 )
+from services.guide_operator_integration_settings import (
+    GuideOperatorIntegrationConfigurationError,
+    GuideOperatorIntegrationSettings,
+)
 from services.guide_operator_reconcile_repair_service import (
     ProjectionRepairNotFoundError,
     ProjectionRepairValidationError,
@@ -70,8 +78,10 @@ from services.guide_operator_reconcile_service import (
     GuideOperatorReconcileNotFoundError,
     GuideOperatorReconcileValidationError,
     get_local_assignment,
+    get_local_assignment_v2,
     get_local_connection,
     list_local_assignments,
+    list_local_assignments_v2,
     list_local_connections,
 )
 from services.guide_operator_service_auth_settings import (
@@ -176,7 +186,9 @@ def _unique_object(pairs):
     return result
 
 
-async def _read_envelope(request: web.Request) -> dict[str, Any]:
+async def _read_envelope(
+    request: web.Request, *, preserve_values: bool = False
+) -> dict[str, Any]:
     if request.content_type != "application/json":
         raise ValueError("content type")
     body = await request.read()
@@ -197,6 +209,10 @@ async def _read_envelope(request: web.Request) -> dict[str, Any]:
         or not isinstance(payload, dict)
     ):
         raise ValueError("envelope fields")
+    if preserve_values:
+        # V2 validates original values: v1's timestamp trimming is not a coercion
+        # rule for the additive strict contract.
+        return data
     return {
         "event_id": event_id,
         "event_type": event_type,
@@ -321,6 +337,7 @@ def _applied_response(
 def create_guide_operator_integration_app(
     *,
     auth_settings: GuideOperatorServiceAuthSettings | None = None,
+    integration_settings: GuideOperatorIntegrationSettings | None = None,
     clock: Callable[[], datetime] | None = None,
     random_bytes=secrets.token_bytes,
 ) -> web.Application:
@@ -333,6 +350,19 @@ def create_guide_operator_integration_app(
             resolved_auth = load_guide_operator_service_auth_settings()
         except GuideOperatorServiceAuthConfigurationError:
             resolved_auth = GuideOperatorServiceAuthSettings.disabled()
+
+    resolved_runtime = integration_settings
+    if resolved_runtime is None:
+        try:
+            resolved_runtime = GuideOperatorIntegrationSettings.from_env()
+        except GuideOperatorIntegrationConfigurationError:
+            # Invalid new capability configuration must not widen receive or
+            # alter legacy route behavior.
+            resolved_runtime = GuideOperatorIntegrationSettings.disabled()
+    receive_v2 = (
+        resolved_runtime.enabled is True
+        and resolved_runtime.assignment_explicit_days_v2_receive_enabled is True
+    )
 
     app["go_integration_auth_settings"] = resolved_auth
     app["go_integration_clock"] = clock
@@ -536,6 +566,48 @@ def create_guide_operator_integration_app(
             replayed=prior is not None,
         )
 
+    async def _assignment_v2_handler(
+        request: web.Request, *, expected_scope: str, expected_type: str
+    ) -> web.Response:
+        rid, failure = await _prepare(request, expected_scope=expected_scope)
+        if failure is not None:
+            return failure
+        if not receive_v2:
+            return error_response(
+                AssignmentV2ReceiveDisabled.code, _MSG_VALIDATION, rid, 503
+            )
+        assignment_id = _parse_uuid4(request.match_info.get("assignmentId", ""))
+        if assignment_id is None:
+            return error_response("validation_error", _MSG_INVALID, rid, 400)
+        try:
+            envelope = await _read_envelope(request, preserve_values=True)
+        except (ValueError, UnicodeError, RecursionError, web.HTTPRequestEntityTooLarge):
+            return error_response("invalid_request", _MSG_INVALID, rid, 400)
+        if envelope["event_type"] != expected_type:
+            return error_response("invalid_request", _MSG_INVALID, rid, 400)
+        try:
+            result = receive_assignment_event_v2(
+                envelope, assignment_id=assignment_id, receive_enabled=receive_v2
+            )
+        except AssignmentForbiddenError:
+            return error_response("forbidden", _MSG_VALIDATION, rid, 403)
+        except GuideOperatorAssignmentError as exc:
+            return _map_assignment_error(exc, rid)
+        return _applied_response(
+            rid=rid, event_id=envelope["event_id"], event_type=expected_type,
+            replayed=result["replayed"],
+        )
+
+    async def offered_v2_handler(request: web.Request) -> web.Response:
+        return await _assignment_v2_handler(
+            request, expected_scope=SCOPE_OFFERS_WRITE, expected_type=OFFER
+        )
+
+    async def version_v2_handler(request: web.Request) -> web.Response:
+        return await _assignment_v2_handler(
+            request, expected_scope=SCOPE_VERSIONS_WRITE, expected_type=VERSION
+        )
+
     async def cancelled_handler(request: web.Request) -> web.Response:
         rid, failure = await _prepare(request, expected_scope=SCOPE_CANCELLATIONS_WRITE)
         if failure is not None:
@@ -552,9 +624,8 @@ def create_guide_operator_integration_app(
         payload = envelope["payload"]
         if payload.get("assignment_id") != assignment_id:
             return error_response("validation_error", _MSG_INVALID, rid, 400)
-        prior = get_guide_operator_cancellation_inbox(envelope["event_id"])
         try:
-            apply_assignment_cancellation(
+            result = apply_assignment_cancellation(
                 AssignmentCancellationIntake(
                     event_id=envelope["event_id"],
                     assignment_id=assignment_id,
@@ -571,7 +642,7 @@ def create_guide_operator_integration_app(
             rid=rid,
             event_id=envelope["event_id"],
             event_type=envelope["event_type"],
-            replayed=prior is not None,
+            replayed=result.replayed,
         )
 
     async def _lifecycle_handler(
@@ -594,9 +665,8 @@ def create_guide_operator_integration_app(
             return error_response("validation_error", _MSG_VALIDATION, rid, 400)
         if payload.get("assignment_id") != assignment_id:
             return error_response("validation_error", _MSG_INVALID, rid, 400)
-        prior = get_guide_operator_assignment_lifecycle_inbox(envelope["event_id"])
         try:
-            apply_assignment_lifecycle_transition(
+            result = apply_assignment_lifecycle_transition(
                 AssignmentLifecycleIntake(
                     event_id=envelope["event_id"],
                     event_type=envelope["event_type"],
@@ -613,7 +683,7 @@ def create_guide_operator_integration_app(
             rid=rid,
             event_id=envelope["event_id"],
             event_type=envelope["event_type"],
-            replayed=prior is not None,
+            replayed=result.replayed,
         )
 
     async def withdrawn_handler(request: web.Request) -> web.Response:
@@ -759,7 +829,8 @@ def create_guide_operator_integration_app(
         if guide_os_id is None:
             return error_response("validation_error", _MSG_RECONCILE, rid, 400)
         try:
-            payload = list_local_assignments(
+            reader = list_local_assignments_v2 if request.path.startswith('/integration/v2/') else list_local_assignments
+            payload = reader(
                 guide_os_id,
                 limit=request.rel_url.query.get("limit"),
                 cursor=request.rel_url.query.get("cursor"),
@@ -778,7 +849,8 @@ def create_guide_operator_integration_app(
         if guide_os_id is None or assignment_id is None:
             return error_response("validation_error", _MSG_RECONCILE, rid, 400)
         try:
-            payload = get_local_assignment(guide_os_id, assignment_id)
+            reader = get_local_assignment_v2 if request.path.startswith('/integration/v2/') else get_local_assignment
+            payload = reader(guide_os_id, assignment_id)
         except GuideOperatorReconcileValidationError:
             return error_response("validation_error", _MSG_RECONCILE, rid, 400)
         except GuideOperatorReconcileNotFoundError:
@@ -830,6 +902,12 @@ def create_guide_operator_integration_app(
         disconnected_handler,
     )
     app.router.add_post(
+        "/integration/v2/assignments/{assignmentId}/offered", offered_v2_handler
+    )
+    app.router.add_post(
+        "/integration/v2/assignments/{assignmentId}/versions", version_v2_handler
+    )
+    app.router.add_post(
         "/integration/v1/assignments/{assignmentId}/offered",
         offered_handler,
     )
@@ -872,6 +950,14 @@ def create_guide_operator_integration_app(
     )
     app.router.add_get(
         "/integration/v1/reconcile/guides/{guideOsId}/assignments/{assignmentId}",
+        reconcile_assignment_handler,
+    )
+    app.router.add_get(
+        "/integration/v2/reconcile/guides/{guideOsId}/assignments",
+        reconcile_assignments_handler,
+    )
+    app.router.add_get(
+        "/integration/v2/reconcile/guides/{guideOsId}/assignments/{assignmentId}",
         reconcile_assignment_handler,
     )
     app.router.add_post(

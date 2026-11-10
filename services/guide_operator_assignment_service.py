@@ -12,11 +12,12 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
-from database.db import ensure_db_ready, run_write_with_retry
+from database.db import ensure_db_ready, get_db_connection, run_write_with_retry
 from database.queries import (
     get_guide_operator_assignment,
     get_guide_operator_assignment_lifecycle_inbox,
     get_guide_operator_assignment_for_guide,
+    read_guide_operator_assignment_for_guide,
     get_guide_operator_assignment_version,
     get_guide_operator_cancellation_inbox,
     get_guide_operator_critical_version_decision,
@@ -574,6 +575,19 @@ def apply_assignment_cancellation(
     version_number = normalized["version_number"]
     cancelled_at = normalized["cancelled_at"]
 
+    owned = read_guide_operator_assignment_for_guide(identity, assignment_id)
+    if owned is not None and owned["projection_mode"] == "explicit_days":
+        result = _apply_explicit_projection_decision_local(
+            identity, assignment_id, action="cancel", version_number=version_number,
+            event_id=event_id, occurred_at=cancelled_at, wire_cancellation=True,
+        )
+        return AssignmentCancellationResult(
+            assignment_id=assignment_id, guide_os_id=identity, status="cancelled",
+            version_number=version_number, cancelled_at=cancelled_at,
+            cancellation_event_id=event_id, projection_released=True,
+            replayed=result["replayed"],
+        )
+
     existing_inbox = get_guide_operator_cancellation_inbox(event_id)
     if existing_inbox is not None:
         if existing_inbox["payload_hash"] != payload_hash:
@@ -810,7 +824,7 @@ def apply_assignment_lifecycle_transition(
             raise AssignmentConflictError(
                 "Lifecycle event ID was already used with another payload."
             )
-        stored = get_guide_operator_assignment_for_guide(identity, assignment_id)
+        stored = read_guide_operator_assignment_for_guide(identity, assignment_id)
         if stored is None:
             raise AssignmentNotFoundError("Assignment was not found.")
         if stored["status"] != target_status:
@@ -825,7 +839,7 @@ def apply_assignment_lifecycle_transition(
             replayed=True,
         )
 
-    assignment = get_assignment_for_guide(identity, assignment_id)
+    assignment = _guide_lifecycle_assignment(identity, assignment_id)
     if assignment["status"] != "offered":
         raise AssignmentNotActionableError(
             "Only an offered assignment can be withdrawn or expired."
@@ -878,6 +892,13 @@ def apply_assignment_lifecycle_transition(
             raise AssignmentConflictError(
                 "An offered assignment must not have a protected projection."
             )
+
+        if locked["projection_mode"] == "explicit_days":
+            _require_terminal_aware_time(normalized["transitioned_at"])
+            _assert_daily_event_available(conn, event_id)
+            _guard_explicit_offered_terminal(conn, dict(locked))
+        elif locked["projection_mode"] != "legacy_range":
+            raise AssignmentValidationError("Unsupported assignment projection mode.")
 
         received_at = _utc_now()
         conn.execute(
@@ -1625,6 +1646,27 @@ def decide_critical_assignment_version(
     if decided_at is not None:
         decided_at_value = _require_iso_datetime(decided_at, "decided_at")
 
+    owned = _guide_lifecycle_assignment(identity, assignment_id)
+    target = get_guide_operator_assignment_version(assignment_id, version_number)
+    explicit_target = (
+        target is not None
+        and _load_working_package_json(target["working_package_json"]).get("schema_version")
+        == "assignment.working_package.v2"
+    )
+    if owned["projection_mode"] == "explicit_days" or explicit_target:
+        result = _apply_explicit_projection_decision_local(
+            identity, assignment_id, action=decision, version_number=version_number,
+            event_id=decision_event_id, occurred_at=decided_at, public_replay=True,
+        )
+        return AssignmentCriticalVersionDecisionResult(
+            assignment_id=assignment_id, guide_os_id=identity, status=result["status"],
+            decision=decision, version_number=version_number,
+            decision_event_id=result["decision_event_id"],
+            pending_critical_version_number=result["pending_critical_version_number"],
+            active_version_number=result["active_version_number"],
+            projection_tour_id=result["projection_tour_id"], replayed=result["replayed"],
+        )
+
     existing_by_event = get_guide_operator_critical_version_decision_by_event(
         decision_event_id
     )
@@ -2132,7 +2174,9 @@ def build_assignment_detail_for_guide(
     guide_os_id: str, assignment_id: str
 ) -> dict[str, Any]:
     """Assemble guide-facing assignment detail with active package and history."""
-    assignment = get_assignment_for_guide(guide_os_id, assignment_id)
+    assignment = read_guide_operator_assignment_for_guide(guide_os_id, assignment_id)
+    if assignment is None:
+        raise AssignmentNotFoundError("Assignment was not found.")
     active_number = int(assignment["active_version_number"])
     versions = list_guide_operator_assignment_versions(assignment_id)
     if not versions:
@@ -2161,6 +2205,12 @@ def build_assignment_detail_for_guide(
     unread = int(assignment.get("active_version_unread") or 0) == 1
     if assignment["status"] == "cancelled":
         conflicts: list[str] = []
+    elif assignment["projection_mode"] == "explicit_days":
+        with get_db_connection() as conn:
+            conflicts = _daily_conflicts(
+                conn, assignment, _explicit_scope(assignment, active_payload["working_package"]),
+                _require_user_id(guide_os_id),
+            )
     else:
         conflicts = find_assignment_conflicts(guide_os_id, assignment_id)
 
@@ -2207,7 +2257,28 @@ def _pending_critical_version_for_detail(
         )
 
     conflict_dates: list[str] = []
-    if assignment["status"] == "accepted":
+    if assignment["status"] == "accepted" and assignment["projection_mode"] == "explicit_days":
+        with get_db_connection() as conn:
+            conflict_dates = _daily_conflicts(
+                conn, assignment, _explicit_scope(assignment, pending_payload["working_package"]),
+                _require_user_id(guide_os_id),
+            )
+    elif (
+        assignment["status"] == "accepted"
+        and pending_payload["working_package"].get("schema_version") == "assignment.working_package.v2"
+    ):
+        with get_db_connection() as conn:
+            user_id = _require_user_id(guide_os_id)
+            legacy_id = _validated_legacy_transition(conn, assignment, pending_number, user_id)
+            explicit = {
+                **assignment, "projection_mode": "explicit_days",
+                "operator_tour_id": pending_payload["working_package"]["tour"]["id"],
+            }
+            conflict_dates = _daily_conflicts(
+                conn, explicit, _explicit_scope(explicit, pending_payload["working_package"]),
+                user_id, exclude_projection_ids={legacy_id},
+            )
+    elif assignment["status"] == "accepted":
         projection_tour_id = assignment.get("projection_tour_id")
         if projection_tour_id is None:
             raise AssignmentValidationError(
@@ -2297,7 +2368,7 @@ def acknowledge_ordinary_version(
             replayed=True,
         )
 
-    assignment = get_assignment_for_guide(identity, assignment_id)
+    assignment = _guide_lifecycle_assignment(identity, assignment_id)
     if assignment["status"] == "cancelled":
         raise AssignmentNotActionableError(
             "Cancelled assignments cannot be acknowledged."
@@ -2423,6 +2494,9 @@ def acknowledge_ordinary_version(
                 "Only an ordinary active version can be acknowledged."
             )
 
+        if locked["projection_mode"] == "explicit_days":
+            _require_daily_decision_event_id(decision_event_id)
+            _assert_daily_event_available(conn, decision_event_id)
         received_at = _utc_now()
         conn.execute(
             """
@@ -2531,6 +2605,18 @@ def _decide_assignment(
     decision_event_id = _require_nonempty(decision_event_id, "decision_event_id")
     if decision not in {"accept", "decline"}:
         raise AssignmentValidationError("decision must be accept or decline.")
+
+    owned = _guide_lifecycle_assignment(identity, assignment_id)
+    if owned["projection_mode"] == "explicit_days":
+        result = _apply_explicit_projection_decision_local(
+            identity, assignment_id, action=decision, version_number=1,
+            event_id=decision_event_id, occurred_at=decided_at, public_replay=True,
+        )
+        return AssignmentDecisionResult(
+            assignment_id=assignment_id, guide_os_id=identity, status=result["status"],
+            decision=decision, decision_event_id=result["decision_event_id"],
+            projection_tour_id=None, replayed=result["replayed"],
+        )
 
     existing_decision = get_guide_operator_decision(assignment_id)
     if existing_decision is not None:
@@ -2790,6 +2876,7 @@ def list_decision_outbox(assignment_id: str) -> list[dict[str, Any]]:
 
 
 def _normalize_offer(offer: AssignmentOfferIntake) -> dict[str, Any]:
+    _require_legacy_package(offer.working_package)
     if not isinstance(offer, AssignmentOfferIntake):
         raise AssignmentValidationError("Offer payload must be AssignmentOfferIntake.")
     event_id = _require_nonempty(offer.event_id, "event_id")
@@ -3136,6 +3223,7 @@ def _validate_working_package_snapshot(
     assignment_id: str,
     guide_os_id: str,
 ) -> dict[str, Any]:
+    _require_legacy_package(working_package)
     assignment = working_package.get("assignment")
     if not isinstance(assignment, dict) or not assignment:
         raise AssignmentValidationError("working_package.assignment is required.")
@@ -3340,3 +3428,771 @@ def _canonical_hash(payload: dict[str, Any]) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _require_legacy_package(package: object) -> None:
+    """V1 intake must never interpret an explicit scope as its range envelope."""
+    if isinstance(package, dict) and (
+        package.get("schema_version") is not None
+        or any(
+            isinstance(day, dict) and "tour_day_id" in day
+            for day in (package.get("days") if isinstance(package.get("days"), list) else [])
+        )
+    ):
+        raise AssignmentValidationError("Explicit-day intake is disabled in stage 2A.")
+
+
+def _explicit_scope(assignment: dict, package: dict, *, local_money_enabled: bool = False) -> list[tuple[str, str]]:
+    """Validate only the local projection scope, not the future wire DTO."""
+    from uuid import UUID
+
+    detail = package.get("assignment", {})
+    if (
+        assignment["projection_mode"] != "explicit_days"
+        or not assignment.get("operator_tour_id")
+        or package.get("tour", {}).get("id") != assignment["operator_tour_id"]
+        or package.get("company_id") != assignment["company_id"]
+        or detail.get("id") != assignment["assignment_id"]
+        or detail.get("guide_os_id") != assignment["guide_os_id"]
+        or (package.get("remuneration") is not None and local_money_enabled is not True)
+    ):
+        raise AssignmentValidationError("Invalid local explicit identity or unsupported money.")
+    if detail.get("role") not in {
+        "main_guide",
+        "accompanying_guide",
+        "local_guide",
+        "meet_and_greet",
+        "other",
+    }:
+        raise AssignmentValidationError("Invalid explicit role.")
+    scope = []
+    for day in package.get("days", []):
+        key = day.get("tour_day_id")
+        try:
+            parsed = UUID(key)
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise AssignmentValidationError("Invalid stable day identity.") from exc
+        if parsed.version != 4 or str(parsed) != key:
+            raise AssignmentValidationError("Invalid stable day identity.")
+        scope.append((key, _require_iso_date(day.get("date"), "date")))
+    if (
+        not scope
+        or len({key for key, _ in scope}) != len(scope)
+        or (len({value for _, value in scope}) != len(scope))
+    ):
+        raise AssignmentValidationError("Explicit scope must have unique days and dates.")
+    dates = [value for _, value in scope]
+    if detail.get("start_date") != min(dates) or detail.get("end_date") != max(dates):
+        raise AssignmentValidationError("Explicit envelope must match selected dates.")
+    if local_money_enabled is True:
+        from services.guide_operator_remuneration_service import validate_remuneration
+
+        validate_remuneration(package, scope)
+    return sorted(scope, key=lambda item: (item[1], item[0]))
+
+
+def _daily_links(conn, assignment_id: str) -> list[dict]:
+    return [
+        dict(row)
+        for row in conn.execute(
+            "SELECT * FROM guide_operator_daily_projections WHERE assignment_id=? "
+            "ORDER BY calendar_date,tour_day_id",
+            (assignment_id,),
+        )
+    ]
+
+
+def _daily_conflicts(
+    conn,
+    assignment: dict,
+    scope: list[tuple[str, str]],
+    user_id: int,
+    *,
+    exclude_projection_ids: set[int] | None = None,
+) -> list[str]:
+    conflicts = []
+    for _, value in scope:
+        rows = conn.execute(
+            "SELECT * FROM tours WHERE user_id=? AND start_date<=? AND end_date>=?",
+            (user_id, value, value),
+        ).fetchall()
+        for row in rows:
+            if exclude_projection_ids and row["id"] in exclude_projection_ids:
+                continue
+            peer = conn.execute(
+                "SELECT d.*, a.status FROM guide_operator_daily_projections d "
+                "JOIN guide_operator_assignments a ON a.assignment_id=d.assignment_id "
+                "WHERE d.projection_tour_id=?",
+                (row["id"],),
+            ).fetchone()
+            if (
+                peer is not None
+                and row["source"] == SOURCE_GUIDE_OPERATOR
+                and row["entry_type"] == ENTRY_TYPE_TOUR
+                and peer["status"] == "accepted"
+                and peer["source_service"] == SOURCE_GUIDE_OPERATOR
+                and peer["guide_os_id"] == assignment["guide_os_id"]
+                and peer["company_id"] == assignment["company_id"]
+                and peer["operator_tour_id"] == assignment["operator_tour_id"]
+            ):
+                continue
+            conflicts.append(value)
+            break
+    return sorted(set(conflicts))
+
+
+def _release_daily_row(conn, projection_id: int, user_id: int) -> None:
+    conn.execute("INSERT INTO go_operator_projection_release(tour_id) VALUES (?)", (projection_id,))
+    removed = conn.execute(
+        "DELETE FROM tours WHERE id=? AND user_id=? AND source=?",
+        (projection_id, user_id, SOURCE_GUIDE_OPERATOR),
+    )
+    if removed.rowcount != 1:
+        raise AssignmentValidationError("Daily projection identity is inconsistent.")
+    conn.execute("DELETE FROM go_operator_projection_release WHERE tour_id=?", (projection_id,))
+
+
+def _replace_daily_projections(
+    conn, assignment: dict, package: dict, version: int, user_id: int, scope: list[tuple[str, str]]
+) -> None:
+    old = {row["tour_day_id"]: row for row in _daily_links(conn, assignment["assignment_id"])}
+    desired = {key for key, _ in scope}
+    # Remove only mutable links first: permits date swaps under immediate UNIQUE
+    # constraints while retaining the protected calendar ID of a retained day.
+    conn.execute(
+        "DELETE FROM guide_operator_daily_projections WHERE assignment_id=?",
+        (assignment["assignment_id"],),
+    )
+    for key, row in old.items():
+        if key not in desired:
+            _release_daily_row(conn, row["projection_tour_id"], user_id)
+    title, city = _projection_labels(assignment, package)
+    for key, value in scope:
+        if key in old:
+            projection_id = old[key]["projection_tour_id"]
+            conn.execute(
+                "INSERT INTO go_operator_projection_occupancy_update(tour_id) VALUES (?)",
+                (projection_id,),
+            )
+            updated = conn.execute(
+                "UPDATE tours SET title=?,city=?,start_date=?,end_date=? "
+                "WHERE id=? AND user_id=? AND source=?",
+                (title, city, value, value, projection_id, user_id, SOURCE_GUIDE_OPERATOR),
+            )
+            if updated.rowcount != 1:
+                raise AssignmentValidationError("Daily projection is missing.")
+            conn.execute(
+                "DELETE FROM go_operator_projection_occupancy_update WHERE tour_id=?",
+                (projection_id,),
+            )
+        else:
+            result = conn.execute(
+                "INSERT INTO tours(user_id,company,city,start_date,end_date,status,income,"
+                "payment_status,note,entry_type,tour_group_id,title,source) "
+                "VALUES (?,?,?,?,?,?,NULL,?,?,?,?,?,?)",
+                (
+                    user_id,
+                    assignment["company_name"],
+                    city,
+                    value,
+                    value,
+                    STATUS_CONFIRMED,
+                    PAYMENT_UNPAID,
+                    f"go_assignment:{assignment['assignment_id']}",
+                    ENTRY_TYPE_TOUR,
+                    f"{assignment['assignment_id']}:{key}",
+                    title,
+                    SOURCE_GUIDE_OPERATOR,
+                ),
+            )
+            projection_id = result.lastrowid
+        conn.execute(
+            "INSERT INTO guide_operator_daily_projections(source_service,company_id,assignment_id,"
+            "guide_os_id,operator_tour_id,tour_day_id,calendar_date,active_version_number,"
+            "projection_tour_id) VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                SOURCE_GUIDE_OPERATOR,
+                assignment["company_id"],
+                assignment["assignment_id"],
+                assignment["guide_os_id"],
+                assignment["operator_tour_id"],
+                key,
+                value,
+                version,
+                projection_id,
+            ),
+        )
+
+
+def _apply_explicit_projection_decision_local(
+    guide_os_id: str,
+    assignment_id: str,
+    *,
+    action: str,
+    version_number: int,
+    event_id: str,
+    occurred_at: str | None,
+    public_replay: bool = False,
+    wire_cancellation: bool = False,
+    local_money_enabled: bool = False,
+) -> dict:
+    """Atomic daily decisions shared by local and session-bound lifecycle calls.
+
+    Prepared immutable offer/pending snapshots must already exist locally.
+    Legacy-to-explicit confirmation requires independently validated v2 intake.
+    Decisions, projection set and held outbox share BEGIN IMMEDIATE and rollback.
+    Stage 5A.1 money opt-in is local only: no public/wire caller may enable it.
+    """
+    if local_money_enabled is not False and (
+        local_money_enabled is not True or public_replay or wire_cancellation
+    ):
+        raise AssignmentValidationError("Money application is local-only and default-off.")
+    ensure_db_ready()
+    identity = validate_guide_os_id(guide_os_id)
+    event_id = _require_nonempty(event_id, "event_id")
+    version_number = _require_int(version_number, "version_number", minimum=1)
+    if occurred_at is not None:
+        occurred_at = _require_iso_datetime(occurred_at, "occurred_at")
+    if public_replay:
+        _require_daily_decision_event_id(event_id)
+    if action not in {"accept", "decline", "confirm_critical", "reject_critical", "cancel"}:
+        raise AssignmentValidationError("Unsupported local action.")
+    request_hash = _canonical_hash(
+        dict(
+            guide_os_id=identity,
+            assignment_id=assignment_id,
+            action=action,
+            version_number=version_number,
+            event_id=event_id,
+            occurred_at=occurred_at,
+        )
+    )
+
+    if wire_cancellation:
+        if action != "cancel" or public_replay or occurred_at is None:
+            raise AssignmentValidationError("Invalid wire cancellation dispatch.")
+        _require_terminal_aware_time(occurred_at)
+        # Exactly the existing v1 normalizer/hash, recorded in this transaction.
+        request_hash = _canonical_hash(_normalize_cancellation(AssignmentCancellationIntake(
+            event_id=event_id, assignment_id=assignment_id, guide_os_id=identity,
+            version_number=version_number, cancelled_at=occurred_at,
+        )))
+
+    # Generated evidence time is excluded from retry identity when no time was supplied.
+    occurred_at = occurred_at or _utc_now()
+
+    def operation(conn):
+        raw = conn.execute(
+            "SELECT * FROM guide_operator_assignments WHERE assignment_id=? AND guide_os_id=?",
+            (assignment_id, identity),
+        ).fetchone()
+        if raw is None:
+            raise AssignmentNotFoundError("Assignment was not found.")
+        assignment = dict(raw)
+        transitioning = (
+            assignment["projection_mode"] == "legacy_range"
+            and action in {"confirm_critical", "reject_critical"}
+        )
+        if not transitioning and (
+            assignment["projection_mode"] != "explicit_days"
+            or assignment["projection_tour_id"] is not None
+        ):
+            raise AssignmentValidationError(
+                "Local daily operation requires an explicit assignment."
+            )
+        # Public/wire entry points never opt into local money, including replay.
+        if local_money_enabled is not True:
+            if conn.execute(
+                "SELECT 1 FROM guide_operator_remuneration_versions WHERE assignment_id=?",
+                (assignment_id,),
+            ).fetchone():
+                raise AssignmentValidationError("Agreed remuneration capability is disabled.")
+            targets = {version_number, assignment["active_version_number"]}
+            for target in targets:
+                snapshot = conn.execute(
+                    "SELECT working_package_json FROM guide_operator_assignment_versions "
+                    "WHERE assignment_id=? AND version_number=?", (assignment_id, target),
+                ).fetchone()
+                if snapshot and _load_working_package_json(snapshot["working_package_json"]).get("remuneration") is not None:
+                    raise AssignmentValidationError("Agreed remuneration capability is disabled.")
+        prior = conn.execute(
+            "SELECT * FROM guide_operator_daily_operation_inbox WHERE event_id=?", (event_id,)
+        ).fetchone()
+        if prior:
+            if prior["payload_hash"] != request_hash:
+                raise AssignmentConflictError("Local decision event ID was reused.")
+            if wire_cancellation:
+                inbox = conn.execute(
+                    "SELECT * FROM guide_operator_cancellation_inbox WHERE event_id=?", (event_id,)
+                ).fetchone()
+                if (
+                    assignment["status"] != "cancelled"
+                    or assignment["cancellation_event_id"] != event_id
+                    or assignment["active_version_number"] != version_number
+                    or assignment["cancelled_at"] != occurred_at
+                    or inbox is None or inbox["payload_hash"] != request_hash
+                    or inbox["assignment_id"] != assignment_id or inbox["guide_os_id"] != identity
+                ):
+                    raise AssignmentValidationError("Inconsistent retained cancellation evidence.")
+            result = json.loads(prior["result_json"])
+            return {
+                **result,
+                "status": assignment["status"],
+                "active_version_number": assignment["active_version_number"],
+                "replayed": True,
+                **(_public_daily_state(assignment, result.get("decision_event_id", event_id)) if public_replay else {}),
+            }
+        if public_replay:
+            table = (
+                "guide_operator_assignment_decisions" if action in {"accept", "decline"}
+                else "guide_operator_critical_version_decisions"
+            )
+            record = conn.execute(
+                f"SELECT * FROM {table} WHERE assignment_id=? AND version_number=?",
+                (assignment_id, version_number),
+            ).fetchone()
+            if record is not None:
+                if record["guide_os_id"] != identity or record["decision_type"] != action:
+                    raise AssignmentConflictError("Assignment version already has a different decision.")
+                if event_id != record["decision_event_id"]:
+                    _assert_daily_event_available(conn, event_id)
+                return {
+                    "assignment_id": assignment_id, "replayed": True,
+                    **_public_daily_state(assignment, record["decision_event_id"]),
+                }
+        if conn.execute(
+            "SELECT 1 FROM guide_operator_outbox WHERE event_id=?", (event_id,)
+        ).fetchone():
+            raise AssignmentConflictError("Event identity is already reserved.")
+        for inbox in (
+            "guide_operator_offer_inbox", "guide_operator_version_inbox",
+            "guide_operator_cancellation_inbox", "guide_operator_assignment_lifecycle_inbox",
+        ):
+            if conn.execute(f"SELECT 1 FROM {inbox} WHERE event_id=?", (event_id,)).fetchone():
+                raise AssignmentConflictError("Decision event identity is already reserved.")
+        if assignment["status"] == "cancelled":
+            raise AssignmentNotActionableError("Cancellation is terminal.")
+        accepting = action in {"accept", "decline"}
+        if accepting:
+            if assignment["status"] != "offered" or version_number != 1:
+                raise AssignmentNotActionableError("Explicit offer is not actionable.")
+            if (
+                assignment["active_version_number"] != 1
+                or assignment["pending_critical_version_number"] is not None
+            ):
+                raise AssignmentValidationError("Invalid offered version state.")
+            connection = conn.execute(
+                "SELECT * FROM guide_operator_connections WHERE connection_id=?",
+                (assignment["guide_connection_id"],),
+            ).fetchone()
+            if (
+                connection is None
+                or connection["status"] != "confirmed"
+                or connection["guide_os_id"] != identity
+                or connection["company_id"] != assignment["company_id"]
+            ):
+                raise AssignmentValidationError("Confirmed connection required.")
+        elif assignment["status"] != "accepted":
+            raise AssignmentNotActionableError("An accepted explicit assignment is required.")
+        critical = action in {"confirm_critical", "reject_critical"}
+        if critical and (assignment["pending_critical_version_number"] != version_number):
+            raise AssignmentNotActionableError("Exact pending critical version required.")
+        if critical:
+            numbers = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT version_number FROM guide_operator_assignment_versions "
+                    "WHERE assignment_id=? ORDER BY version_number",
+                    (assignment_id,),
+                )
+            ]
+            if version_number <= assignment["active_version_number"] or numbers != list(
+                range(1, version_number + 1)
+            ):
+                raise AssignmentValidationError("Explicit version chain has a gap or stale target.")
+        if action == "cancel" and assignment["active_version_number"] != version_number:
+            raise AssignmentConflictError("Cancellation version mismatch.")
+        user = conn.execute("SELECT user_id FROM users WHERE guide_os_id=?", (identity,)).fetchone()
+        if user is None:
+            raise AssignmentValidationError("Unknown guide identity.")
+        user_id = user["user_id"]
+        actual_ids = {
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM tours WHERE source=? AND note=?",
+                (SOURCE_GUIDE_OPERATOR, f"go_assignment:{assignment_id}"),
+            )
+        }
+        legacy_id = None
+        if transitioning:
+            legacy_id = _validated_legacy_transition(conn, assignment, version_number, user_id)
+        linked_ids = (
+            {legacy_id} if transitioning
+            else {row["projection_tour_id"] for row in _daily_links(conn, assignment_id)}
+        )
+        if actual_ids != linked_ids or (accepting and actual_ids):
+            raise AssignmentValidationError("Unexpected protected rows; repair is gated.")
+        if not accepting and not transitioning:
+            active = conn.execute(
+                "SELECT working_package_json FROM guide_operator_assignment_versions "
+                "WHERE assignment_id=? AND version_number=?",
+                (assignment_id, assignment["active_version_number"]),
+            ).fetchone()
+            if active is None:
+                raise AssignmentValidationError("Active snapshot is missing.")
+            active_package = _load_working_package_json(active["working_package_json"])
+            expected = _explicit_scope(assignment, active_package, local_money_enabled=local_money_enabled)
+            if local_money_enabled is True:
+                from services.guide_operator_remuneration_service import (
+                    validate_effective,
+                )
+
+                validate_effective(conn, assignment, active_package, expected)
+            actual = _daily_links(conn, assignment_id)
+            if {(r["tour_day_id"], r["calendar_date"]) for r in actual} != set(expected):
+                raise AssignmentValidationError(
+                    "Effective daily set is inconsistent; repair is gated."
+                )
+            for link in actual:
+                row = conn.execute(
+                    "SELECT * FROM tours WHERE id=?", (link["projection_tour_id"],)
+                ).fetchone()
+                if (
+                    row is None
+                    or row["source"] != SOURCE_GUIDE_OPERATOR
+                    or row["user_id"] != user_id
+                    or row["start_date"] != link["calendar_date"]
+                    or row["end_date"] != link["calendar_date"]
+                    or row["note"] != f"go_assignment:{assignment_id}"
+                    or link["active_version_number"] != assignment["active_version_number"]
+                ):
+                    raise AssignmentValidationError("Effective daily row is inconsistent.")
+                if row["income"] is not None or row["payment_status"] != PAYMENT_UNPAID:
+                    raise AssignmentValidationError("Financially populated projection requires a compatible history flow.")
+        recorded_at = _utc_now() if wire_cancellation else occurred_at
+        if action == "cancel":
+            links = _daily_links(conn, assignment_id)
+            if wire_cancellation:
+                _guard_explicit_terminal_identity(conn, assignment)
+                for link in links:
+                    row = conn.execute("SELECT * FROM tours WHERE id=?", (link["projection_tour_id"],)).fetchone()
+                    if (
+                        row is None or row["entry_type"] != ENTRY_TYPE_TOUR
+                        or row["status"] != STATUS_CONFIRMED
+                        or row["start_time"] is not None or row["end_time"] is not None
+                        or row["tour_group_id"] != f"{assignment_id}:{link['tour_day_id']}"
+                        or link["company_id"] != assignment["company_id"]
+                        or link["guide_os_id"] != identity
+                        or link["operator_tour_id"] != assignment["operator_tour_id"]
+                    ):
+                        raise AssignmentValidationError("Unsafe protected projection identity.")
+                    if row["income"] is not None or row["payment_status"] != PAYMENT_UNPAID:
+                        raise AssignmentValidationError(
+                            "Financially populated projection requires a compatible history flow."
+                        )
+            conn.execute(
+                "DELETE FROM guide_operator_daily_projections WHERE assignment_id=?",
+                (assignment_id,),
+            )
+            for link in links:
+                _release_daily_row(conn, link["projection_tour_id"], user_id)
+            conn.execute(
+                "UPDATE guide_operator_assignments SET status='cancelled',cancelled_at=?,"
+                "cancellation_event_id=?,pending_critical_version_number=NULL,updated_at=? "
+                "WHERE assignment_id=?",
+                (occurred_at, event_id, recorded_at, assignment_id),
+            )
+            conn.execute(
+                "INSERT INTO guide_operator_cancellation_inbox(event_id,assignment_id,guide_os_id,"
+                "version_number,payload_hash,received_at,result_status) VALUES (?,?,?,?,?,?,'applied')",
+                (event_id, assignment_id, identity, version_number, request_hash, recorded_at),
+            )
+            if local_money_enabled is True:
+                from services.guide_operator_remuneration_service import close_cancelled
+
+                close_cancelled(conn, assignment_id, occurred_at)
+            payload = dict(
+                assignment_id=assignment_id,
+                guide_os_id=identity,
+                version_number=version_number,
+                cancelled_at=occurred_at,
+                source_event_id=event_id,
+            )
+            event_type = CANCELLATION_ACK_EVENT_TYPE
+            hook = _CANCEL_FAILURE_HOOK
+        else:
+            if action == "decline":
+                conn.execute(
+                    "UPDATE guide_operator_assignments SET status='declined',decided_at=?,updated_at=? "
+                    "WHERE assignment_id=?", (occurred_at, occurred_at, assignment_id)
+                )
+            elif action != "reject_critical":
+                version = conn.execute(
+                    "SELECT * FROM guide_operator_assignment_versions "
+                    "WHERE assignment_id=? AND version_number=?",
+                    (assignment_id, version_number),
+                ).fetchone()
+                if version is None or version["severity"] != (
+                    "initial" if accepting else "critical"
+                ):
+                    raise AssignmentValidationError("Immutable target snapshot is missing.")
+                package = json.loads(version["working_package_json"])
+                if transitioning:
+                    assignment = {
+                        **assignment, "projection_mode": "explicit_days",
+                        "projection_tour_id": None, "operator_tour_id": package["tour"]["id"],
+                    }
+                scope = _explicit_scope(assignment, package, local_money_enabled=local_money_enabled)
+                conflicts = _daily_conflicts(
+                    conn, assignment, scope, user_id,
+                    exclude_projection_ids={legacy_id} if transitioning else None,
+                )
+                if conflicts:
+                    raise CalendarConflictError(
+                        "Explicit days overlap calendar commitments.", details={"dates": conflicts}
+                    )
+                if transitioning:
+                    conn.execute(
+                        "UPDATE guide_operator_assignments SET projection_mode='explicit_days',"
+                        "projection_tour_id=NULL,operator_tour_id=? WHERE assignment_id=?",
+                        (package["tour"]["id"], assignment_id),
+                    )
+                    _release_daily_row(conn, legacy_id, user_id)
+                _replace_daily_projections(
+                    conn, assignment, package, version_number, user_id, scope
+                )
+                if local_money_enabled is True:
+                    from services.guide_operator_remuneration_service import (
+                        apply_agreement,
+                    )
+
+                    apply_agreement(conn, assignment, package, scope, version_number, occurred_at)
+                conn.execute(
+                    "UPDATE guide_operator_assignments SET status='accepted',active_version_number=?,"
+                    "start_date=?,end_date=?,role=?,pending_critical_version_number=NULL,"
+                    "active_version_unread=0,decided_at=COALESCE(decided_at,?),updated_at=? WHERE assignment_id=?",
+                    (
+                        version_number,
+                        scope[0][1],
+                        scope[-1][1],
+                        package["assignment"]["role"],
+                        occurred_at,
+                        occurred_at,
+                        assignment_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    "UPDATE guide_operator_assignments SET pending_critical_version_number=NULL,"
+                    "updated_at=? WHERE assignment_id=?",
+                    (occurred_at, assignment_id),
+                )
+            table = (
+                "guide_operator_assignment_decisions"
+                if accepting
+                else "guide_operator_critical_version_decisions"
+            )
+            conn.execute(
+                f"INSERT INTO {table}(decision_event_id,assignment_id,guide_os_id,version_number,"
+                "decision_type,decided_at,created_at) VALUES (?,?,?,?,?,?,?)",
+                (
+                    event_id,
+                    assignment_id,
+                    identity,
+                    version_number,
+                    action,
+                    occurred_at,
+                    occurred_at,
+                ),
+            )
+            payload = dict(
+                assignment_id=assignment_id,
+                guide_os_id=identity,
+                version_number=version_number,
+                decision=action,
+                decided_at=occurred_at,
+                projection_tour_id=None,
+            )
+            if critical:
+                payload["active_version_number"] = (
+                    assignment["active_version_number"]
+                    if action == "reject_critical"
+                    else version_number
+                )
+            event_type = (
+                "assignment.decision.v1" if accepting else CRITICAL_VERSION_DECISION_EVENT_TYPE
+            )
+            hook = _ACCEPT_FAILURE_HOOK if accepting else _CRITICAL_VERSION_DECISION_FAILURE_HOOK
+        conn.execute(
+            "INSERT INTO guide_operator_outbox(event_id,event_type,aggregate_type,aggregate_id,"
+            "guide_os_id,payload_json,created_at,attempt_count) VALUES (?,?,'guide_assignment',?,?,?,?,0)",
+            (
+                event_id,
+                event_type,
+                assignment_id,
+                identity,
+                json.dumps(payload, sort_keys=True),
+                recorded_at,
+            ),
+        )
+        if wire_cancellation:
+            insert_guide_operator_guide_notification(
+                conn, source_event_id=event_id, guide_os_id=identity,
+                notification_type="assignment_cancellation",
+                company_name=assignment["company_name"], assignment_id=assignment_id,
+                version_number=version_number, created_at=recorded_at,
+            )
+        current = conn.execute(
+            "SELECT status,active_version_number FROM guide_operator_assignments "
+            "WHERE assignment_id=?",
+            (assignment_id,),
+        ).fetchone()
+        result = dict(
+            assignment_id=assignment_id,
+            status=current["status"],
+            active_version_number=current["active_version_number"],
+            replayed=False,
+        )
+        if public_replay:
+            current_assignment = dict(conn.execute(
+                "SELECT * FROM guide_operator_assignments WHERE assignment_id=?", (assignment_id,)
+            ).fetchone())
+            result.update(_public_daily_state(current_assignment, event_id))
+        conn.execute(
+            "INSERT INTO guide_operator_daily_operation_inbox VALUES (?,?,?,?)",
+            (event_id, assignment_id, request_hash, json.dumps(result, sort_keys=True)),
+        )
+        if hook is not None:
+            hook()
+        return result
+
+    return run_write_with_retry(operation)
+
+
+def _validated_legacy_transition(conn, assignment, target_version, user_id):
+    """Prove the old obligation before a confirmed transition; never infer day IDs."""
+    from services.guide_operator_assignment_v2_contract import uuid, validate_package
+
+    target = conn.execute(
+        "SELECT severity,working_package_json FROM guide_operator_assignment_versions "
+        "WHERE assignment_id=? AND version_number=?",
+        (assignment["assignment_id"], target_version),
+    ).fetchone()
+    active = conn.execute(
+        "SELECT working_package_json FROM guide_operator_assignment_versions "
+        "WHERE assignment_id=? AND version_number=?",
+        (assignment["assignment_id"], assignment["active_version_number"]),
+    ).fetchone()
+    consent = conn.execute(
+        "SELECT 1 FROM guide_operator_assignment_decisions WHERE assignment_id=? "
+        "AND guide_os_id=? AND version_number=1 AND decision_type='accept'",
+        (assignment["assignment_id"], assignment["guide_os_id"]),
+    ).fetchone()
+    if target is None or active is None or consent is None or target["severity"] != "critical":
+        raise AssignmentValidationError("Retained legacy agreement and v2 target required.")
+    package = validate_package(_load_working_package_json(target["working_package_json"]))
+    old = _load_working_package_json(active["working_package_json"])
+    _require_legacy_package(old)
+    tour_id = old.get("tour", {}).get("id")
+    uuid(tour_id, "legacy immutable tour identity")
+    explicit = {**assignment, "projection_mode": "explicit_days", "operator_tour_id": tour_id}
+    _explicit_scope(explicit, package)
+    old_scope = old.get("assignment", {})
+    if (
+        old_scope.get("id") != assignment["assignment_id"]
+        or old_scope.get("role") != assignment["role"]
+        or old_scope.get("start_date") != assignment["start_date"]
+        or old_scope.get("end_date") != assignment["end_date"]
+        or old_scope.get("guide_os_id", assignment["guide_os_id"]) != assignment["guide_os_id"]
+        or old.get("company_id", assignment["company_id"]) != assignment["company_id"]
+    ):
+        raise AssignmentValidationError("Legacy agreed identity/scope is inconsistent.")
+    projection_id = assignment["projection_tour_id"]
+    row = conn.execute("SELECT * FROM tours WHERE id=?", (projection_id,)).fetchone()
+    if (
+        row is None or row["user_id"] != user_id or row["source"] != SOURCE_GUIDE_OPERATOR
+        or row["note"] != f"go_assignment:{assignment['assignment_id']}"
+        or row["tour_group_id"] != assignment["assignment_id"]
+        or row["entry_type"] != ENTRY_TYPE_TOUR or row["status"] != STATUS_CONFIRMED
+        or row["start_date"] != assignment["start_date"]
+        or row["end_date"] != assignment["end_date"]
+        or row["income"] is not None or row["payment_status"] != PAYMENT_UNPAID
+        or row["start_time"] is not None or row["end_time"] is not None
+        or _daily_links(conn, assignment["assignment_id"])
+    ):
+        raise AssignmentValidationError("Unsafe legacy projection; transition is refused.")
+    return projection_id
+
+
+def _guide_lifecycle_assignment(guide_os_id, assignment_id):
+    identity = validate_guide_os_id(guide_os_id)
+    assignment_id = _require_nonempty(assignment_id, "assignment_id")
+    row = read_guide_operator_assignment_for_guide(identity, assignment_id)
+    if row is None:
+        raise AssignmentNotFoundError("Assignment was not found.")
+    return row
+
+
+def _public_daily_state(assignment, event_id):
+    return {
+        "decision_event_id": event_id,
+        "status": assignment["status"],
+        "active_version_number": assignment["active_version_number"],
+        "pending_critical_version_number": assignment["pending_critical_version_number"],
+        "projection_tour_id": assignment["projection_tour_id"],
+    }
+
+
+def _assert_daily_event_available(conn, event_id):
+    for table in (
+        "guide_operator_outbox", "guide_operator_offer_inbox", "guide_operator_version_inbox",
+        "guide_operator_cancellation_inbox", "guide_operator_assignment_lifecycle_inbox",
+        "guide_operator_daily_operation_inbox",
+    ):
+        if conn.execute(f"SELECT 1 FROM {table} WHERE event_id=?", (event_id,)).fetchone():
+            raise AssignmentConflictError("Event identity is already reserved.")
+
+
+def _require_daily_decision_event_id(value):
+    # Explicit decisions still use the frozen v1 envelope: its event ID is UUIDv4.
+    from services.guide_operator_assignment_v2_contract import uuid
+
+    uuid(value, "decision_event_id")
+
+
+def _guard_explicit_terminal_identity(conn, assignment):
+    connection = conn.execute(
+        "SELECT company_id,guide_os_id FROM guide_operator_connections WHERE connection_id=?",
+        (assignment["guide_connection_id"],),
+    ).fetchone()
+    if (
+        connection is None or connection["company_id"] != assignment["company_id"]
+        or connection["guide_os_id"] != assignment["guide_os_id"]
+    ):
+        raise AssignmentValidationError("Stored company/guide connection binding is inconsistent.")
+    # Disconnect blocks new work, never a valid terminal event for retained work.
+
+
+def _guard_explicit_offered_terminal(conn, assignment):
+    _guard_explicit_terminal_identity(conn, assignment)
+    if assignment["active_version_number"] != 1 or assignment["pending_critical_version_number"] is not None:
+        raise AssignmentValidationError("Invalid explicit offered state.")
+    active = conn.execute(
+        "SELECT working_package_json FROM guide_operator_assignment_versions "
+        "WHERE assignment_id=? AND version_number=1", (assignment["assignment_id"],)
+    ).fetchone()
+    if active is None:
+        raise AssignmentValidationError("Missing explicit offer snapshot.")
+    _explicit_scope(assignment, _load_working_package_json(active["working_package_json"]))
+    if _daily_links(conn, assignment["assignment_id"]) or conn.execute(
+        "SELECT 1 FROM tours WHERE source=? AND note=?",
+        (SOURCE_GUIDE_OPERATOR, f"go_assignment:{assignment['assignment_id']}"),
+    ).fetchone():
+        raise AssignmentValidationError("Offered assignment unexpectedly owns occupancy.")
+
+
+def _require_terminal_aware_time(value):
+    # Frozen v1 evidence is timezone-aware; retain its original normalized string/hash.
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.utcoffset() is None:
+        raise AssignmentValidationError("Terminal event time must be timezone-aware.")

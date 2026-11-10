@@ -542,6 +542,7 @@ def deliver_one(
         deliverable_event_types=tuple(sorted(DELIVERABLE_EVENT_TYPES)),
         permanent_error_codes=tuple(sorted(PERMANENT_ERROR_CODES)),
         event_id=event_id,
+        allow_explicit_days=resolved.explicit_days_return_enabled is True,
     )
     if claimed is None:
         return None

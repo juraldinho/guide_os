@@ -984,6 +984,132 @@ def _init_db_schema(conn: sqlite3.Connection) -> None:
     _migrate_guide_operator_ordinary_version_columns(cursor)
     _migrate_guide_operator_connection_columns(cursor)
 
+    # Stage 2A: local-only explicit scope. Never backfill sparse days from v1.
+    columns = {row["name"] for row in cursor.execute("PRAGMA table_info(guide_operator_assignments)")}
+    if "projection_mode" not in columns:
+        cursor.execute("ALTER TABLE guide_operator_assignments ADD COLUMN projection_mode "
+                       "TEXT NOT NULL DEFAULT 'legacy_range' "
+                       "CHECK(projection_mode IN ('legacy_range','explicit_days'))")
+    if "operator_tour_id" not in columns:
+        cursor.execute("ALTER TABLE guide_operator_assignments ADD COLUMN operator_tour_id TEXT")
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_go_daily_assignment_identity
+        ON guide_operator_assignments(assignment_id,company_id,guide_os_id,operator_tour_id)
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_operator_daily_projections (
+            source_service TEXT NOT NULL CHECK(source_service='guide_operator'),
+            company_id TEXT NOT NULL,
+            assignment_id TEXT NOT NULL,
+            guide_os_id TEXT NOT NULL,
+            operator_tour_id TEXT NOT NULL,
+            tour_day_id TEXT NOT NULL,
+            calendar_date TEXT NOT NULL,
+            active_version_number INTEGER NOT NULL CHECK(active_version_number>=1),
+            projection_tour_id INTEGER NOT NULL UNIQUE REFERENCES tours(id),
+            PRIMARY KEY(source_service,company_id,assignment_id,tour_day_id),
+            UNIQUE(assignment_id,calendar_date),
+            FOREIGN KEY(assignment_id,company_id,guide_os_id,operator_tour_id)
+                REFERENCES guide_operator_assignments
+                    (assignment_id,company_id,guide_os_id,operator_tour_id)
+        )
+    """)
+    # Stage 5A.1: additive local agreed history; no inferred legacy backfill.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_operator_remuneration_versions (
+            assignment_id TEXT NOT NULL,
+            version_number INTEGER NOT NULL CHECK(version_number>=1),
+            source_service TEXT NOT NULL CHECK(source_service='guide_operator'),
+            company_id TEXT NOT NULL,
+            guide_os_id TEXT NOT NULL,
+            operator_tour_id TEXT NOT NULL,
+            schema_version TEXT NOT NULL CHECK(schema_version='assignment.remuneration.v1'),
+            currency TEXT NOT NULL CHECK(currency='USD'),
+            scale INTEGER NOT NULL CHECK(typeof(scale)='integer' AND scale=0),
+            default_daily_usd INTEGER CHECK(default_daily_usd IS NULL OR
+                (typeof(default_daily_usd)='integer' AND default_daily_usd BETWEEN 0 AND 9007199254740991)),
+            known_total_usd INTEGER NOT NULL CHECK(typeof(known_total_usd)='integer'
+                AND known_total_usd BETWEEN 0 AND 9007199254740991),
+            unknown_day_count INTEGER NOT NULL CHECK(unknown_day_count>=0),
+            agreed_at TEXT NOT NULL,
+            PRIMARY KEY(assignment_id,version_number),
+            FOREIGN KEY(assignment_id,version_number)
+                REFERENCES guide_operator_assignment_versions(assignment_id,version_number),
+            FOREIGN KEY(assignment_id,company_id,guide_os_id,operator_tour_id)
+                REFERENCES guide_operator_assignments(assignment_id,company_id,guide_os_id,operator_tour_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_operator_remuneration_days (
+            assignment_id TEXT NOT NULL,
+            tour_day_id TEXT NOT NULL,
+            version_number INTEGER NOT NULL,
+            calendar_date TEXT NOT NULL,
+            amount_usd INTEGER CHECK(amount_usd IS NULL OR
+                (typeof(amount_usd)='integer' AND amount_usd BETWEEN 0 AND 9007199254740991)),
+            source TEXT NOT NULL CHECK(source IN ('default','manual')),
+            PRIMARY KEY(assignment_id,tour_day_id,version_number),
+            UNIQUE(assignment_id,version_number,calendar_date),
+            FOREIGN KEY(assignment_id,version_number)
+                REFERENCES guide_operator_remuneration_versions(assignment_id,version_number)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_operator_remuneration_effective (
+            source_service TEXT NOT NULL CHECK(source_service='guide_operator'),
+            company_id TEXT NOT NULL,
+            assignment_id TEXT NOT NULL,
+            guide_os_id TEXT NOT NULL,
+            operator_tour_id TEXT NOT NULL,
+            tour_day_id TEXT NOT NULL,
+            last_agreed_version_number INTEGER NOT NULL,
+            effective_version_number INTEGER,
+            state TEXT NOT NULL CHECK(state IN ('active','removed','cancelled')),
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(source_service,company_id,assignment_id,tour_day_id),
+            CHECK((state='active' AND effective_version_number IS NOT NULL
+                    AND effective_version_number=last_agreed_version_number)
+                OR (state IN ('removed','cancelled') AND effective_version_number IS NULL)),
+            FOREIGN KEY(assignment_id,tour_day_id,last_agreed_version_number)
+                REFERENCES guide_operator_remuneration_days(assignment_id,tour_day_id,version_number),
+            FOREIGN KEY(assignment_id,company_id,guide_os_id,operator_tour_id)
+                REFERENCES guide_operator_assignments(assignment_id,company_id,guide_os_id,operator_tour_id)
+        )
+    """)
+    for table in ('guide_operator_remuneration_versions', 'guide_operator_remuneration_days'):
+        for operation in ('UPDATE', 'DELETE'):
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS trg_{table}_immutable_{operation.lower()}
+                BEFORE {operation} ON {table}
+                BEGIN SELECT RAISE(ABORT,'agreed remuneration history is immutable'); END
+            """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guide_operator_daily_operation_inbox (
+            event_id TEXT PRIMARY KEY,
+            assignment_id TEXT NOT NULL REFERENCES guide_operator_assignments(assignment_id),
+            payload_hash TEXT NOT NULL,
+            result_json TEXT NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_go_explicit_identity_immutable
+        BEFORE UPDATE ON guide_operator_assignments
+        WHEN OLD.projection_mode='explicit_days' AND (
+            NEW.projection_mode IS NOT OLD.projection_mode OR
+            NEW.operator_tour_id IS NOT OLD.operator_tour_id OR
+            NEW.company_id IS NOT OLD.company_id OR NEW.guide_os_id IS NOT OLD.guide_os_id OR
+            NEW.projection_tour_id IS NOT NULL OR NEW.operator_tour_id IS NULL)
+        BEGIN SELECT RAISE(ABORT,'explicit assignment identity is immutable'); END
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_go_explicit_insert_identity
+        BEFORE INSERT ON guide_operator_assignments
+        WHEN NEW.projection_mode='explicit_days' AND
+             (NEW.operator_tour_id IS NULL OR NEW.projection_tour_id IS NOT NULL)
+        BEGIN SELECT RAISE(ABORT,'explicit assignment requires daily identity'); END
+    """)
+
     cursor.execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS idx_go_assignment_versions_source_event
     ON guide_operator_assignment_versions(source_event_id)

@@ -977,7 +977,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         monthExpandedRef.current = false;
         setMonthExpanded(false);
       },
-      openFeed: () => setCalendarScreen('feed'),
+      openFeed: () => {
+        setFeedRestoreIso(selectedDate);
+        setCalendarScreen('feed');
+      },
       goToday: () => {
         if (activeTabRef.current !== 'calendar') {
           activeTabRef.current = 'calendar';

@@ -13,6 +13,7 @@ import { OverlaySheet } from '@/components/ui/OverlaySheet';
 import { Chip } from '@/components/ui/Chip';
 import { useToast } from '@/components/ui/Toast';
 import { useCalendar } from '@/features/calendar/CalendarContext';
+import { guideOperatorRoleLabel as roleLabel } from '@/features/calendar/lib/dayStatus';
 import { t } from '@/i18n/strings';
 
 type ListError = 'offline' | 'generic';
@@ -89,12 +90,6 @@ function formatCancellationDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(iso);
   return match ? match[1] : iso;
-}
-
-function roleLabel(role: string): string {
-  if (role === 'main_guide') return t.guideOperatorRoleMain;
-  if (role === 'assistant_guide') return t.guideOperatorRoleAssistant;
-  return t.guideOperatorRoleUnknown(role);
 }
 
 function tourTitle(assignment: GuideOperatorAssignment, pkg: Record<string, unknown>): string {
@@ -512,6 +507,13 @@ function WorkingPackageSections({
   const scope = asRecord(pkg.assignment);
   const days = asArray(pkg.days);
   const drivers = asArray(pkg.drivers);
+  const explicit = pkg.schema_version === 'assignment.working_package.v2';
+  const dayRecords = days.map(asRecord);
+  const workingDates = dayRecords.map((day) => asString(day?.date)).filter(Boolean).join(', ');
+  const scopedDates = (value: unknown) => asArray(value).map((id) => {
+    const day = dayRecords.find((row) => row?.tour_day_id === id);
+    return asString(day?.date);
+  }).filter(Boolean).join(', ');
   const group = asRecord(pkg.group_summary) ?? asRecord(pkg.groupSummary);
   const conditions =
     asRecord(pkg.working_conditions) ?? asRecord(pkg.workingConditions);
@@ -572,13 +574,19 @@ function WorkingPackageSections({
         ) : null}
         <DetailRow
           label={t.guideOperatorFieldDates}
-          value={formatDateRange(asString(scope?.start_date) ?? detail.assignment.startDate, asString(scope?.end_date) ?? detail.assignment.endDate)}
+          value={explicit ? workingDates : formatDateRange(
+            asString(scope?.start_date) ?? detail.assignment.startDate,
+            asString(scope?.end_date) ?? detail.assignment.endDate,
+          )}
         />
         {formatCancellationDate(detail.assignment.cancelledAt) ? (
           <DetailRow
             label={t.guideOperatorFieldCancelledAt}
             value={formatCancellationDate(detail.assignment.cancelledAt)!}
           />
+        ) : null}
+        {explicit && asString(scope?.recipient_instructions) ? (
+          <DetailRow label={t.guideOperatorFieldMessage} value={asString(scope?.recipient_instructions)!} />
         ) : null}
         {cityOrRoute(detail.assignment, pkg) ? (
           <DetailRow
@@ -637,7 +645,7 @@ function WorkingPackageSections({
               const focused = Boolean(focusDate && date === focusDate);
               return (
                 <li
-                  key={date}
+                  key={asString(day.tour_day_id) ?? date}
                   ref={focused ? focusRef : undefined}
                   className={`card guide-operator-day-card${focused ? ' is-focused' : ''}`}
                   data-testid={focused ? 'go-focused-day' : undefined}
@@ -652,7 +660,10 @@ function WorkingPackageSections({
                       {asString(day.city_or_route) || asString(day.cityOrRoute)}
                     </p>
                   ) : null}
-                  {asString(day.comment) ? (
+                  {explicit && asString(day.instructions) ? (
+                    <p className="guide-operator-wrap">{asString(day.instructions)}</p>
+                  ) : null}
+                  {!explicit && asString(day.comment) ? (
                     <p className="guide-operator-wrap">{asString(day.comment)}</p>
                   ) : null}
                   {events.length > 0 ? (
@@ -676,6 +687,8 @@ function WorkingPackageSections({
                                 · {asString(event.place)}
                               </span>
                             ) : null}
+                            {explicit && asString(event.description) ? <p>{asString(event.description)}</p> : null}
+                            {explicit && asString(event.important_instruction) ? <p>{asString(event.important_instruction)}</p> : null}
                           </li>
                         );
                       })}
@@ -708,10 +721,13 @@ function WorkingPackageSections({
                 value={String(group.tourist_count ?? group.touristCount)}
               />
             ) : null}
-            {asString(group.information) ? (
+            {explicit && asString(group.recipient_information) ? (
+              <DetailRow label={t.guideOperatorFieldInformation} value={asString(group.recipient_information)!} />
+            ) : null}
+            {!explicit && asString(group.information) ? (
               <DetailRow label={t.guideOperatorFieldInformation} value={asString(group.information)!} />
             ) : null}
-            {asString(group.comment) ? (
+            {!explicit && asString(group.comment) ? (
               <DetailRow label={t.guideOperatorFieldComment} value={asString(group.comment)!} />
             ) : null}
           </>
@@ -752,7 +768,10 @@ function WorkingPackageSections({
                   ) : status === 'pending' ? (
                     <p className="text-muted">{t.guideOperatorDriverPending}</p>
                   ) : null}
-                  {asString(driver.comment) ? (
+                  {explicit && scopedDates(driver.day_ids) ? <p className="text-muted">{scopedDates(driver.day_ids)}</p> : null}
+                  {explicit && asString(driver.city_or_route) ? <p>{asString(driver.city_or_route)}</p> : null}
+                  {explicit && asString(driver.instructions) ? <p>{asString(driver.instructions)}</p> : null}
+                  {!explicit && asString(driver.comment) ? (
                     <p className="guide-operator-wrap">{asString(driver.comment)}</p>
                   ) : null}
                 </li>
@@ -838,7 +857,9 @@ function WorkingPackageSections({
                       </a>
                     </p>
                   ) : null}
-                  {asString(contact.comment) ? (
+                  {explicit && scopedDates(contact.day_ids) ? <p className="text-muted">{scopedDates(contact.day_ids)}</p> : null}
+                  {explicit && asString(contact.instructions) ? <p>{asString(contact.instructions)}</p> : null}
+                  {!explicit && asString(contact.comment) ? (
                     <p className="guide-operator-wrap">{asString(contact.comment)}</p>
                   ) : null}
                 </li>
@@ -1138,7 +1159,10 @@ export function GuideOperatorPage() {
   const viewingVersion =
     detail?.versions.find((row) => row.versionNumber === viewingVersionNumber) ?? null;
   const viewingPackage = viewingVersion?.workingPackage ?? detail?.workingPackage ?? {};
+  const readOnlyExplicit = detail?.workingPackage.schema_version === 'assignment.working_package.v2' ||
+    detail?.pendingCriticalVersion?.workingPackage.schema_version === 'assignment.working_package.v2';
   const canAcknowledge =
+    !readOnlyExplicit &&
     Boolean(detail) &&
     detail!.assignment.status === 'accepted' &&
     viewingVersionNumber === detail!.activeVersion.versionNumber &&
@@ -1146,6 +1170,7 @@ export function GuideOperatorPage() {
     detail!.activeVersion.severity === 'ordinary' &&
     !detail!.pendingCriticalVersion;
   const canDecideCritical =
+    !readOnlyExplicit &&
     Boolean(detail) &&
     detail!.assignment.status === 'accepted' &&
     detail!.pendingCriticalVersion !== null &&
@@ -1562,7 +1587,7 @@ export function GuideOperatorPage() {
                   </button>
                 </div>
               ) : null}
-              {detail.assignment.status === 'offered' ? (
+              {detail.assignment.status === 'offered' && !readOnlyExplicit ? (
                 confirmKind === null ? (
                   <div className="guide-operator-actions">
                     <button

@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react';
+import { guideOsClient } from '@/api/createClient';
 import { DailyTipsDay } from './DailyTipsSheet';
 import { fmtDateLong } from '../lib/dates';
 import {
   dayStatus,
+  guideOperatorRoleLabel,
   entriesOnDate,
   getPartialAvailability,
   isGuideOperatorManaged,
@@ -21,6 +24,23 @@ import { useCalendar } from '../CalendarContext';
 export function DayDetail() {
   const { entries, selectedDate, openFeed, openAdd, openDetail, openFreeDates } = useCalendar();
   const dayEntries = sortEntriesForDay(entriesOnDate(selectedDate, entries));
+  const assignmentIds = [...new Set(dayEntries.map((e) => e.guideOperatorAssignmentId).filter(Boolean))];
+  const assignmentKey = dayEntries.filter(isGuideOperatorManaged)
+    .map((e) => `${e.guideOperatorAssignmentId}:${e.guideOperatorVersion ?? 1}`).join(',');
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    setRoles({});
+    void Promise.all(assignmentIds.map(async (id) => {
+      try {
+        const detail = await guideOsClient.getGuideOperatorAssignment(id!);
+        return [id!, detail ? guideOperatorRoleLabel(detail.assignment.role) : ''] as const;
+      } catch {
+        return [id!, ''] as const;
+      }
+    })).then((rows) => { if (active) setRoles(Object.fromEntries(rows)); });
+    return () => { active = false; };
+  }, [assignmentKey]);
   const status = dayStatus(selectedDate, entries);
   const partial = getPartialAvailability(selectedDate, entries);
   const summary = dayAvailabilitySummary(selectedDate, entries, partial, status);
@@ -45,6 +65,14 @@ export function DayDetail() {
             key={e.id}
             className="day-detail-entry"
             onClick={() => openDetail(e.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openDetail(e.id);
+              }
+            }}
             data-testid={
               isGuideOperatorManaged(e) ? `go-calendar-entry-${e.id}` : undefined
             }
@@ -60,6 +88,7 @@ export function DayDetail() {
                 {isGuideOperatorManaged(e) ? (
                   <div className="entry-row guide-operator-inline-unread">
                     <span>{t.assignedViaGuideOperator}</span>
+                    <span>{roles[e.guideOperatorAssignmentId!] || `Назначение ${assignmentIds.indexOf(e.guideOperatorAssignmentId) + 1}`}</span>
                     {e.guideOperatorVersionUnread ? (
                       <span
                         className="guide-operator-unread-dot"

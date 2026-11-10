@@ -109,8 +109,66 @@ def get_tours_for_month(user_id: int, month_start: str, month_end: str) -> list[
     return [dict(row) for row in rows]
 
 
-def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
-    conn = get_connection()
+def _calendar_read_rows(conn, rows) -> list[dict]:
+    """Read effective daily metadata in the same SQLite snapshot as calendar rows."""
+    result = []
+    for raw in rows:
+        row = dict(raw)
+        if row.get("source") == SOURCE_GUIDE_OPERATOR:
+            link = conn.execute(
+                "SELECT d.*, a.status, a.active_version_number AS assignment_version, a.active_version_unread, "
+                "a.pending_critical_version_number, a.projection_mode, u.user_id AS owner_id "
+                "FROM guide_operator_daily_projections d "
+                "JOIN guide_operator_assignments a ON a.assignment_id=d.assignment_id "
+                "AND a.company_id=d.company_id AND a.guide_os_id=d.guide_os_id "
+                "AND a.operator_tour_id=d.operator_tour_id "
+                "JOIN users u ON u.guide_os_id=d.guide_os_id "
+                "WHERE d.projection_tour_id=?",
+                (row["id"],),
+            ).fetchone()
+            if link is not None:
+                if (
+                    link["projection_mode"] != "explicit_days"
+                    or link["status"] != "accepted"
+                    or row["user_id"] != link["owner_id"]
+                    or row["start_date"] != link["calendar_date"]
+                    or row["end_date"] != link["calendar_date"]
+                    or row["entry_type"] != ENTRY_TYPE_TOUR
+                    or row["note"] != "go_assignment:" + link["assignment_id"]
+                    or row["tour_group_id"]
+                    != link["assignment_id"] + ":" + link["tour_day_id"]
+                    or link["active_version_number"] != link["assignment_version"]
+                ):
+                    conn.close()
+                    raise ValueError("inconsistent_explicit_day_projection")
+                row.update(
+                    guide_operator_assignment_id=link["assignment_id"],
+                    guide_operator_tour_day_id=link["tour_day_id"],
+                    guide_operator_version=link["active_version_number"],
+                    guide_operator_version_unread=bool(link["active_version_unread"]),
+                    guide_operator_pending_critical=link[
+                        "pending_critical_version_number"
+                    ]
+                    is not None,
+                )
+            elif (
+                isinstance(row.get("tour_group_id"), str)
+                and row.get("note")
+                and row["tour_group_id"].startswith(
+                    row["note"].removeprefix("go_assignment:") + ":"
+                )
+            ):
+                conn.close()
+                raise ValueError("unlinked_explicit_day_projection")
+        result.append(row)
+    return result
+
+
+def get_tour_by_id(user_id: int, tour_id: int, *, conn=None) -> dict | None:
+    own_connection = conn is None
+    if own_connection:
+        conn = get_connection()
+        conn.execute("BEGIN")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -125,10 +183,10 @@ def get_tour_by_id(user_id: int, tour_id: int) -> dict | None:
         (tour_id, user_id),
     )
 
-    row = cursor.fetchone()
-    conn.close()
-
-    return dict(row) if row else None
+    rows = _calendar_read_rows(conn, cursor.fetchall())
+    if own_connection:
+        conn.close()
+    return rows[0] if rows else None
 
 def delete_tour_by_id(user_id: int, tour_id: int) -> bool:
     def operation(conn):
@@ -479,8 +537,9 @@ def get_all_tours_for_stats(user_id: int) -> list[dict]:
 
     return [dict(row) for row in rows]
 
-def get_tours_by_group_id(user_id: int, tour_group_id: str) -> list[sqlite3.Row]:
+def get_tours_by_group_id(user_id: int, tour_group_id: str) -> list[dict]:
     conn = get_connection()
+    conn.execute("BEGIN")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -493,7 +552,7 @@ def get_tours_by_group_id(user_id: int, tour_group_id: str) -> list[sqlite3.Row]
         (user_id, tour_group_id),
     )
 
-    rows = cursor.fetchall()
+    rows = _calendar_read_rows(conn, cursor.fetchall())
     conn.close()
     return rows
 
@@ -615,8 +674,9 @@ def update_tour_extended(
     return run_write_with_retry(operation)
 
 
-def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
+def get_tours_for_date(user_id: int, target_date: str) -> list[dict]:
     conn = get_connection()
+    conn.execute("BEGIN")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -638,12 +698,15 @@ def get_tours_for_date(user_id: int, target_date: str) -> list[sqlite3.Row]:
         (user_id, target_date, target_date, ENTRY_TYPE_DAY_OFF),
     )
 
-    rows = cursor.fetchall()
+    rows = _calendar_read_rows(conn, cursor.fetchall())
     conn.close()
     return rows
 
-def get_tours_in_range(user_id: int, range_start: str, range_end: str) -> list[sqlite3.Row]:
-    conn = get_connection()
+def get_tours_in_range(user_id: int, range_start: str, range_end: str, *, conn=None) -> list[dict]:
+    own_connection = conn is None
+    if own_connection:
+        conn = get_connection()
+        conn.execute("BEGIN")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -658,12 +721,14 @@ def get_tours_in_range(user_id: int, range_start: str, range_end: str) -> list[s
         (user_id, range_end, range_start),
     )
 
-    rows = cursor.fetchall()
-    conn.close()
+    rows = _calendar_read_rows(conn, cursor.fetchall())
+    if own_connection:
+        conn.close()
     return rows
 
-def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> list[sqlite3.Row]:
+def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> list[dict]:
     conn = get_connection()
+    conn.execute("BEGIN")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -678,7 +743,7 @@ def get_tours_for_month_raw(user_id: int, month_start: str, month_end: str) -> l
         (user_id, month_end, month_start),
     )
 
-    rows = cursor.fetchall()
+    rows = _calendar_read_rows(conn, cursor.fetchall())
     conn.close()
     return rows
 
@@ -2278,7 +2343,7 @@ def get_guide_operator_assignment(assignment_id: str) -> dict | None:
         """
         SELECT *
         FROM guide_operator_assignments
-        WHERE assignment_id = ?
+        WHERE projection_mode = 'legacy_range' AND assignment_id = ?
         LIMIT 1
         """,
         (assignment_id,),
@@ -2381,7 +2446,7 @@ def get_guide_operator_assignment_for_guide(
         """
         SELECT *
         FROM guide_operator_assignments
-        WHERE assignment_id = ? AND guide_os_id = ?
+        WHERE projection_mode = 'legacy_range' AND assignment_id = ? AND guide_os_id = ?
         LIMIT 1
         """,
         (assignment_id, identity),
@@ -2398,7 +2463,7 @@ def list_guide_operator_pending_offers(guide_os_id: str) -> list[dict]:
         """
         SELECT *
         FROM guide_operator_assignments
-        WHERE guide_os_id = ? AND status = 'offered'
+        WHERE projection_mode IN ('legacy_range','explicit_days') AND guide_os_id = ? AND status = 'offered'
         ORDER BY offered_at ASC, assignment_id ASC
         """,
         (identity,),
@@ -2416,7 +2481,7 @@ def list_guide_operator_lifecycle_assignments(guide_os_id: str) -> list[dict]:
         """
         SELECT *
         FROM guide_operator_assignments
-        WHERE guide_os_id = ?
+        WHERE projection_mode IN ('legacy_range','explicit_days') AND guide_os_id = ?
           AND status IN ('offered', 'accepted', 'cancelled')
         ORDER BY start_date ASC, assignment_id ASC
         """,
@@ -2678,6 +2743,7 @@ def claim_guide_operator_outbox_for_delivery(
     deliverable_event_types: tuple[str, ...],
     permanent_error_codes: tuple[str, ...],
     event_id: str | None = None,
+    allow_explicit_days: bool = False,
 ) -> dict | None:
     """Atomically claim one eligible undelivered outbox row for outbound HTTP."""
     ensure_db_ready()
@@ -2696,6 +2762,18 @@ def claim_guide_operator_outbox_for_delivery(
             f"event_type IN ({type_placeholders})",
             "(next_attempt_at IS NULL OR next_attempt_at <= ?)",
         ]
+        # Unknown modes always remain held. Explicit return envelopes are v1-compatible
+        # but require separate rollout approval; enabling intake alone is insufficient.
+        modes = (
+            "('legacy_range','explicit_days')"
+            if allow_explicit_days is True else "('legacy_range')"
+        )
+        mode_guard = (
+            "NOT EXISTS (SELECT 1 FROM guide_operator_assignments AS a "
+            "WHERE a.assignment_id = guide_operator_outbox.aggregate_id "
+            f"AND a.projection_mode NOT IN {modes})"
+        )
+        clauses.append(mode_guard)
         params.append(now_iso)
         if permanent_error_codes:
             clauses.append(
@@ -2741,6 +2819,7 @@ def claim_guide_operator_outbox_for_delivery(
         if event_id is not None:
             claim_sql += " AND event_id = ?"
             claim_params.append(event_id)
+        claim_sql += " AND " + mode_guard
         cursor = conn.execute(claim_sql, claim_params)
         if cursor.rowcount != 1:
             return None
@@ -2985,6 +3064,7 @@ def claim_guide_operator_guide_notification_for_delivery(
 
     def operation(conn):
         clauses = [
+            "NOT EXISTS (SELECT 1 FROM guide_operator_assignments AS a WHERE a.assignment_id = guide_operator_guide_notifications.assignment_id AND a.projection_mode <> 'legacy_range')",
             "delivery_status = 'pending'",
             "(next_attempt_at IS NULL OR next_attempt_at <= ?)",
         ]
@@ -3161,3 +3241,18 @@ def set_daily_tips(user_id: int, tip_date: str, amount: int) -> None:
                 (user_id, tip_date, amount),
             )
     run_write_with_retry(operation)
+
+
+def read_guide_operator_assignment_for_guide(
+    guide_os_id: str, assignment_id: str
+) -> dict | None:
+    """Session-scoped lifecycle lookup; mutations must recheck state in their transaction."""
+    identity = validate_guide_os_id(guide_os_id)
+    ensure_db_ready()
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM guide_operator_assignments WHERE guide_os_id=? AND assignment_id=? "
+            "AND projection_mode IN ('legacy_range','explicit_days')",
+            (identity, assignment_id),
+        ).fetchone()
+        return dict(row) if row else None
