@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from database.queries import get_third_future_tour_retention_evidence, track_event
-from config import TIMEZONE
+from utils.timezone_settings import TIMEZONE
 
 logger = logging.getLogger(__name__)
 

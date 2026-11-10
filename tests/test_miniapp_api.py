@@ -145,21 +145,30 @@ def test_start_miniapp_api_returns_none_when_disabled():
     assert runner is None
 
 
-def test_entrypoint_import_without_bot_modules():
+@pytest.mark.parametrize("timezone", [None, "UTC"])
+def test_entrypoint_import_without_bot_modules(tmp_path, timezone):
     env = os.environ.copy()
     env.pop("BOT_TOKEN", None)
+    env.pop("TIMEZONE", None)
+    if timezone is not None:
+        env["TIMEZONE"] = timezone
+    env["PYTHON_DOTENV_DISABLED"] = "1"
     env["PYTHONPATH"] = str(ROOT)
     script = (
         "import os, sys\n"
         "assert 'BOT_TOKEN' not in os.environ\n"
         "import guide_os_miniapp_api\n"
+        "assert 'BOT_TOKEN' not in os.environ\n"
+        "assert 'config' not in sys.modules\n"
         "assert 'bot' not in sys.modules\n"
         "assert 'aiogram' not in sys.modules\n"
+        "from services.miniapp_analytics import TIMEZONE\n"
+        "assert TIMEZONE == os.environ.get('TIMEZONE', 'Asia/Tashkent')\n"
         "print('ok')\n"
     )
     completed = subprocess.run(
         [sys.executable, "-c", script],
-        cwd=ROOT,
+        cwd=tmp_path,
         env=env,
         capture_output=True,
         text=True,
@@ -167,6 +176,24 @@ def test_entrypoint_import_without_bot_modules():
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "ok"
+
+
+def test_bot_config_still_requires_token_without_dotenv(tmp_path):
+    env = os.environ.copy()
+    env.pop("BOT_TOKEN", None)
+    env["ADMIN_ID"] = "0"
+    env["PYTHON_DOTENV_DISABLED"] = "1"
+    env["PYTHONPATH"] = str(ROOT)
+    completed = subprocess.run(
+        [sys.executable, "-c", "import config"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "BOT_TOKEN не найден в .env" in completed.stderr
 
 
 def test_entrypoint_module_does_not_reference_telegram_runtime():

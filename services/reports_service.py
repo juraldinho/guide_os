@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from config import TIMEZONE
+from utils.timezone_settings import TIMEZONE
 from services.daily_tips_service import get_daily_tips
 from services.external_sales_service import (
     ExternalSale,

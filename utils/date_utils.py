@@ -2,7 +2,7 @@ from calendar import monthrange
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from config import TIMEZONE
+from utils.timezone_settings import TIMEZONE
 
 
 def get_month_bounds(year: int, month: int) -> tuple[str, str]:
